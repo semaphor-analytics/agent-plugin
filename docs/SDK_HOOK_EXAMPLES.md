@@ -130,14 +130,24 @@ export function RevenueDriverInsight() {
   if (insight.isLoading) return <span>Loading...</span>;
   if (insight.error) return <span>{insight.error.message}</span>;
 
-  return (
-    <section>
-      <h2>Revenue Drivers</h2>
-      <p>{insight.answerSummary}</p>
-      <pre>{JSON.stringify(insight.changes, null, 2)}</pre>
-    </section>
-  );
-}
+	  return (
+	    <section>
+	      <h2>Revenue Drivers</h2>
+	      <p>{insight.answerSummary}</p>
+	      <table>
+	        <tbody>
+	          {insight.resultSets?.changes?.records.map((row, rowIndex) => (
+	            <tr key={rowIndex}>
+	              {insight.resultSets?.changes?.columns.map((column) => (
+	                <td key={column.key}>{formatCell(row[column.key])}</td>
+	              ))}
+	            </tr>
+	          ))}
+	        </tbody>
+	      </table>
+	    </section>
+	  );
+	}
 ```
 
 Do not turn `semaphor_analyze` markdown or raw SQL diagnostics into the runtime
@@ -149,6 +159,10 @@ public SDK hook backed by the shared analytics protocol.
 Use `columns[].key` for code access and `columns[].label` for display. Labels
 are display-only and may change.
 
+Bounded row and chart datasets can use `timeWindow` directly on
+`useSemaphorRecords`; use `dateField` with the same grounded date ref used by
+MCP `semaphor_analyze`.
+
 ```tsx
 import { useSemaphorRecords } from "react-semaphor/data-app-sdk";
 
@@ -158,6 +172,12 @@ export function RevenueTable() {
     id: "revenue-by-segment",
     label: "Revenue by Segment",
     fields: [segment, revenue],
+    dateField: orderDate,
+    timeWindow: {
+      unit: "month",
+      value: 6,
+      anchor: "latest_available",
+    },
     orderBy: { field: revenue, direction: "desc" },
     limit: 25,
   });
@@ -199,6 +219,9 @@ row["Revenue"]
 
 Use `useSemaphorInputOptions` to load selectable values and
 `useSemaphorInput` to bind the selected value into downstream queries.
+Filter input operators accept canonical SDK symbols such as `"="`, `"in"`, and
+`"between"` plus common MCP aliases such as `"equals"` and `"not_equals"`. The
+SDK normalizes them before execution.
 
 ```tsx
 import {
@@ -214,9 +237,9 @@ export function RevenueBySegmentWithFilter() {
     limit: 50,
   });
 
-  const segmentFilter = useSemaphorInput<string[]>({
-    id: "segment-filter",
-    kind: "filter",
+	  const segmentFilter = useSemaphorInput<string[]>({
+	    id: "segment-filter",
+	    kind: "filter",
     label: "Segment",
     field: segment,
     operator: "in",

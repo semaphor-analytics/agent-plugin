@@ -105,12 +105,12 @@ Use source-bearing field refs when the source is known. Keep hook specs small,
 explicit, and tied to real inspected metadata.
 
 Use `useSemaphorAnalysis` for insight, driver, period-change, spike/drop, and
-"why did this change?" views. Its config should express the same canonical
-metric intent vocabulary used by `semaphor_analyze`: semantic source refs,
-`metrics`, `primaryMetric`, `dateField`, `timeWindow`, `filters`, `analysis`,
-`driverMode`, and `includePopulation` when needed. Represent period-change
-ranking with `analysis: { kind: "period_change", orderBy }`, not a separate
-agent-only field.
+"why did this change?" views. Use `useSemaphorRecords` for row/table/chart data,
+including bounded record windows such as "last 6 months" when the UI needs
+stable `columns[].key` access. Both hooks accept source-bearing refs and shared
+analytics fields such as `dateField`, `timeWindow`, and `filters` where the SDK
+contract exposes them. Represent period-change ranking with
+`analysis: { kind: "period_change", orderBy }`, not a separate agent-only field.
 
 For record/table rendering, treat `column.key` as the stable code accessor and
 `column.label` as display text:
@@ -126,7 +126,9 @@ For record/table rendering, treat `column.key` as the stable code accessor and
 ```
 
 Do not access records with display labels such as `row[column.label]` or
-`row["Movement Date"]`.
+`row["Movement Date"]`. For `useSemaphorAnalysis`, prefer
+`insight.resultSets.<name>.columns` and `row[column.key]` over top-level
+analysis arrays when rendering tables or charts.
 
 ## Local App Integration
 
