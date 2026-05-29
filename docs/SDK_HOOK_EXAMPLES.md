@@ -289,6 +289,61 @@ export function RevenueBySegmentWithFilter() {
 }
 ```
 
+## Shared Or Top-Level Filters (Opt-In Subscription)
+
+A dashboard-wide filter is composition, not a global setting. Own one
+`useSemaphorInput` in a shared parent (or a context you create), then pass the
+same handle into the `inputs` of each card that should respond. A card
+subscribes by including the handle and stays unfiltered by omitting it.
+
+```tsx
+import {
+  useSemaphorInput,
+  useSemaphorMetric,
+  useSemaphorRecords,
+} from "react-semaphor/data-app-sdk";
+
+export function OperationsDashboard() {
+  const region = useSemaphorInput<string>({
+    id: "region",
+    kind: "filter",
+    label: "Region",
+    field: regionField,
+    operator: "=",
+  });
+
+  // Subscribes to the region filter.
+  const filteredRevenue = useSemaphorRecords({
+    source,
+    id: "revenue-by-region",
+    fields: [regionField, revenue],
+    inputs: [region],
+  });
+
+  // Intentionally NOT subscribed: a company-wide total stays unfiltered.
+  const companyTotal = useSemaphorMetric({
+    source,
+    id: "company-total-revenue",
+    metrics: [revenue],
+    primaryMetric: revenue,
+  });
+
+  return (
+    <>
+      <RegionPicker handle={region} />
+      <Kpi label="Company total (all regions)" value={companyTotal.value} />
+      <RevenueTable result={filteredRevenue} />
+    </>
+  );
+}
+```
+
+Per-hook subscription is intentional. Not every filter is meaningful for every
+visual, so this lets you control exactly which cards a filter touches. It
+mirrors Semaphor's dashboard model, where filter subscription is opt-in per
+card. Do not reach for a global "apply to all queries" filter or assume every
+card inherits a control.
+
 ## Formatting Helpers
 
 Generated apps may use their own design system. Keep formatting local and
@@ -317,5 +372,8 @@ function formatCell(value: unknown) {
 - Prefer semantic source refs with domain plus dataset id/name.
 - Use `metrics[]`, not a singular `metric`.
 - Use `row[column.key]`, not display labels, for record access.
+- For shared or top-level filters, thread one input handle into each card's
+  `inputs`; subscription is opt-in per card, so leave a card out to keep it
+  unfiltered. Do not assume a global apply-to-all filter.
 - Keep customer app structure intact.
 - Let the customer's own typecheck/build decide whether the integration works.

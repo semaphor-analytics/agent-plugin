@@ -143,6 +143,37 @@ analysis arrays when rendering tables or charts. For simple insight views, the
 SDK also exposes the default row-bearing analysis result as `insight.records`
 and `insight.columns`; use those columns rather than `Object.keys(...)`.
 
+### Shared and top-level filters (opt-in subscription)
+
+A dashboard-wide filter is built by composition, not a global setting. Create
+one `useSemaphorInput` in a shared parent (or a small React context you own),
+then pass that same handle into the `inputs` array of each hook that should
+respond to it:
+
+```tsx
+// Parent owns the shared control.
+const region = useSemaphorInput<string>({
+  id: "region",
+  kind: "filter",
+  field: regionField,
+  operator: "=",
+});
+
+// Each card opts in by including the handle in its inputs.
+useSemaphorMetric({ source, metrics: [revenue], inputs: [region] });
+useSemaphorRecords({ source, fields: [region, revenue], inputs: [region] });
+```
+
+This per-hook subscription is intentional, not a limitation. Not every filter
+is meaningful for every visual: an unfiltered "company total" KPI, a benchmark
+panel, or a control that only some cards care about should be left out. A card
+subscribes by listing the input; it stays unfiltered by omitting it. This gives
+precise control over which visuals a filter touches, and it mirrors Semaphor's
+dashboard model, where filter subscription is opt-in per card rather than
+applied to everything. Do not force a global "apply to all queries" filter or
+assume every card inherits a control; thread the handle only into the cards that
+should respond.
+
 ## Local App Integration
 
 Before editing, inspect the target repo:
