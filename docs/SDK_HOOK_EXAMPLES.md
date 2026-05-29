@@ -130,29 +130,37 @@ export function RevenueDriverInsight() {
   if (insight.isLoading) return <span>Loading...</span>;
   if (insight.error) return <span>{insight.error.message}</span>;
 
-	  return (
-	    <section>
-	      <h2>Revenue Drivers</h2>
-	      <p>{insight.answerSummary}</p>
-	      <table>
-	        <tbody>
-	          {insight.resultSets?.changes?.records.map((row, rowIndex) => (
-	            <tr key={rowIndex}>
-	              {insight.resultSets?.changes?.columns.map((column) => (
-	                <td key={column.key}>{formatCell(row[column.key])}</td>
-	              ))}
-	            </tr>
-	          ))}
-	        </tbody>
-	      </table>
-	    </section>
-	  );
-	}
+  const resultSet = insight.resultSets?.changes ?? {
+    records: insight.records ?? [],
+    columns: insight.columns ?? [],
+  };
+
+  return (
+    <section>
+      <h2>Revenue Drivers</h2>
+      <p>{insight.answerSummary}</p>
+      <table>
+        <tbody>
+          {resultSet.records.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {resultSet.columns.map((column) => (
+                <td key={column.key}>{formatCell(row[column.key])}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
 ```
 
 Do not turn `semaphor_analyze` markdown or raw SQL diagnostics into the runtime
 contract. Productized insight views should use `useSemaphorAnalysis` or another
 public SDK hook backed by the shared analytics protocol.
+The SDK normalizes analysis rows into typed `resultSets`; it also exposes
+`records` and `columns` for the default row-bearing result so simple insight
+views do not need to guess label-based row keys.
 
 ## Records Or Table
 
@@ -237,9 +245,9 @@ export function RevenueBySegmentWithFilter() {
     limit: 50,
   });
 
-	  const segmentFilter = useSemaphorInput<string[]>({
-	    id: "segment-filter",
-	    kind: "filter",
+  const segmentFilter = useSemaphorInput<string[]>({
+    id: "segment-filter",
+    kind: "filter",
     label: "Segment",
     field: segment,
     operator: "in",

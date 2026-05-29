@@ -104,13 +104,24 @@ import {
 Use source-bearing field refs when the source is known. Keep hook specs small,
 explicit, and tied to real inspected metadata.
 
-Use `useSemaphorAnalysis` for insight, driver, period-change, spike/drop, and
-"why did this change?" views. Use `useSemaphorRecords` for row/table/chart data,
-including bounded record windows such as "last 6 months" when the UI needs
-stable `columns[].key` access. Both hooks accept source-bearing refs and shared
-analytics fields such as `dateField`, `timeWindow`, and `filters` where the SDK
-contract exposes them. Represent period-change ranking with
-`analysis: { kind: "period_change", orderBy }`, not a separate agent-only field.
+Hook selection (which hook for which question):
+
+- `useSemaphorMetric` for single-number KPIs.
+- `useSemaphorRecords` for rows, tables, and charts, including bounded windows
+  ("last 6 months") via `dateField` + `timeWindow`; gives `columns[].key`.
+- `useSemaphorAnalysis` for insight, driver, spike/drop, and period-change
+  views; also exposes `columns`/`resultSets` for typed row access.
+- `useSemaphorInput` + `useSemaphorInputOptions` for filters and controls.
+
+For `useSemaphorInput`, the `operator` accepts canonical SDK symbols (`"="`,
+`"!="`, `"in"`, `"not_in"`, `"between"`, `">"`, `">="`, `"<"`, `"<="`) and the
+common MCP aliases (`"equals"`, `"not_equals"`); the SDK normalizes them. Use
+`"in"` with `multi: true` for multi-select.
+
+Both data hooks accept source-bearing refs and shared analytics fields such as
+`dateField`, `timeWindow`, and `filters` where the SDK contract exposes them.
+Represent period-change ranking with `analysis: { kind: "period_change",
+orderBy }`, not a separate agent-only field.
 
 For record/table rendering, treat `column.key` as the stable code accessor and
 `column.label` as display text:
@@ -128,7 +139,9 @@ For record/table rendering, treat `column.key` as the stable code accessor and
 Do not access records with display labels such as `row[column.label]` or
 `row["Movement Date"]`. For `useSemaphorAnalysis`, prefer
 `insight.resultSets.<name>.columns` and `row[column.key]` over top-level
-analysis arrays when rendering tables or charts.
+analysis arrays when rendering tables or charts. For simple insight views, the
+SDK also exposes the default row-bearing analysis result as `insight.records`
+and `insight.columns`; use those columns rather than `Object.keys(...)`.
 
 ## Local App Integration
 
@@ -189,7 +202,10 @@ Before reporting completion, run the strongest available checks:
 
 - `node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>`
 - package typecheck script, if present
-- package build script, if present and reasonable
+- package build script, if present and reasonable. Treat the build as the
+  authoritative typecheck: some repos have a loose root `tsc --noEmit` that
+  under-checks app sources, so a green typecheck plus a failing build means the
+  build is right. Do not report completion on a passing typecheck alone.
 - when SDK hook specs can be extracted, call Semaphor
   `POST /api/v1/data-app/validate` with the project token and use the returned
   typed diagnostics for repair
