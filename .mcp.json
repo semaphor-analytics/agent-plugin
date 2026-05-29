@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "semaphor": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "${SEMAPHOR_MCP_URL}",
+        "--transport",
+        "http-only",
+        "--header",
+        "Authorization:Bearer ${SEMAPHOR_PROJECT_TOKEN}"
+      ],
+      "env": {
+        "SEMAPHOR_MCP_URL": "${SEMAPHOR_MCP_URL}",
+        "SEMAPHOR_PROJECT_TOKEN": "${SEMAPHOR_PROJECT_TOKEN}"
+      }
+    }
+  }
+}
