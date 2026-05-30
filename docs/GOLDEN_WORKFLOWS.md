@@ -75,6 +75,8 @@ Expected agent behavior:
   SQL,
 - use `semaphor_query_sql_advanced` because the user explicitly requested raw
   SQL/raw rows,
+- validate with a small SQL preview such as `LIMIT 5` or `LIMIT 10` unless the
+  user explicitly asks to inspect more rows,
 - provide `analyzeFallbackReason` and `analyzeFallbackExplanation`,
 - explain that `semaphor_analyze` is still preferred for ordinary governed BI
   questions,
@@ -285,10 +287,10 @@ Expected validation:
 
 - Conversation, exploration, and planning turns should not edit files.
 - Data-bearing runtime code should use `react-semaphor/data-app-sdk`.
-- Use the `SDK Contract` section in `skills/semaphor-data-apps/SKILL.md`
-  before inspecting package internals. Customer repos are not expected to
-  contain plugin docs, and agents should not browse
-  `node_modules/react-semaphor/dist` during normal app authoring.
+- Use `skills/semaphor-data-apps/references/sdk-contract.md` before
+  inspecting package internals. Customer repos are not expected to contain
+  plugin docs, and agents should not browse `node_modules/react-semaphor/dist`
+  during normal app authoring.
 - Use the same operation vocabulary as hosted App Builder, including
   `plan_app`, `save_draft`, and `publish`.
 - Use `columns[].key` for row access and `columns[].label` for display.

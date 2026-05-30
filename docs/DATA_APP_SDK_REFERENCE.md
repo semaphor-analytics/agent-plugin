@@ -1,0 +1,294 @@
+# Data App SDK Reference For Agents
+
+Use this as the first reference when authoring Semaphor-backed React code. It is
+intentionally compact so agents do not need to inspect
+`node_modules/react-semaphor/dist` or implementation internals during ordinary
+app building.
+
+If this reference is missing a public contract detail, prefer the exported
+TypeScript declarations for the public subpath
+`react-semaphor/data-app-sdk`. Do not read SDK implementation bundles as the
+normal discovery path. Record the missing example as a plugin or SDK docs gap.
+
+## Runtime Provider
+
+Generated customer code should use the project/runtime token only:
+
+```tsx
+import { SemaphorDataAppProvider } from "react-semaphor/data-app-sdk";
+
+const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
+
+root.render(
+  <SemaphorDataAppProvider token={runtimeToken}>
+    <App />
+  </SemaphorDataAppProvider>,
+);
+```
+
+The SDK decodes the Semaphor API URL from the token. Do not generate
+`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` unless
+the user explicitly needs local or self-hosted routing that intentionally
+differs from the token's `apiServiceUrl`.
+
+## Public Imports
+
+```tsx
+import {
+  SemaphorDataAppProvider,
+  defineSemaphorDataApp,
+  semaphor,
+  useSemaphorInputs,
+  useSemaphorQuery,
+} from "react-semaphor/data-app-sdk";
+
+import type {
+  SemaphorQueryResult,
+  SemaphorRecordsField,
+  SemaphorRecordsQueryResult,
+  SemaphorRowsQueryResult,
+  SemaphorSqlQueryResult,
+  SemaphorSourceRef,
+} from "react-semaphor/data-app-sdk";
+```
+
+Do not type helpers with `ReturnType<typeof useSemaphorQuery>`. The hook is
+overloaded, and TypeScript can collapse the overloads to the wrong result
+shape. Use the exported result types above.
+
+## Builder Selection
+
+- `semaphor.metric`: single-number KPIs.
+- `semaphor.records`: rows for charts and tables from semantic fields.
+- `semaphor.analysis`: governed insight, driver, spike/drop, and
+  period-change views.
+- `semaphor.sql`: SQL-backed views when the user explicitly asks for SQL or
+  the semantic contract cannot express the view yet.
+- `semaphor.filter`, `semaphor.sqlParam`, `semaphor.control`: runtime inputs.
+
+Always inspect Semaphor MCP metadata first. Do not invent source, connection,
+dataset, table, or field identifiers.
+
+When validating SQL through MCP during authoring, start with a tiny preview
+such as `LIMIT 5` or `LIMIT 10` unless the user explicitly asks for more rows.
+The preview should confirm syntax, columns, and sample shape; runtime app
+queries can have their own bounded limit, pagination, or server-side table
+contract.
+
+## Result Shape
+
+Rows are keyed by `column.key`. Labels are display text only.
+
+```tsx
+function RowsTable({ result }: { result: SemaphorRowsQueryResult }) {
+  if (result.isLoading) return <TableSkeleton />;
+  if (result.error) return <ErrorState message={result.error.message} />;
+  if ((result.records ?? []).length === 0) return <EmptyState />;
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          {(result.columns ?? []).map((column) => (
+            <th key={column.key}>{column.label ?? column.key}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {result.records.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {(result.columns ?? []).map((column) => (
+              <td key={column.key}>{formatCell(row[column.key], column)}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+Do not use `row[column.label]`, `row[column.name]`, display-looking hardcoded
+keys such as `row["Movement Date"]`, or `Object.entries(row)` for rendered
+tables.
+
+## SQL-Backed Table Fast Path
+
+Use this when a prompt is SQL-first.
+
+1. Use MCP to identify the connection, database/schema, table, and columns.
+2. Validate the SQL with `semaphor_query_sql_advanced`.
+3. Keep runtime SQL bounded and parameterized.
+4. Execute through `semaphor.sql` and `useSemaphorQuery`.
+5. Render from `result.records`, `result.columns`, and `column.key`.
+
+```tsx
+import {
+  semaphor,
+  useSemaphorInputs,
+  useSemaphorQuery,
+} from "react-semaphor/data-app-sdk";
+
+type MovementRow = {
+  movement_date: string;
+  movement_type: string;
+  quantity_tons: number;
+};
+
+const rowLimit = semaphor.sqlParam<number>({
+  id: "row_limit",
+  label: "Rows",
+  defaultValue: 100,
+  options: [25, 50, 100],
+});
+
+const latestMovementsQuery = semaphor.sql({
+  id: "latest-movements",
+  label: "Latest movements",
+  source: {
+    kind: "sql",
+    connectionId: "connection-id-from-mcp",
+    dialect: "clickhouse",
+    label: "Warehouse",
+  },
+  sql: `
+    select movement_date, movement_type, quantity_tons
+    from database_name.table_name
+    order by movement_date desc
+    limit {{ param("row_limit") }}
+  `,
+  inputs: [rowLimit],
+  defaultParameters: { row_limit: 100 },
+  limit: 100,
+});
+
+function LatestMovementsTable() {
+  const [rowLimitHandle] = useSemaphorInputs([rowLimit]);
+  const result =
+    useSemaphorQuery<MovementRow>(latestMovementsQuery, {
+      inputs: [rowLimitHandle],
+    });
+
+  if (result.isLoading) return <TableSkeleton />;
+  if (result.error) return <ErrorState message={result.error.message} />;
+  if ((result.records ?? []).length === 0) return <EmptyState />;
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          {(result.columns ?? []).map((column) => (
+            <th key={column.key}>{column.label ?? column.key}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {result.records.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {(result.columns ?? []).map((column) => (
+              <td key={column.key}>
+                {formatCell(row[column.key as keyof MovementRow], column)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+Inline SQL is acceptable for the initial implementation, but it must remain
+read-only, governed by Semaphor execution, bounded by `limit` or pagination,
+and parameterized with `param(...)` or Semaphor inputs. Do not concatenate SQL
+strings in React.
+
+## Semantic Records Table
+
+Use `SemaphorRecordsField` for `semaphor.records(...)` fields so `role` is
+definite.
+
+```tsx
+const source = {
+  kind: "semantic",
+  domainId: "domain-id-from-mcp",
+  datasetName: "inventory_movements",
+  datasetId: "dataset-id-from-mcp",
+  label: "Inventory Movements",
+} satisfies SemaphorSourceRef;
+
+const movementDate = {
+  name: "movement_date",
+  label: "Movement Date",
+  role: "date",
+  dataType: "date",
+  source,
+} satisfies SemaphorRecordsField;
+
+const quantity = {
+  name: "quantity_tons",
+  label: "Quantity (Tons)",
+  role: "measure",
+  dataType: "number",
+  aggregate: "SUM",
+  source,
+} satisfies SemaphorRecordsField;
+
+const rowsQuery = semaphor.records({
+  id: "movement-rows",
+  source,
+  fields: [movementDate, quantity],
+  dateField: movementDate,
+  timeWindow: { unit: "month", value: 6, anchor: "latest_available" },
+  orderBy: { field: movementDate, direction: "desc" },
+  limit: 100,
+});
+```
+
+## Shared Inputs
+
+Inputs affect only the queries that receive their handles.
+
+```tsx
+const regionFilter = semaphor.filter({
+  id: "region",
+  label: "Region",
+  field: regionField,
+  operator: "in",
+});
+
+const [regionHandle] = useSemaphorInputs([regionFilter]);
+const result = useSemaphorQuery(rowsQuery, { inputs: [regionHandle] });
+```
+
+Use canonical operators such as `"="`, `"!="`, `"in"`, `"not_in"`,
+`"between"`, `">"`, `">="`, `"<"`, and `"<="`.
+
+`useSemaphorInputs` returns runtime handles. Read `handle.value` to render a
+control, call `handle.setValue(nextValue)` from UI events, and pass the same
+handles into `useSemaphorQuery(query, { inputs })`. Do not pass raw input specs
+to `useSemaphorQuery` after binding them.
+
+## Large Tables
+
+For bounded detail views, a server `limit` plus displayed-row totals is enough.
+For large or complete-dataset tables, use Semaphor server-side filtering,
+sorting, and pagination/windowing. Do not fetch huge row sets and slice them in
+React.
+
+Ask before adding dependencies. Prefer an existing table/grid in the customer
+app. If no suitable table library exists, `@tanstack/react-table` is a good
+choice for table state and controls; add `@tanstack/react-virtual` only when
+virtualized rendering is required.
+
+## Validation
+
+After editing:
+
+```bash
+node /path/to/semaphor-agent-plugin/scripts/validate-semaphor-data-app.mjs --dir <app>
+npm run typecheck
+npm run build
+```
+
+Use the customer app's own package manager and scripts when they differ.

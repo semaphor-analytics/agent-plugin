@@ -7,9 +7,9 @@ New agent-authored Data Apps should define typed inputs and queries with
 Validation, save, and publish use the canonical `useSemaphorQuery` contract.
 Do not generate any alternate query execution pattern.
 
-For the shortest agent-facing reference, start with the `SDK Contract` section
-in `skills/semaphor-data-apps/SKILL.md`. Customer repos are not expected to
-contain plugin docs. This page and
+For the shortest agent-facing reference, start with
+`skills/semaphor-data-apps/references/sdk-contract.md`. Customer repos are not
+expected to contain plugin docs. This page and
 [Data App SDK Reference For Agents](DATA_APP_SDK_REFERENCE.md) provide deeper
 examples, but agents should not inspect `node_modules/react-semaphor/dist` or
 implementation bundles as the normal way to discover SDK usage.
@@ -51,6 +51,12 @@ not be used.
 
 Use MCP-discovered semantic metadata. Do not invent domains, datasets, fields,
 or connection ids.
+
+When validating SQL through MCP during authoring, use a tiny preview such as
+`LIMIT 5` or `LIMIT 10` unless the user explicitly asks for more rows. The
+preview is for syntax, column, and sample-shape validation; the runtime query
+should still declare its own bounded limit, pagination, or server-side table
+contract.
 
 ```tsx
 const source = {
@@ -139,8 +145,10 @@ function renderQueryState({
 }
 
 export function LatestRowsTable() {
-  const inputs = useSemaphorInputs([rowLimit]);
-  const result = useSemaphorQuery(latestRowsQuery, { inputs });
+  const [rowLimitHandle] = useSemaphorInputs([rowLimit]);
+  const result = useSemaphorQuery(latestRowsQuery, {
+    inputs: [rowLimitHandle],
+  });
   const state = renderQueryState({ result });
   if (state !== null) return state;
 
@@ -169,6 +177,10 @@ export function LatestRowsTable() {
 
 Keep generated SQL bounded and parameterized. Do not concatenate SQL strings in
 React. Use `column.key` for row access and `column.label` for display text.
+
+`useSemaphorInputs` returns runtime handles. UI controls read
+`handle.value`, call `handle.setValue(nextValue)`, and pass those handles into
+`useSemaphorQuery(query, { inputs })`.
 
 ## Canonical Metric Query
 
@@ -458,9 +470,13 @@ const filteredOrdersQuery = semaphor.records({
 });
 
 export function RevenueWithSharedFilter() {
-  const inputs = useSemaphorInputs([regionFilter]);
-  const filteredRevenue = useSemaphorQuery(filteredRevenueQuery, { inputs });
-  const filteredOrders = useSemaphorQuery(filteredOrdersQuery, { inputs });
+  const [regionHandle] = useSemaphorInputs([regionFilter]);
+  const filteredRevenue = useSemaphorQuery(filteredRevenueQuery, {
+    inputs: [regionHandle],
+  });
+  const filteredOrders = useSemaphorQuery(filteredOrdersQuery, {
+    inputs: [regionHandle],
+  });
 
   return (
     <section>
@@ -581,8 +597,13 @@ const latestMovementsQuery = semaphor.sql({
 });
 
 export function LatestMovements() {
-  const inputs = useSemaphorInputs([regionSqlFilter, limitParam]);
-  const result = useSemaphorQuery(latestMovementsQuery, { inputs });
+  const [regionHandle, limitHandle] = useSemaphorInputs([
+    regionSqlFilter,
+    limitParam,
+  ]);
+  const result = useSemaphorQuery(latestMovementsQuery, {
+    inputs: [regionHandle, limitHandle],
+  });
 
   return <DataTable rows={result.records} columns={result.columns ?? []} />;
 }

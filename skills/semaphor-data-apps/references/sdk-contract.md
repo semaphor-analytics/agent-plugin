@@ -1,0 +1,238 @@
+# SDK Contract
+
+This is the compact public SDK reference for ordinary app authoring. Use it
+before looking anywhere else when a task needs imports, result types, provider
+setup, filters, row/column access, or query builders.
+
+Do not search for `docs/DATA_APP_SDK_REFERENCE.md` in the customer repo. The
+customer repo is not expected to contain plugin docs.
+
+Do not inspect `node_modules/react-semaphor/dist`, bundled implementation
+files, SDK source files, or SDK validator internals during ordinary app
+authoring. If this reference is missing a public contract detail and the app
+cannot be completed without it, inspect only public
+`react-semaphor/data-app-sdk` exported type declarations narrowly, record the
+docs gap, and continue with the public contract rather than implementation
+internals.
+
+## Imports
+
+Generated React should import SDK values from:
+
+```tsx
+import {
+  SemaphorDataAppProvider,
+  defineSemaphorDataApp,
+  semaphor,
+  useSemaphorInputs,
+  useSemaphorQuery,
+} from "react-semaphor/data-app-sdk";
+```
+
+Reusable helper components can import SDK result types as needed:
+
+```tsx
+import type {
+  SemaphorQueryResult,
+  SemaphorRecordsField,
+  SemaphorRecordsQueryResult,
+  SemaphorResultColumn,
+  SemaphorRowsQueryResult,
+  SemaphorSqlQueryResult,
+} from "react-semaphor/data-app-sdk";
+```
+
+## Public Shapes
+
+```ts
+type SemaphorResultColumn = {
+  key: string; // stable row accessor: row[column.key]
+  name: string; // semantic/source field name
+  label: string; // display label
+  role?: "dimension" | "measure" | "date" | string;
+  dataType?: "string" | "number" | "date" | "boolean" | string;
+  aggregate?: string;
+  source?: unknown;
+};
+
+type SemaphorQueryState = {
+  status: "idle" | "loading" | "success" | "error";
+  isLoading: boolean;
+  error: Error | null;
+};
+
+type SemaphorSqlQueryResult<TRecord extends Record<string, unknown>> =
+  SemaphorQueryState & {
+    id?: string;
+    intent?: unknown;
+    records: TRecord[];
+    columns?: SemaphorResultColumn[];
+    rowCount?: number;
+    pagination?: unknown;
+    output?: string;
+    rowLimitExceeded?: boolean;
+    executionResult?: unknown;
+  };
+
+type SemaphorRecordsQueryResult<TRecord extends Record<string, unknown>> =
+  SemaphorQueryState & {
+    id?: string;
+    intent?: unknown;
+    records: TRecord[];
+    columns?: SemaphorResultColumn[];
+    rowCount?: number;
+    pagination?: unknown;
+    executionResult?: unknown;
+  };
+```
+
+When typing reusable helper components, use public SDK result types. Do not use
+`ReturnType<typeof useSemaphorQuery>`; TypeScript collapses overloaded hook
+signatures in a way that can produce the wrong result shape.
+
+- Use `SemaphorQueryResult` for generic query status/error helper components.
+- Use `SemaphorRecordsQueryResult` for `semaphor.records(...)` results.
+- Use `SemaphorSqlQueryResult` for `semaphor.sql(...)` results.
+- Use `SemaphorRowsQueryResult` for table helpers that accept records-backed
+  or SQL-backed row results.
+- Use `SemaphorRecordsField` for source-bearing fields passed to
+  `semaphor.records(...)`. `SemaphorFieldRef` is too loose for records queries
+  because the records contract requires every selected field to have a definite
+  `role`.
+
+## Provider
+
+Provider setup should be project-token-only by default:
+
+```tsx
+const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
+
+<SemaphorDataAppProvider token={runtimeToken}>
+  {children}
+</SemaphorDataAppProvider>
+```
+
+`SemaphorDataAppProvider` accepts `token?: string`, `apiBaseUrl?: string`, an
+optional executor override, and `children`. The provider internally reads
+Semaphor hosted runtime auth when present, so generated app code normally does
+not need to call runtime helpers itself.
+
+The SDK decodes the Semaphor API URL from the token. Do not generate
+`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl` prop
+for normal customer apps. Use `apiBaseUrl` only when the user explicitly needs
+self-hosted or local routing that intentionally differs from the token's
+`apiServiceUrl`.
+
+Do not import `readWindowRuntime` or generate extra token fallback variables
+such as `VITE_SEMAPHOR_TOKEN` for normal customer apps. Use hosted runtime
+helpers only when the target app is explicitly being authored as a
+Semaphor-hosted runtime entrypoint and the user asks for direct runtime access.
+
+## Query Builders
+
+Use source-bearing field refs when the source is known. Define inputs and
+queries as typed module-level specs with `semaphor.*`, then execute those specs
+with `useSemaphorQuery`. Validation, save, and publish use the canonical
+`useSemaphorQuery` contract; do not generate alternate query execution
+patterns.
+
+Builder selection:
+
+- `semaphor.metric` for single-number KPIs.
+- `semaphor.records` for rows, tables, and charts, including bounded windows
+  via `dateField` and `timeWindow`; gives `columns[].key`.
+- `semaphor.analysis` for insight, driver, spike/drop, and period-change
+  views; also exposes `columns` and `resultSets` for typed row access.
+- `semaphor.sql` for advanced SQL-backed runtime views when semantic queries
+  cannot express the product requirement or the user explicitly asks for raw
+  SQL. Execution must still go through Semaphor SDK and governed server-side
+  execution.
+- `semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control` for filters
+  and controls.
+
+Execute query specs with:
+
+```tsx
+const inputHandles = useSemaphorInputs([someFilterOrParam]);
+const result = useSemaphorQuery<RowType>(someQuery, { inputs: inputHandles });
+```
+
+The `inputs` option accepts handles returned by `useSemaphorInputs`.
+
+## Input Handles
+
+`semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control` define input
+specs. `useSemaphorInputs` binds those specs to runtime state and returns
+handles. UI controls should read and write the handles; queries should receive
+the same handles.
+
+```tsx
+const rowLimit = semaphor.sqlParam({
+  id: "row_limit",
+  label: "Rows",
+  defaultValue: 50,
+});
+
+const latestRowsQuery = semaphor.sql({
+  id: "latest-rows",
+  source: { kind: "sql", connectionId: "connection-id-from-mcp" },
+  sql: `
+    select movement_date, quantity_tons
+    from database_name.table_name
+    order by movement_date desc
+    limit {{ param("row_limit") }}
+  `,
+  inputs: [rowLimit],
+  defaultParameters: { row_limit: 50 },
+  limit: 50,
+});
+
+function LatestRows() {
+  const [rowLimitHandle] = useSemaphorInputs([rowLimit]);
+  const result = useSemaphorQuery(latestRowsQuery, {
+    inputs: [rowLimitHandle],
+  });
+
+  return (
+    <select
+      value={String(rowLimitHandle.value ?? 50)}
+      onChange={(event) => rowLimitHandle.setValue(Number(event.target.value))}
+    >
+      <option value="25">25 rows</option>
+      <option value="50">50 rows</option>
+      <option value="100">100 rows</option>
+    </select>
+  );
+}
+```
+
+Do not pass raw input specs directly to `useSemaphorQuery` after binding them.
+Pass the handles returned by `useSemaphorInputs`. If a filter should affect
+multiple queries, bind it once and pass the same handle to each subscribed
+query.
+
+## Row And Column Access
+
+For record/table rendering, treat `column.key` as the stable code accessor and
+`column.label` as display text:
+
+```tsx
+{
+  result.records.map((row) => (
+    <tr>
+      {result.columns.map((column) => (
+        <td key={column.key}>{row[column.key]}</td>
+      ))}
+    </tr>
+  ));
+}
+```
+
+Do not access records with display labels such as `row[column.label]` or
+`row["Movement Date"]`.
+
+For `semaphor.analysis` query results, prefer
+`insight.resultSets.<name>.columns` and `row[column.key]` over top-level
+analysis arrays when rendering tables or charts. For simple insight views, the
+SDK also exposes the default row-bearing analysis result as `insight.records`
+and `insight.columns`; use those columns rather than `Object.keys(...)`.
