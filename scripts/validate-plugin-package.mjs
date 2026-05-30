@@ -96,6 +96,42 @@ function validateMcpConfig() {
   }
 }
 
+function validateSkillStructure() {
+  const skillPath = path.join(root, 'skills/semaphor-data-apps/SKILL.md');
+  if (!fs.existsSync(skillPath)) {
+    issues.push('Missing required file: skills/semaphor-data-apps/SKILL.md');
+    return;
+  }
+
+  const skillText = fs.readFileSync(skillPath, 'utf8');
+  const lineCount = skillText.split(/\r?\n/).length;
+  if (lineCount > 500) {
+    issues.push(
+      `skills/semaphor-data-apps/SKILL.md: ${lineCount} lines exceeds 500-line progressive disclosure limit`,
+    );
+  }
+
+  const requiredReferences = [
+    'sdk-contract.md',
+    'planning-workflow.md',
+    'sql.md',
+    'filters-and-inputs.md',
+    'tables.md',
+    'publish-lifecycle.md',
+    'validation.md',
+  ];
+
+  for (const fileName of requiredReferences) {
+    const relativePath = `skills/semaphor-data-apps/references/${fileName}`;
+    if (!fs.existsSync(path.join(root, relativePath))) {
+      issues.push(`Missing required Semaphor skill reference: ${relativePath}`);
+    }
+    if (!skillText.includes(`references/${fileName}`)) {
+      issues.push(`skills/semaphor-data-apps/SKILL.md: missing link to references/${fileName}`);
+    }
+  }
+}
+
 function scanDistributionText() {
   const forbidden = [
     /\/Users\/rohit\//,
@@ -149,6 +185,7 @@ validatePackageJson();
 validateCodexManifest();
 validateClaudeManifest();
 validateMcpConfig();
+validateSkillStructure();
 scanDistributionText();
 
 if (issues.length > 0) {

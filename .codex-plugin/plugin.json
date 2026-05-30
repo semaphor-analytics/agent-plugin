@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Semaphor",
     "shortDescription": "Build React data apps with governed Semaphor analytics.",
-    "longDescription": "Adds workflows for inspecting Semaphor project data, planning React data apps, generating components with react-semaphor/data-app-sdk hooks including useSemaphorAnalysis, running local and governed validation, and saving or publishing apps through Semaphor-hosted Data App lifecycle APIs.",
+    "longDescription": "Adds workflows for inspecting Semaphor project data, planning React data apps, generating components with react-semaphor/data-app-sdk builders and useSemaphorQuery, running local and governed validation, and saving or publishing apps through Semaphor-hosted Data App lifecycle APIs.",
     "developerName": "Semaphor",
     "category": "Productivity",
     "capabilities": [

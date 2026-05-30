@@ -26,6 +26,7 @@ Customer-facing setup and examples:
 - [Installation and auth](docs/INSTALLATION_AND_AUTH.md)
 - [Distribution model](docs/DISTRIBUTION.md)
 - [Golden workflows](docs/GOLDEN_WORKFLOWS.md)
+- [Data App SDK reference for agents](docs/DATA_APP_SDK_REFERENCE.md)
 - [Data App SDK examples](docs/SDK_HOOK_EXAMPLES.md)
 - [Publishing to Semaphor](docs/PUBLISHING_TO_SEMAPHOR.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
@@ -192,7 +193,7 @@ node scripts/semaphor-data-app.mjs publish --dir /path/to/customer-app --project
 ```
 
 The helper reads the project token from shell env or the target app's local env
-files. It accepts `SEMAPHOR_PROJECT_TOKEN` and, for Vite dogfooding,
+files. It accepts `SEMAPHOR_PROJECT_TOKEN` and, for Vite local development,
 `VITE_SEMAPHOR_PROJECT_TOKEN`. It infers the Semaphor app URL from the token's
 `apiServiceUrl`. Use `SEMAPHOR_API_BASE_URL` or `--api-base-url` only for
 unusual local or self-hosted routing where the token URL should not be used.

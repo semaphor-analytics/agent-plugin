@@ -47,7 +47,7 @@ usage contract should remain the same:
 ## Required Credentials
 
 The plugin uses a Semaphor project token for MCP authoring. For Vite local
-dogfooding, put the token in the target app's ignored `.env.local`:
+development, put the token in the target app's ignored `.env.local`:
 
 ```bash
 VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
@@ -107,11 +107,11 @@ When lifecycle APIs are available, the agent should call the Semaphor Data App
 REST API/command path, not MCP lifecycle wrappers.
 
 The helper commands read the project token from shell env or the target app's
-local env files. They accept `SEMAPHOR_PROJECT_TOKEN` and, for Vite dogfooding,
-`VITE_SEMAPHOR_PROJECT_TOKEN`. The Semaphor app URL is inferred from the
-token's `apiServiceUrl`. `SEMAPHOR_API_BASE_URL` is optional and should be used
-only for unusual local or self-hosted routing where the token URL should not be
-used:
+local env files. They accept `SEMAPHOR_PROJECT_TOKEN` and, for Vite local
+development, `VITE_SEMAPHOR_PROJECT_TOKEN`. The Semaphor app URL is inferred
+from the token's `apiServiceUrl`. `SEMAPHOR_API_BASE_URL` is optional and
+should be used only for unusual local or self-hosted routing where the token
+URL should not be used:
 
 ```bash
 npm run prepare:publish -- --dir /path/to/customer-app
