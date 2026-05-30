@@ -564,7 +564,7 @@ function createSourceRevision(root, sourceSnapshot) {
       remoteUrlHash: remoteUrl ? sha256(remoteUrl) : undefined,
     },
     workspace: {
-      adapter: 'semaphor-agent-plugin',
+      adapter: 'codex',
       rootName: path.basename(root),
       pathHash: sha256(root),
     },
@@ -782,11 +782,21 @@ function runBuild(root, options) {
   if (!command) {
     throw new Error('No build command found. Pass --build-command or --no-build.');
   }
+  const stdio = options.json ? ['ignore', 'pipe', 'pipe'] : 'inherit';
   const result = spawnSync(command, {
     cwd: root,
     shell: true,
-    stdio: 'inherit',
+    stdio,
+    encoding: options.json ? 'utf8' : undefined,
   });
+  if (options.json) {
+    if (result.stdout) {
+      process.stderr.write(result.stdout);
+    }
+    if (result.stderr) {
+      process.stderr.write(result.stderr);
+    }
+  }
   if (result.status !== 0) {
     throw new Error(`Build command failed: ${command}`);
   }
@@ -926,12 +936,20 @@ function preparePublishManifest(root, options) {
   const assetPaths = listBuiltAssetPaths(assetsRoot);
   const fromHtml = parseIndexHtmlRuntimeAssets(assetsRoot);
   const fallback = pickFallbackRuntimeAssets(assetPaths);
-  const entry = normalizeManifestAssetPath(
-    manifest.runtime?.entry || fromHtml.entry || fallback.entry,
-  );
+  const manifestEntry = normalizeManifestAssetPath(manifest.runtime?.entry || '');
+  const entry =
+    manifestEntry && assetPaths.includes(manifestEntry)
+      ? manifestEntry
+      : normalizeManifestAssetPath(fromHtml.entry || fallback.entry);
+  const manifestStyles = Array.isArray(manifest.runtime?.styles)
+    ? manifest.runtime.styles.map(normalizeManifestAssetPath).filter(Boolean)
+    : [];
+  const manifestStylesAreCurrent =
+    manifestStyles.length > 0 &&
+    manifestStyles.every((style) => assetPaths.includes(style));
   const styles = (
-    Array.isArray(manifest.runtime?.styles) && manifest.runtime.styles.length > 0
-      ? manifest.runtime.styles
+    manifestStylesAreCurrent
+      ? manifestStyles
       : fromHtml.styles.length > 0
         ? fromHtml.styles
         : fallback.styles
