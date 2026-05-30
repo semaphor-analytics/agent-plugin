@@ -243,6 +243,8 @@ import { useMemo, useState } from "react";
 import {
   semaphor,
   useSemaphorQuery,
+  type SemaphorRecordsField,
+  type SemaphorSourceRef,
 } from "react-semaphor/data-app-sdk";
 
 const pageSize = 50;
@@ -250,20 +252,47 @@ const inventorySource = {
   kind: "semantic",
   domainId: "domain_inventory",
   datasetName: "inventory_movements",
-} as const;
+} satisfies SemaphorSourceRef;
 
-function inventoryRowsQuery(page: number) {
+const movementDate = {
+  name: "movement_date",
+  label: "Movement Date",
+  role: "date",
+  dataType: "date",
+  source: inventorySource,
+} satisfies SemaphorRecordsField;
+
+const region = {
+  name: "region",
+  label: "Region",
+  role: "dimension",
+  dataType: "string",
+  source: inventorySource,
+} satisfies SemaphorRecordsField;
+
+const quantityTons = {
+  name: "quantity_tons",
+  label: "Quantity (Tons)",
+  role: "measure",
+  dataType: "number",
+  aggregate: "SUM",
+  source: inventorySource,
+} satisfies SemaphorRecordsField;
+
+function inventoryRowsQuery({
+  page,
+  sortDirection,
+}: {
+  page: number;
+  sortDirection: "asc" | "desc";
+}) {
   return semaphor.records({
     id: "inventory-rows",
     source: inventorySource,
-    fields: [
-      { name: "movement_date", role: "date", dataType: "date" },
-      { name: "region", role: "dimension", dataType: "string" },
-      { name: "quantity_tons", role: "measure", dataType: "number" },
-    ],
+    fields: [movementDate, region, quantityTons],
     orderBy: {
-      field: { name: "movement_date", role: "date" },
-      direction: "desc",
+      field: movementDate,
+      direction: sortDirection,
     },
     pagination: { page, pageSize },
   });
@@ -271,7 +300,11 @@ function inventoryRowsQuery(page: number) {
 
 function InventoryTable() {
   const [page, setPage] = useState(1);
-  const query = useMemo(() => inventoryRowsQuery(page), [page]);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const query = useMemo(
+    () => inventoryRowsQuery({ page, sortDirection }),
+    [page, sortDirection],
+  );
   const result = useSemaphorQuery(query);
 
   return (
@@ -280,11 +313,21 @@ function InventoryTable() {
       columns={result.columns ?? []}
       page={result.pagination?.page ?? page}
       pageCount={result.pagination?.pageCount ?? 0}
+      rowCount={result.pagination?.totalCount ?? result.rowCount ?? 0}
       onPageChange={setPage}
+      onSortChange={() => {
+        setPage(1);
+        setSortDirection((current) => (current === "desc" ? "asc" : "desc"));
+      }}
     />
   );
 }
 ```
+
+For `semaphor.records(...)`, selected fields should be typed as
+`SemaphorRecordsField` or constructed with an equivalent helper that guarantees
+`role` is present. Plain `SemaphorFieldRef` is too broad for records queries
+and can fail TypeScript because `role` is optional there.
 
 ## Shared Inputs
 

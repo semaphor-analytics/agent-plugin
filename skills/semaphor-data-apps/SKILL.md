@@ -67,6 +67,16 @@ server-backed, derived, presentation-only, or unsupported before codegen starts.
 Unsupported insights should include the concrete data-model improvement needed
 to support them.
 
+For broad dashboard, app-building, or large-table requests, the visible plan is
+a hard pre-edit gate. Do not touch source files, install dependencies, or run
+formatters that write files until the user-facing plan has been produced. If
+the user already clearly asked to build, produce the plan first, then continue
+from that accepted instruction unless the plan reveals ambiguous, unsupported,
+or risky work that needs confirmation. When running inside an internal eval
+folder that provides `plan.json`, write the same visible plan there before the
+first file edit and update it after implementation to show the code consumed
+the plan. Customer apps do not need a `plan.json`; they need the visible plan.
+
 ## Required Semaphor Rules
 
 - Use Semaphor MCP tools to discover real projects, domains, datasets, fields,
@@ -115,6 +125,7 @@ Reusable helper components can import SDK result types as needed:
 ```tsx
 import type {
   SemaphorQueryResult,
+  SemaphorRecordsField,
   SemaphorRecordsQueryResult,
   SemaphorRowsQueryResult,
   SemaphorSqlQueryResult,
@@ -150,6 +161,10 @@ signatures in a way that can produce the wrong result shape.
 - Use `SemaphorSqlQueryResult` for `semaphor.sql(...)` results.
 - Use `SemaphorRowsQueryResult` for table helpers that intentionally accept
   either records-backed or SQL-backed row results.
+- Use `SemaphorRecordsField` for source-bearing fields passed to
+  `semaphor.records(...)`. `SemaphorFieldRef` is too loose for records queries
+  because the records contract requires every selected field to have a definite
+  `role`.
 
 For filter inputs, `operator` accepts canonical SDK symbols (`"="`, `"!="`,
 `"in"`, `"not_in"`, `"between"`, `">"`, `">="`, `"<"`, `"<="`) and common MCP
@@ -272,7 +287,9 @@ Semaphor query/order contract so the server owns the sorted result.
 ### Dashboard planning response shape
 
 For broad dashboard or app-building requests, respond with a compact plan
-before editing files. Include:
+before editing files. Treat this as a required gate, not background reasoning.
+The plan should be visible to the user in the conversation; in internal eval
+runs, also persist it to the provided planning artifact before editing. Include:
 
 - app/dashboard title and purpose;
 - selected Semaphor sources and why they were chosen;
@@ -287,6 +304,12 @@ before editing files. Include:
 - whether the target is a new app, an existing Data App, or an existing
   Semaphor dashboard;
 - one next step: build the plan, revise the plan, or inspect more data.
+
+For large-table plans, the table view entry must explicitly say whether the
+table is `bounded`, `server_paginated`, or `server_windowed`. If it is
+server-paginated, name the intended `pageSize`, server sort field, filters,
+and that page controls will read `result.pagination`. Do not describe a
+million-row or complete-dataset table as client-paginated.
 
 If the user is working in an existing app, inspect the current source and
 manifest first. Preserve existing views unless the user asks to replace them,

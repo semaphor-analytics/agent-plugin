@@ -91,6 +91,16 @@ function scanSourceQuality(root, sourceFiles) {
         `${location}: do not type helper components with ReturnType<typeof useSemaphorQuery>; import SemaphorQueryResult, SemaphorRecordsQueryResult, SemaphorRowsQueryResult, or SemaphorSqlQueryResult from react-semaphor/data-app-sdk.`,
       );
     }
+    if (
+      /\bsemaphor\.records\s*\(/.test(content) &&
+      /(?:satisfies|:)\s*\[\s*SemaphorFieldRef\s*,\s*\.\.\.SemaphorFieldRef\[\]\s*\]/.test(
+        content,
+      )
+    ) {
+      advisories.push(
+        `${location}: semaphor.records fields are typed as SemaphorFieldRef; use SemaphorRecordsField so every selected record field has a definite role.`,
+      );
+    }
     if (content.includes("SemaphorDataAppProvider")) {
       hasProvider = true;
     }

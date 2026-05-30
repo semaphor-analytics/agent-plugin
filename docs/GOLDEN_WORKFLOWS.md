@@ -151,7 +151,7 @@ Expected agent behavior:
 
 - inspect Semaphor data before editing,
 - inspect local React app structure,
-- propose a grounded plan if the request is broad,
+- produce a visible grounded plan before editing if the request is broad,
 - generate only after acceptance or an explicit build request,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
   builders plus `useSemaphorQuery`,
@@ -162,6 +162,8 @@ Expected agent behavior:
 - keep table queries bounded, and use Semaphor server-side sorting,
   filtering, and pagination/windowing for large-table requests instead of
   fetching unbounded rows into React,
+- for large tables, state the server table plan before editing: query kind,
+  fields, filters, server sort, page size, and `result.pagination` controls,
 - ask before adding table dependencies; prefer an existing app table/grid
   library, or `@tanstack/react-table` plus `@tanstack/react-virtual` when
   richer table state and virtualized rendering are needed,

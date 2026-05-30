@@ -213,7 +213,7 @@ customer request
   -> inspect Semaphor metadata through MCP
   -> answer exploratory data questions with semaphor_analyze
   -> use semaphor.analysis plus useSemaphorQuery for productized insight/driver views
-  -> plan app without editing files
+  -> plan app visibly before editing files
   -> generate React with react-semaphor/data-app-sdk builders and useSemaphorQuery
   -> validate with typecheck/build and Semaphor execution diagnostics
   -> save draft or publish through Semaphor Data App lifecycle APIs
@@ -228,3 +228,9 @@ or complete-dataset tables should use Semaphor server-side filtering, sorting,
 and pagination/windowing; table UI libraries such as `@tanstack/react-table`
 or `@tanstack/react-virtual` are optional rendering/state helpers, not a reason
 to pull unbounded rows into the browser.
+
+For broad dashboard or large-table requests, agents should produce the visible
+plan before the first source edit. If the target is a large table, the plan
+should explicitly mark the table as server-paginated/windowed, name the server
+sort/filter approach, and state that page controls will come from
+`result.pagination`.
