@@ -31,7 +31,7 @@ if (!mcpUrl) {
 }
 
 const child = spawn(
-  'npx',
+  resolveNpxCommand(),
   [
     '-y',
     'mcp-remote',
@@ -42,10 +42,12 @@ const child = spawn(
     `Authorization:Bearer ${token}`,
   ],
   {
-    stdio: 'inherit',
+    stdio: ['inherit', 'inherit', 'pipe'],
     env: process.env,
   },
 );
+
+pipeRedactedStderr(child);
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
@@ -65,6 +67,70 @@ child.on('error', (error) => {
   console.error(`Failed to start Semaphor MCP server: ${error.message}`);
   process.exit(1);
 });
+
+function pipeRedactedStderr(childProcess) {
+  let buffer = '';
+
+  childProcess.stderr?.setEncoding('utf8');
+  childProcess.stderr?.on('data', (chunk) => {
+    buffer += chunk;
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      process.stderr.write(`${redactSensitiveText(line)}\n`);
+    }
+
+    if (buffer.length > 4096) {
+      process.stderr.write(redactSensitiveText(buffer.slice(0, -1024)));
+      buffer = buffer.slice(-1024);
+    }
+  });
+
+  childProcess.stderr?.on('end', () => {
+    if (buffer) {
+      process.stderr.write(redactSensitiveText(buffer));
+      buffer = '';
+    }
+  });
+}
+
+function redactSensitiveText(value) {
+  return String(value)
+    .replace(
+      /((?:Authorization|authorization)(?:"?\s*[:=]\s*"?|:\s*)Bearer\s*)[A-Za-z0-9._-]+/g,
+      '$1[REDACTED]',
+    )
+    .replace(
+      /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+      '[REDACTED_JWT]',
+    );
+}
+
+function resolveNpxCommand() {
+  const candidates = [
+    path.join(path.dirname(process.execPath), 'npx'),
+    '/opt/homebrew/bin/npx',
+    '/usr/local/bin/npx',
+  ];
+
+  for (const candidate of candidates) {
+    if (isExecutableFile(candidate)) {
+      return candidate;
+    }
+  }
+
+  return 'npx';
+}
+
+function isExecutableFile(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function inferMcpUrlFromProjectToken(projectToken) {
   const apiServiceUrl = readProjectTokenApiServiceUrl(projectToken);

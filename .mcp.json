@@ -1,13 +1,10 @@
 {
   "mcpServers": {
-    "semaphor": {
+    "semaphor-agent": {
       "command": "node",
       "args": [
         "scripts/semaphor-mcp-remote.mjs"
-      ],
-      "env": {
-        "SEMAPHOR_PROJECT_TOKEN": "${SEMAPHOR_PROJECT_TOKEN}"
-      }
+      ]
     }
   }
 }

@@ -22,6 +22,14 @@ Semaphor-backed data, and passes its own build/runtime checks, the plugin
 should work with the app instead of forcing it into a Semaphor-preferred
 structure.
 
+Plugin guidance must stay broadly applicable. Do not encode eval fixture
+datasets, field names, dashboard examples, local ports, or customer-specific
+workarounds as required behavior. Concrete examples are illustrative only; the
+agent should always re-ground against the customer's Semaphor MCP metadata and
+the customer's React app. If an eval reveals a failure, turn it into a general
+rule, SDK example, validator advisory, or shared Semaphor contract improvement
+that would help Codex, Claude Code, App Builder, and future agent hosts.
+
 The coding agent owns local source inspection and edits. Semaphor remains the
 source of truth for auth, metadata, analytics grounding, execution,
 permissions, row limits, and publish lifecycle.

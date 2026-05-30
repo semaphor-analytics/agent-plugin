@@ -75,22 +75,24 @@ function validateClaudeManifest() {
 
 function validateMcpConfig() {
   const config = readJson('.mcp.json');
-  const server = config?.mcpServers?.semaphor;
+  const server = config?.mcpServers?.['semaphor-agent'];
   if (!server) {
-    issues.push('.mcp.json: missing mcpServers.semaphor');
+    issues.push('.mcp.json: missing mcpServers.semaphor-agent');
     return;
   }
   if (server.command !== 'node') {
-    issues.push('.mcp.json: semaphor server must use the local MCP launcher');
+    issues.push('.mcp.json: semaphor-agent server must use the local MCP launcher');
   }
   if (
     !Array.isArray(server.args) ||
     !server.args.includes('scripts/semaphor-mcp-remote.mjs')
   ) {
-    issues.push('.mcp.json: semaphor server args must use scripts/semaphor-mcp-remote.mjs');
+    issues.push('.mcp.json: semaphor-agent server args must use scripts/semaphor-mcp-remote.mjs');
   }
-  if (!JSON.stringify(server).includes('${SEMAPHOR_PROJECT_TOKEN}')) {
-    issues.push('.mcp.json: semaphor server must use SEMAPHOR_PROJECT_TOKEN');
+  if (JSON.stringify(server).includes('${SEMAPHOR_PROJECT_TOKEN}')) {
+    issues.push(
+      '.mcp.json: do not pass a literal SEMAPHOR_PROJECT_TOKEN placeholder; the launcher reads real env and target app env files',
+    );
   }
 }
 

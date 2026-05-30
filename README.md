@@ -13,6 +13,9 @@ exist. It should not require Vite, the starter scaffold, a prescribed router,
 provider filename, styling system, or component structure. The customer-facing
 contract is React plus the canonical `react-semaphor/data-app-sdk` builder and
 `useSemaphorQuery` runtime pattern, backed by Semaphor MCP/governed execution.
+Plugin guidance must be domain-neutral and app-shape-neutral. Eval fixtures,
+sample field names, local ports, and internal datasets are evidence for
+hardening the plugin, not instructions customers must follow.
 
 This repository stays focused on plugin packaging and operational usage across
 agent hosts. Semaphor product, protocol, and lifecycle internals are maintained
