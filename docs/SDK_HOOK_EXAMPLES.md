@@ -34,7 +34,9 @@ In production, pass a scoped runtime token from the customer app backend, embed
 token flow, or hosted Semaphor runtime. Do not commit long-lived tokens into
 frontend source.
 
-The SDK decodes the Semaphor API URL from the token. Set `apiBaseUrl` only for
+The SDK decodes the Semaphor API URL from the token. Generated customer code
+should not read `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or pass
+`apiBaseUrl` by default. Set `apiBaseUrl` only when the user explicitly needs
 unusual local or self-hosted routing where the token's `apiServiceUrl` should
 not be used.
 
@@ -77,6 +79,89 @@ const segment = {
   source,
 } as const;
 ```
+
+## Fast Path: SQL-Backed Table
+
+Use this when the user explicitly asks for SQL, or when the requested view
+cannot be expressed with `semaphor.metric`, `semaphor.records`, or
+`semaphor.analysis`. Validate the SQL through Semaphor MCP first, then keep the
+runtime code small and canonical.
+
+```tsx
+import {
+  semaphor,
+  useSemaphorInputs,
+  useSemaphorQuery,
+  type SemaphorSqlQueryResult,
+} from "react-semaphor/data-app-sdk";
+
+const rowLimit = semaphor.sqlParam({
+  id: "row_limit",
+  label: "Rows",
+  defaultValue: 100,
+});
+
+const latestRowsQuery = semaphor.sql({
+  id: "latest-rows",
+  label: "Latest rows",
+  source: {
+    kind: "sql",
+    connectionId: "connection-id-from-mcp",
+    dialect: "clickhouse",
+  },
+  sql: `
+    select movement_date, quantity_tons
+    from schema_name.table_name
+    order by movement_date desc
+    limit {{ param("row_limit") }}
+  `,
+  inputs: [rowLimit],
+  defaultParameters: { row_limit: 100 },
+  limit: 100,
+});
+
+function renderQueryState({
+  result,
+}: {
+  result: SemaphorSqlQueryResult<Record<string, unknown>>;
+}) {
+  if (result.isLoading) return <div>Loading...</div>;
+  if (result.error) return <div>{result.error.message}</div>;
+  if ((result.records ?? []).length === 0) return <div>No rows returned.</div>;
+  return null;
+}
+
+export function LatestRowsTable() {
+  const inputs = useSemaphorInputs([rowLimit]);
+  const result = useSemaphorQuery(latestRowsQuery, { inputs });
+  const state = renderQueryState({ result });
+  if (state !== null) return state;
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          {(result.columns ?? []).map((column) => (
+            <th key={column.key}>{column.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {result.records.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {(result.columns ?? []).map((column) => (
+              <td key={column.key}>{formatCell(row[column.key], column)}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+Keep generated SQL bounded and parameterized. Do not concatenate SQL strings in
+React. Use `column.key` for row access and `column.label` for display text.
 
 ## Canonical Metric Query
 

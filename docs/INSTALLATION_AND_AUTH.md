@@ -55,6 +55,9 @@ VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 
 The MCP launcher and lifecycle helper read this local file. They also accept
 `SEMAPHOR_PROJECT_TOKEN` from shell env or local env for non-Vite workflows.
+Agents should not print or search local env files for token values. They may
+check for expected variable names and should ask the user to add missing
+credentials.
 
 Customers retrieve this token from the Semaphor project page:
 
@@ -165,8 +168,8 @@ The generated provider should only need the token:
 <SemaphorDataAppProvider token={runtimeToken}>{children}</SemaphorDataAppProvider>
 ```
 
-Do not set a separate Semaphor API base URL for the normal cloud case. The SDK
-decodes `apiServiceUrl` from the token.
+Do not set or generate a separate Semaphor API base URL for the normal cloud
+case. The SDK decodes `apiServiceUrl` from the token.
 
 ## Local Runtime Configuration
 

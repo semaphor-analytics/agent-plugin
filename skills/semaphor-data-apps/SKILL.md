@@ -94,6 +94,10 @@ the plan. Customer apps do not need a `plan.json`; they need the visible plan.
   `react-semaphor/data-app-sdk`.
 - Do not call dashboard-internal APIs, dashboard card internals, raw database
   credentials, or Semaphor connection configs from generated app code.
+- Do not inspect, print, or search `.env*` files for token values. It is fine
+  to detect whether expected env variable names exist, but do not emit secrets
+  into logs or generated source. Ask the user to provide missing credentials
+  instead of reading them into the transcript.
 - Prefer `semaphor_analyze` for governed semantic BI checks. Use
   `semaphor_query_sql_advanced` only for advanced SQL-first analysis that
   cannot be represented by `semaphor_analyze`.
@@ -146,6 +150,18 @@ with `useSemaphorQuery`. Validation, save, and publish use the canonical
 `useSemaphorQuery` contract; do not generate any alternate query execution
 pattern.
 
+Provider setup should be project-token-only by default:
+
+```tsx
+<SemaphorDataAppProvider token={runtimeToken}>{children}</SemaphorDataAppProvider>
+```
+
+The SDK decodes the Semaphor API URL from the token. Do not generate
+`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl`
+prop for normal customer apps. Use `apiBaseUrl` only when the user explicitly
+needs self-hosted or local routing that intentionally differs from the token's
+`apiServiceUrl`.
+
 Query builder selection:
 
 - `semaphor.metric` for single-number KPIs.
@@ -183,6 +199,71 @@ For SQL-backed views, keep SQL bounded and parameterized with Semaphor template
 helpers. Do not concatenate SQL strings in React. Use `inputs` for runtime
 filter/control values, and use `defaultParameters` only for static SQL
 `param(...)` fallback values.
+
+Canonical SQL table fast path:
+
+1. Use MCP to identify the connection/table/columns and validate the SQL with
+   `semaphor_query_sql_advanced`.
+2. Define runtime controls with `semaphor.sqlParam` and filters with
+   `semaphor.filter`.
+3. Define one bounded `semaphor.sql` spec with `inputs`,
+   `defaultParameters`, and `limit`.
+4. Execute it with `useSemaphorInputs` + `useSemaphorQuery`.
+5. Render loading, error, empty, and table states from `result.records` and
+   `result.columns`; use `column.key` for row access.
+
+```tsx
+const limitParam = semaphor.sqlParam({
+  id: "limit",
+  label: "Rows",
+  defaultValue: 100,
+});
+
+const latestRowsQuery = semaphor.sql({
+  id: "latest-rows",
+  label: "Latest rows",
+  source: { kind: "sql", connectionId: "conn_123", dialect: "clickhouse" },
+  sql: `
+    select movement_date, quantity_tons
+    from inventory_movements
+    order by movement_date desc
+    limit {{ param("limit") }}
+  `,
+  inputs: [limitParam],
+  defaultParameters: { limit: 100 },
+  limit: 100,
+});
+
+function LatestRowsTable() {
+  const inputs = useSemaphorInputs([limitParam]);
+  const result = useSemaphorQuery(latestRowsQuery, { inputs });
+
+  if (result.isLoading) return <TableSkeleton />;
+  if (result.error) return <ErrorState message={result.error.message} />;
+  if ((result.records ?? []).length === 0) return <EmptyState />;
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          {(result.columns ?? []).map((column) => (
+            <th key={column.key}>{column.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {result.records.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {(result.columns ?? []).map((column) => (
+              <td key={column.key}>{formatCell(row[column.key], column)}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
 
 ```tsx
 const region = semaphor.filter({

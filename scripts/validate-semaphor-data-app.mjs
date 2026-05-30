@@ -58,6 +58,12 @@ function formatLocation(root, filePath) {
   return path.relative(root, filePath);
 }
 
+function hasEmptyState(content) {
+  return /(?:records|rows|data|items)\.length|rowCount|No (?:data|rows?|results?)|empty state|isEmpty|\bEmpty\b/i.test(
+    content,
+  );
+}
+
 function scanSourceQuality(root, sourceFiles) {
   const advisories = [];
   let usesDataAppSdkHooks = false;
@@ -103,6 +109,15 @@ function scanSourceQuality(root, sourceFiles) {
     }
     if (content.includes("SemaphorDataAppProvider")) {
       hasProvider = true;
+      if (
+        /\bapiBaseUrl\s*=/.test(content) ||
+        /\bVITE_SEMAPHOR_API_BASE_URL\b/.test(content) ||
+        /\bSEMAPHOR_API_BASE_URL\b/.test(content)
+      ) {
+        advisories.push(
+          `${location}: generated apps should rely on SemaphorDataAppProvider token URL inference by default. Pass apiBaseUrl only for explicit local or self-hosted routing overrides.`,
+        );
+      }
     }
 
     const executesSemaphorQuery = /\buseSemaphorQuery\b/.test(content);
@@ -122,7 +137,7 @@ function scanSourceQuality(root, sourceFiles) {
           `${location}: Semaphor query results should render an error state with enough context to debug failed execution.`,
         );
       }
-      if (!/(records\.length|rowCount|No data|empty state|isEmpty|\bEmpty\b)/i.test(content)) {
+      if (!hasEmptyState(content)) {
         advisories.push(
           `${location}: Semaphor query views should handle empty results instead of rendering a blank chart or table.`,
         );
