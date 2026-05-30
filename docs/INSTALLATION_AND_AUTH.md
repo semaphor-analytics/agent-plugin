@@ -124,6 +124,13 @@ npm run publish:data-app -- --dir /path/to/customer-app --project-id <project-id
 `publish:data-app` runs the same preparation automatically before saving the
 draft and starting the Semaphor publish session.
 
+The lifecycle helper writes `.semaphor.data-app.local.json` as local conflict
+state. It stores non-secret source snapshot hashes for Data App ids this
+workspace has loaded or saved. When a later save/publish sees that the remote
+draft/current source hash no longer matches the local baseline, it stops rather
+than overwriting another workspace's changes. Use `--new` for an intentional
+copy, or `--force` only when intentionally overwriting/recovering.
+
 Lifecycle writes must still pass server-side Data App permissions:
 
 - create requires dashboard/Data App create permission in the project,

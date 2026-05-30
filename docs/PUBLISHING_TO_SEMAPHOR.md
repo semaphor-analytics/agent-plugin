@@ -99,6 +99,14 @@ Semaphor Data App. Pass `--data-app-id` to override the manifest identity, or
 `--new` to intentionally create a separate Data App and replace the local
 manifest identity with the newly-created id.
 
+The helper records a local source baseline in
+`.semaphor.data-app.local.json`. On later saves or publishes, it checks that the
+remote Data App draft/current source still matches the baseline this workspace
+last loaded or saved. If the remote source changed elsewhere, the helper stops
+instead of overwriting it. Load the latest Data App source before editing,
+publish with `--new` to create a separate copy, or pass `--force` only for an
+intentional overwrite/recovery.
+
 The publish sequence is:
 
 ```text

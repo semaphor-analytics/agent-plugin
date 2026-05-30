@@ -95,6 +95,7 @@ function parseArgs(argv) {
     description: undefined,
     bridgeWorkspaceHint: undefined,
     newDataApp: false,
+    force: false,
   };
   if (command === '--help' || command === '-h') {
     options.help = true;
@@ -119,6 +120,8 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg === '--new') {
       options.newDataApp = true;
+    } else if (arg === '--force') {
+      options.force = true;
     } else if (arg === '--title') {
       options.title = rest[i + 1];
       i += 1;
@@ -183,6 +186,7 @@ Options:
   --build-command <command>     Build command for publish. Defaults to package build script.
   --no-build                    Skip local build before upload.
   --check                       Validate inferred publish metadata without writing the manifest.
+  --force                       Bypass remote source conflict checks for intentional overwrite/recovery.
   --validation-status <path>    Precomputed validation status JSON.
   --json                        Print compact JSON only.`);
 }
@@ -599,6 +603,48 @@ function writeManifest(root, options, manifest) {
   return manifestPath;
 }
 
+function resolveLocalStatePath(root) {
+  return path.join(root, '.semaphor.data-app.local.json');
+}
+
+function readLocalState(root) {
+  const statePath = resolveLocalStatePath(root);
+  if (!fs.existsSync(statePath)) {
+    return {
+      schemaVersion: 'semaphor-data-app-local-state/v1',
+      dataApps: {},
+    };
+  }
+  const parsed = readJson(statePath);
+  return {
+    schemaVersion: 'semaphor-data-app-local-state/v1',
+    dataApps:
+      parsed && typeof parsed.dataApps === 'object' && parsed.dataApps
+        ? parsed.dataApps
+        : {},
+  };
+}
+
+function writeLocalState(root, state) {
+  const statePath = resolveLocalStatePath(root);
+  fs.writeFileSync(`${statePath}.tmp`, `${JSON.stringify(state, null, 2)}\n`);
+  fs.renameSync(`${statePath}.tmp`, statePath);
+  return statePath;
+}
+
+function writeLocalDataAppState(root, options, input) {
+  if (!options.writeManifest || !input.dataAppId || !input.sourceRevision) {
+    return undefined;
+  }
+  const state = readLocalState(root);
+  state.dataApps[input.dataAppId] = {
+    projectId: input.projectId || undefined,
+    sourceRevision: input.sourceRevision,
+    updatedAt: new Date().toISOString(),
+  };
+  return writeLocalState(root, state);
+}
+
 function stringValue(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
@@ -653,6 +699,74 @@ function writeManifestIdentity(root, options, identity) {
   return writeManifest(root, options, mergeManifestIdentity(manifest, identity));
 }
 
+function getLocalDataAppSourceRevision(root, dataAppId) {
+  const state = readLocalState(root);
+  const entry = state.dataApps?.[dataAppId];
+  return entry && typeof entry.sourceRevision === 'object'
+    ? entry.sourceRevision
+    : null;
+}
+
+function pickRemoteSourceRevision(dataApp) {
+  const versions = Array.isArray(dataApp?.dataAppVersions)
+    ? dataApp.dataAppVersions
+    : [];
+  const draft = versions.find(
+    (version) => version?.version === 0 && version?.sourceRevision,
+  );
+  if (draft?.sourceRevision) {
+    return draft.sourceRevision;
+  }
+  if (dataApp?.currentDataAppVersion?.sourceRevision) {
+    return dataApp.currentDataAppVersion.sourceRevision;
+  }
+  const currentVersion = versions.find(
+    (version) => version?.id === dataApp?.currentDataAppVersionId,
+  );
+  if (currentVersion?.sourceRevision) {
+    return currentVersion.sourceRevision;
+  }
+  const readyVersions = versions
+    .filter((version) => version?.status === 'ready' && version?.sourceRevision)
+    .sort((left, right) => Number(right.version || 0) - Number(left.version || 0));
+  return readyVersions[0]?.sourceRevision || null;
+}
+
+async function loadRemoteDataApp(options, dataAppId) {
+  return requestJson(
+    options,
+    `/api/data-apps/${encodeURIComponent(dataAppId)}`,
+  );
+}
+
+async function assertNoRemoteSourceConflict(root, options) {
+  if (!options.dataAppId || options.newDataApp || options.force) {
+    return;
+  }
+
+  const localRevision = getLocalDataAppSourceRevision(root, options.dataAppId);
+  if (!localRevision?.snapshotHash) {
+    return;
+  }
+
+  const remote = await loadRemoteDataApp(options, options.dataAppId);
+  const remoteRevision = pickRemoteSourceRevision(remote.dataApp);
+  if (!remoteRevision?.snapshotHash) {
+    return;
+  }
+
+  if (remoteRevision.snapshotHash !== localRevision.snapshotHash) {
+    throw new Error(
+      [
+        `Remote Data App source has changed since this workspace last loaded or saved ${options.dataAppId}.`,
+        `Known snapshot: ${localRevision.snapshotHash}.`,
+        `Remote snapshot: ${remoteRevision.snapshotHash}.`,
+        'Load the latest Data App source before editing, use --new to create a copy, or pass --force only when you intentionally want to overwrite the remote draft.',
+      ].join(' '),
+    );
+  }
+}
+
 function readValidationStatus(root, options) {
   if (!options.validationStatus) {
     return undefined;
@@ -689,10 +803,14 @@ async function loadDataApp(options) {
     resolvedOptions.dataAppId,
     '--data-app-id or semaphor.dataAppId in the manifest',
   );
-  return requestJson(
-    resolvedOptions,
-    `/api/data-apps/${encodeURIComponent(dataAppId)}`,
-  );
+  const result = await loadRemoteDataApp(resolvedOptions, dataAppId);
+  const sourceRevision = pickRemoteSourceRevision(result.dataApp);
+  writeLocalDataAppState(root, resolvedOptions, {
+    projectId: result.dataApp?.projectId || resolvedOptions.projectId,
+    dataAppId,
+    sourceRevision,
+  });
+  return result;
 }
 
 async function saveDraft(options, context = {}) {
@@ -701,6 +819,7 @@ async function saveDraft(options, context = {}) {
   const validationStatus =
     context.validationStatus ??
     (await resolveValidationStatus(root, resolvedOptions));
+  await assertNoRemoteSourceConflict(root, resolvedOptions);
   const payload = buildDraftPayload(root, resolvedOptions, validationStatus);
 
   if (resolvedOptions.dataAppId) {
@@ -715,6 +834,11 @@ async function saveDraft(options, context = {}) {
     writeManifestIdentity(root, resolvedOptions, {
       projectId: resolvedOptions.projectId,
       dataAppId: resolvedOptions.dataAppId,
+    });
+    writeLocalDataAppState(root, resolvedOptions, {
+      projectId: resolvedOptions.projectId,
+      dataAppId: resolvedOptions.dataAppId,
+      sourceRevision: payload.sourceRevision,
     });
     return {
       dataAppId: resolvedOptions.dataAppId,
@@ -742,6 +866,11 @@ async function saveDraft(options, context = {}) {
   });
   const dataAppId = result.dataApp?.id;
   writeManifestIdentity(root, resolvedOptions, { projectId, dataAppId });
+  writeLocalDataAppState(root, resolvedOptions, {
+    projectId,
+    dataAppId,
+    sourceRevision: payload.sourceRevision,
+  });
   return {
     dataAppId,
     draftId: result.draft?.id,
