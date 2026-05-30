@@ -7,6 +7,13 @@ New agent-authored Data Apps should define typed inputs and queries with
 Validation, save, and publish use the canonical `useSemaphorQuery` contract.
 Do not generate any alternate query execution pattern.
 
+For the shortest agent-facing reference, start with the `SDK Contract` section
+in `skills/semaphor-data-apps/SKILL.md`. Customer repos are not expected to
+contain plugin docs. This page and
+[Data App SDK Reference For Agents](DATA_APP_SDK_REFERENCE.md) provide deeper
+examples, but agents should not inspect `node_modules/react-semaphor/dist` or
+implementation bundles as the normal way to discover SDK usage.
+
 ## Provider
 
 Wrap the app surface that uses Semaphor queries with `SemaphorDataAppProvider`.

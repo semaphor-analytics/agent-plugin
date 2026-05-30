@@ -285,6 +285,10 @@ Expected validation:
 
 - Conversation, exploration, and planning turns should not edit files.
 - Data-bearing runtime code should use `react-semaphor/data-app-sdk`.
+- Use the `SDK Contract` section in `skills/semaphor-data-apps/SKILL.md`
+  before inspecting package internals. Customer repos are not expected to
+  contain plugin docs, and agents should not browse
+  `node_modules/react-semaphor/dist` during normal app authoring.
 - Use the same operation vocabulary as hosted App Builder, including
   `plan_app`, `save_draft`, and `publish`.
 - Use `columns[].key` for row access and `columns[].label` for display.

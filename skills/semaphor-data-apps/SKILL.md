@@ -120,6 +120,25 @@ the plan. Customer apps do not need a `plan.json`; they need the visible plan.
 
 ## SDK Contract
 
+This section is the compact public SDK reference for ordinary app authoring.
+Use it before looking anywhere else when a task needs concrete imports, result
+types, provider setup, SQL-backed tables, filters, or row/column access.
+
+Do not search for `docs/DATA_APP_SDK_REFERENCE.md` in the customer repo, and
+do not inspect `node_modules/react-semaphor/dist`, bundled implementation
+files, SDK source files, or SDK validator internals during ordinary app
+authoring. The customer repo is not expected to contain plugin docs. Longer
+plugin docs may exist for humans and maintainers, but the code-generation
+contract needed by builders is embedded here.
+
+Do not inspect package declarations just to confirm the basic provider, query,
+or result shapes below; treat the signatures in this section as the public
+contract for code generation. If this skill is missing a public contract detail
+and the app cannot be completed without it, inspect only the public
+`react-semaphor/data-app-sdk` exported type declarations narrowly, record the
+docs gap, and continue with the public contract rather than implementation
+internals.
+
 Generated React should import SDK values from:
 
 ```tsx
@@ -139,9 +158,54 @@ import type {
   SemaphorQueryResult,
   SemaphorRecordsField,
   SemaphorRecordsQueryResult,
+  SemaphorResultColumn,
   SemaphorRowsQueryResult,
   SemaphorSqlQueryResult,
 } from "react-semaphor/data-app-sdk";
+```
+
+Useful public shapes:
+
+```ts
+type SemaphorResultColumn = {
+  key: string; // stable row accessor: row[column.key]
+  name: string; // semantic/source field name
+  label: string; // display label
+  role?: "dimension" | "measure" | "date" | string;
+  dataType?: "string" | "number" | "date" | "boolean" | string;
+  aggregate?: string;
+  source?: unknown;
+};
+
+type SemaphorQueryState = {
+  status: "idle" | "loading" | "success" | "error";
+  isLoading: boolean;
+  error: Error | null;
+};
+
+type SemaphorSqlQueryResult<TRecord extends Record<string, unknown>> =
+  SemaphorQueryState & {
+    id?: string;
+    intent?: unknown;
+    records: TRecord[];
+    columns?: SemaphorResultColumn[];
+    rowCount?: number;
+    pagination?: unknown;
+    output?: string;
+    rowLimitExceeded?: boolean;
+    executionResult?: unknown;
+  };
+
+type SemaphorRecordsQueryResult<TRecord extends Record<string, unknown>> =
+  SemaphorQueryState & {
+    id?: string;
+    intent?: unknown;
+    records: TRecord[];
+    columns?: SemaphorResultColumn[];
+    rowCount?: number;
+    pagination?: unknown;
+    executionResult?: unknown;
+  };
 ```
 
 Use source-bearing field refs when the source is known. Define inputs and
@@ -156,11 +220,28 @@ Provider setup should be project-token-only by default:
 <SemaphorDataAppProvider token={runtimeToken}>{children}</SemaphorDataAppProvider>
 ```
 
+For ordinary local React apps, `runtimeToken` normally comes from the app's
+local env:
+
+```tsx
+const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
+```
+
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl`
 prop for normal customer apps. Use `apiBaseUrl` only when the user explicitly
 needs self-hosted or local routing that intentionally differs from the token's
 `apiServiceUrl`.
+
+`SemaphorDataAppProvider` accepts `token?: string`, `apiBaseUrl?: string`, an
+optional executor override, and `children`. The provider internally reads
+Semaphor hosted runtime auth when present, so generated app code normally does
+not need to call runtime helpers itself.
+
+Do not import `readWindowRuntime` or generate extra token fallback variables
+such as `VITE_SEMAPHOR_TOKEN` for normal customer apps. Use hosted runtime
+helpers only when the target app is explicitly being authored as a
+Semaphor-hosted runtime entrypoint and the user asks for direct runtime access.
 
 Query builder selection:
 
@@ -175,6 +256,39 @@ Query builder selection:
   SDK and governed server-side execution.
 - `semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control` for filters
   and controls.
+
+Public SQL spec shape for `semaphor.sql`:
+
+```ts
+type SqlQuerySpecShape = {
+  id?: string;
+  label?: string;
+  source: {
+    kind: "sql";
+    connectionId: string;
+    dialect?: string;
+    label?: string;
+  };
+  sql: string;
+  inputs?: unknown[]; // Semaphor filter/control/sqlParam specs
+  defaultParameters?: Record<
+    string,
+    string | number | boolean | null | Array<string | number | boolean | null>
+  >;
+  limit?: number;
+  pagination?: { page?: number; pageSize?: number };
+  rationale?: string;
+};
+```
+
+Execute query specs with:
+
+```tsx
+const inputs = useSemaphorInputs([someFilterOrParam]);
+const result = useSemaphorQuery<RowType>(someQuery, { inputs });
+```
+
+The `inputs` option accepts the handles returned by `useSemaphorInputs`.
 
 When typing reusable helper components, use the public SDK result types. Do not
 use `ReturnType<typeof useSemaphorQuery>`; TypeScript collapses overloaded hook
