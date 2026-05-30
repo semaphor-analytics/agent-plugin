@@ -17,9 +17,10 @@ does not need to be a Vite app.
 This plugin is intended for distribution to customers building all kinds of
 React apps. Do not assume the plugin scaffold, a specific framework, a specific
 router, a specific provider filename, or a specific component layout. As long
-as the customer app is React, uses the public SDK hooks for Semaphor-backed
-data, and passes its own build/runtime checks, the plugin should work with the
-app instead of forcing it into a Semaphor-preferred structure.
+as the customer app is React, uses the public SDK builder/query pattern for
+Semaphor-backed data, and passes its own build/runtime checks, the plugin
+should work with the app instead of forcing it into a Semaphor-preferred
+structure.
 
 The coding agent owns local source inspection and edits. Semaphor remains the
 source of truth for auth, metadata, analytics grounding, execution,
@@ -60,6 +61,11 @@ Classify each user turn before editing:
 
 Planning and editing are separate. If the user asks to plan, do not change
 files. Build only after the user explicitly asks to build or accepts the plan.
+For broad dashboard-like requests, plan first even when the user did not say
+`/plan`. The plan should name the proposed visuals and classify each one as
+server-backed, derived, presentation-only, or unsupported before codegen starts.
+Unsupported insights should include the concrete data-model improvement needed
+to support them.
 
 ## Required Semaphor Rules
 
@@ -81,87 +87,242 @@ files. Build only after the user explicitly asks to build or accepts the plan.
 - `semaphor publish` means Semaphor-hosted Data App publish, not
   customer-hosted deployment.
 - Save/publish must go through Semaphor Data App lifecycle REST/command APIs.
-  Do not use MCP lifecycle wrappers for alpha publish.
+  Do not use MCP lifecycle wrappers for publish.
+- First save/publish creates the Semaphor-hosted Data App and persists
+  `semaphor.projectId` plus `semaphor.dataAppId` in `semaphor.data-app.json`.
+  Later saves/publishes update that same app unless the user explicitly asks
+  for a new copy.
 - Publish starts from a saved draft id and `sourceRevision.snapshotHash`, then
   uploads/completes or fails the same server-owned publish session.
 - Do not use `allowEdit: false` as an auth or runtime boundary.
 
 ## SDK Contract
 
-Generated React should import from:
+Generated React should import SDK values from:
 
 ```tsx
 import {
   SemaphorDataAppProvider,
-  useSemaphorAnalysis,
-  useSemaphorMetric,
-  useSemaphorRecords,
-  useSemaphorInput,
-  useSemaphorInputOptions,
+  defineSemaphorDataApp,
+  semaphor,
+  useSemaphorInputs,
+  useSemaphorQuery,
 } from "react-semaphor/data-app-sdk";
 ```
 
-Use source-bearing field refs when the source is known. Keep hook specs small,
-explicit, and tied to real inspected metadata.
+Reusable helper components can import SDK result types as needed:
 
-Hook selection (which hook for which question):
+```tsx
+import type {
+  SemaphorQueryResult,
+  SemaphorRecordsQueryResult,
+  SemaphorRowsQueryResult,
+  SemaphorSqlQueryResult,
+} from "react-semaphor/data-app-sdk";
+```
 
-- `useSemaphorMetric` for single-number KPIs.
-- `useSemaphorRecords` for rows, tables, and charts, including bounded windows
+Use source-bearing field refs when the source is known. Define inputs and
+queries as typed module-level specs with `semaphor.*`, then execute those specs
+with `useSemaphorQuery`. Validation, save, and publish use the canonical
+`useSemaphorQuery` contract; do not generate any alternate query execution
+pattern.
+
+Query builder selection:
+
+- `semaphor.metric` for single-number KPIs.
+- `semaphor.records` for rows, tables, and charts, including bounded windows
   ("last 6 months") via `dateField` + `timeWindow`; gives `columns[].key`.
-- `useSemaphorAnalysis` for insight, driver, spike/drop, and period-change
+- `semaphor.analysis` for insight, driver, spike/drop, and period-change
   views; also exposes `columns`/`resultSets` for typed row access.
-- `useSemaphorInput` + `useSemaphorInputOptions` for filters and controls.
+- `semaphor.sql` for advanced SQL-backed runtime views when semantic queries
+  cannot express the product requirement or the user explicitly asks for raw
+  SQL. Inline SQL is supported, but execution must still go through Semaphor
+  SDK and governed server-side execution.
+- `semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control` for filters
+  and controls.
 
-For `useSemaphorInput`, the `operator` accepts canonical SDK symbols (`"="`,
-`"!="`, `"in"`, `"not_in"`, `"between"`, `">"`, `">="`, `"<"`, `"<="`) and the
-common MCP aliases (`"equals"`, `"not_equals"`); the SDK normalizes them. Use
-`"in"` with `multi: true` for multi-select.
+When typing reusable helper components, use the public SDK result types. Do not
+use `ReturnType<typeof useSemaphorQuery>`; TypeScript collapses overloaded hook
+signatures in a way that can produce the wrong result shape.
 
-Both data hooks accept source-bearing refs and shared analytics fields such as
-`dateField`, `timeWindow`, and `filters` where the SDK contract exposes them.
-Represent period-change ranking with `analysis: { kind: "period_change",
-orderBy }`, not a separate agent-only field.
+- Use `SemaphorQueryResult` for generic query status/error helper components.
+- Use `SemaphorRecordsQueryResult` for `semaphor.records(...)` results.
+- Use `SemaphorSqlQueryResult` for `semaphor.sql(...)` results.
+- Use `SemaphorRowsQueryResult` for table helpers that intentionally accept
+  either records-backed or SQL-backed row results.
+
+For filter inputs, `operator` accepts canonical SDK symbols (`"="`, `"!="`,
+`"in"`, `"not_in"`, `"between"`, `">"`, `">="`, `"<"`, `"<="`) and common MCP
+aliases (`"equals"`, `"not_equals"`); the SDK normalizes them. Use `"in"` with
+multi-select values.
+
+For SQL-backed views, keep SQL bounded and parameterized with Semaphor template
+helpers. Do not concatenate SQL strings in React. Use `inputs` for runtime
+filter/control values, and use `defaultParameters` only for static SQL
+`param(...)` fallback values.
+
+```tsx
+const region = semaphor.filter({
+  id: "region",
+  label: "Region",
+  field: { name: "region", role: "dimension", dataType: "string" },
+  operator: "in",
+});
+
+const limit = semaphor.sqlParam({
+  id: "limit",
+  label: "Limit",
+  defaultValue: 100,
+});
+
+const rowsQuery = semaphor.sql({
+  source: { kind: "sql", connectionId: "conn_123", dialect: "clickhouse" },
+  sql: `
+    select movement_date, quantity_tons
+    from inventory_movements
+    where 1 = 1
+      {{ filter("region").sql }}
+    order by movement_date desc
+    limit {{ param("limit") }}
+  `,
+  inputs: [region, limit],
+  defaultParameters: { limit: 100 },
+  limit: 100,
+});
+
+function LatestRows() {
+  const inputs = useSemaphorInputs([region, limit]);
+  const rows = useSemaphorQuery(rowsQuery, { inputs });
+  return <DataTable rows={rows.records} columns={rows.columns ?? []} />;
+}
+```
 
 For record/table rendering, treat `column.key` as the stable code accessor and
 `column.label` as display text:
 
 ```tsx
-{result.records.map((row) => (
-  <tr>
-    {result.columns.map((column) => (
-      <td key={column.key}>{row[column.key]}</td>
-    ))}
-  </tr>
-))}
+{
+  result.records.map((row) => (
+    <tr>
+      {result.columns.map((column) => (
+        <td key={column.key}>{row[column.key]}</td>
+      ))}
+    </tr>
+  ));
+}
 ```
 
 Do not access records with display labels such as `row[column.label]` or
-`row["Movement Date"]`. For `useSemaphorAnalysis`, prefer
+`row["Movement Date"]`. For `semaphor.analysis` query results, prefer
 `insight.resultSets.<name>.columns` and `row[column.key]` over top-level
 analysis arrays when rendering tables or charts. For simple insight views, the
 SDK also exposes the default row-bearing analysis result as `insight.records`
 and `insight.columns`; use those columns rather than `Object.keys(...)`.
 
+## Data App UX Baseline
+
+Generated Semaphor-backed views should feel like real data apps, not raw API
+proofs of concept. Match the target app's existing design system, but include
+these baseline behaviors unless the user asks for a deliberately minimal view:
+
+- Every `useSemaphorQuery` result rendered on screen needs loading, error, and
+  empty states. Do not leave cards stuck at `0`, blank charts, or empty tables
+  while a query is loading or has failed.
+- Each data-bearing card should normally own its own query. Shared-query
+  derivation is valid when it is an intentional optimization, but for dashboard
+  apps a KPI, chart, table, and insight panel should generally have distinct
+  query specs and distinct loading/error states.
+- Shared filters are input handles. Bind the input once, then pass it into
+  every card query that should respond to it.
+- Table views should render from `result.columns` for stable order and labels,
+  support user sorting, and show an empty state when no rows are returned.
+- Tables with numeric columns should include a total row for the rows being
+  displayed. If the product needs a true total across all filtered data rather
+  than the current page/window, create a separate aggregate query for that
+  total instead of summing a paginated or truncated table client-side.
+- Large or complete-dataset tables must be server-side tables. Do not fetch a
+  million rows into React and then filter, sort, paginate, or virtualize only
+  on the client. Represent filtering and ordering in the Semaphor query spec,
+  and represent server pages with `pagination: { page, pageSize }` on
+  `semaphor.records(...)` or `semaphor.sql(...)`. Use `result.pagination` for
+  page controls and `result.rowCount` for the server-reported total count.
+  If a needed table behavior cannot be expressed yet, call that out as a
+  `react-semaphor/data-app-sdk` or Semaphor execution gap and build a bounded
+  table instead of pretending the frontend has the full dataset.
+- For rich table UX, inspect the target app first. Use its existing table/grid
+  library when one is already installed. If the app does not have one, ask the
+  user before adding dependencies; recommend `@tanstack/react-table` for
+  table state such as columns, sorting, row models, and pagination controls,
+  and add `@tanstack/react-virtual` only when virtualized row rendering is
+  needed. These libraries are rendering/state helpers, not a substitute for
+  Semaphor server-side query limits.
+- Numeric, currency, percentage, and date values should be formatted for human
+  scanning. Preserve raw values only when the user needs exact IDs, codes, or
+  machine-readable output.
+- Loading skeletons or compact placeholders are preferred over large explanatory
+  text. Errors should be specific enough to debug but not expose secrets.
+- For controls that trigger multiple queries, preserve the previous layout
+  while queries refresh; show per-card loading state rather than replacing the
+  whole app with one global spinner unless the whole app truly cannot render.
+
+Sorting may be client-side for small, bounded result sets. For large,
+paginated, or "complete dataset" tables, sorting should be represented in the
+Semaphor query/order contract so the server owns the sorted result.
+
+### Dashboard planning response shape
+
+For broad dashboard or app-building requests, respond with a compact plan
+before editing files. Include:
+
+- app/dashboard title and purpose;
+- selected Semaphor sources and why they were chosen;
+- planned filters and which views they affect;
+- planned views with visual type, query kind, source fields, and whether each
+  view is server-backed, derived, presentation-only, or unsupported;
+- table UX expectations such as sorting and numeric totals;
+- table data-volume expectations: bounded result, server-side
+  pagination/windowing, or unsupported SDK capability;
+- unsupported insights plus the semantic-model improvement needed to support
+  them;
+- whether the target is a new app, an existing Data App, or an existing
+  Semaphor dashboard;
+- one next step: build the plan, revise the plan, or inspect more data.
+
+If the user is working in an existing app, inspect the current source and
+manifest first. Preserve existing views unless the user asks to replace them,
+and present a change plan with keep, modify, add, and remove sections. Do not
+silently convert an existing app into a greenfield rewrite.
+
 ### Shared and top-level filters (opt-in subscription)
 
-A dashboard-wide filter is built by composition, not a global setting. Create
-one `useSemaphorInput` in a shared parent (or a small React context you own),
-then pass that same handle into the `inputs` array of each hook that should
-respond to it:
+A dashboard-wide filter is built by composition, not a global setting. Define
+one input spec, bind it once with `useSemaphorInputs` in a shared parent (or a
+small React context you own), then pass that same handle array into each query
+that should respond to it:
 
 ```tsx
-// Parent owns the shared control.
-const region = useSemaphorInput<string>({
+const region = semaphor.filter({
   id: "region",
-  kind: "filter",
   field: regionField,
   operator: "=",
 });
 
-// Each card opts in by including the handle in its inputs.
-useSemaphorMetric({ source, metrics: [revenue], inputs: [region] });
-useSemaphorRecords({ source, fields: [region, revenue], inputs: [region] });
+const revenueQuery = semaphor.metric({
+  source,
+  metrics: [revenue],
+  inputs: [region],
+});
+const recordsQuery = semaphor.records({
+  source,
+  fields: [regionField, revenue],
+  inputs: [region],
+});
+
+function Dashboard() {
+  const inputs = useSemaphorInputs([region]);
+  const revenueResult = useSemaphorQuery(revenueQuery, { inputs });
+  const recordsResult = useSemaphorQuery(recordsQuery, { inputs });
+}
 ```
 
 This per-hook subscription is intentional, not a limitation. Not every filter
@@ -201,15 +362,22 @@ Use the plugin helper for Semaphor-hosted lifecycle writes:
 npm run load:data-app -- --data-app-id <data-app-id>
 npm run save:data-app -- --dir <app> --project-id <project-id> --title "<title>"
 npm run prepare:publish -- --dir <app>
-npm run publish:data-app -- --dir <app> --project-id <project-id> --data-app-id <data-app-id> --title "<title>"
+npm run publish:data-app -- --dir <app> --project-id <project-id> --title "<title>"
 ```
 
-The helper reads `SEMAPHOR_PROJECT_TOKEN` and defaults to
-`SEMAPHOR_API_BASE_URL=https://semaphor.cloud`. Use `--api-base-url` for local
-or self-hosted Semaphor. If SDK hook specs are available as JSON, pass
-`--hook-specs <path>` so the helper validates through
-`POST /api/v1/data-app/validate` before saving or publishing. Use
-`--validation-status <path>` only for a precomputed Semaphor validation result.
+The helper reads the project token from shell env or the target app's local env
+files. It accepts `SEMAPHOR_PROJECT_TOKEN` and, for Vite dogfooding,
+`VITE_SEMAPHOR_PROJECT_TOKEN`. It infers the Semaphor app URL from the token's
+`apiServiceUrl`. Use `SEMAPHOR_API_BASE_URL` or `--api-base-url` only for
+unusual local or self-hosted routing where the token URL should not be used.
+Use `--validation-status <path>` only for a precomputed Semaphor validation
+result.
+
+After the first successful save or publish, the helper writes
+`semaphor.projectId` and `semaphor.dataAppId` to `semaphor.data-app.json`.
+Subsequent `load`, `save-draft`, and `publish` commands may omit
+`--data-app-id`; they update the manifest-bound Data App. Use `--new` only when
+the user wants a separate hosted Data App copy.
 
 Publish always saves a draft first, starts publish from that draft id plus
 `sourceRevision.snapshotHash`, builds locally, prepares `semaphor.data-app.json`
@@ -237,9 +405,6 @@ Before reporting completion, run the strongest available checks:
   authoritative typecheck: some repos have a loose root `tsc --noEmit` that
   under-checks app sources, so a green typecheck plus a failing build means the
   build is right. Do not report completion on a passing typecheck alone.
-- when SDK hook specs can be extracted, call Semaphor
-  `POST /api/v1/data-app/validate` with the project token and use the returned
-  typed diagnostics for repair
 - Semaphor MCP query checks for data-bearing analytics when credentials are
   available
 
@@ -252,8 +417,9 @@ the Semaphor validation route is available. Plugin-local scans are package and
 build preflight; Semaphor owns catalog-aware SDK hook validation.
 
 `POST /api/v1/data-app/validate` and `/api/v1/data-app/execute` support
-`useSemaphorAnalysis` specs through the same governed analytics query-spec
-service used by MCP `semaphor_analyze`. Treat failures there as shared
-analytics/SDK/app execution issues, not as host-specific prompt issues.
+`semaphor.analysis(...)` query specs executed through `useSemaphorQuery` and
+the same governed analytics query-spec service used by MCP
+`semaphor_analyze`. Treat failures there as shared analytics/SDK/app execution
+issues, not as host-specific prompt issues.
 
 If validation cannot run, say exactly why.

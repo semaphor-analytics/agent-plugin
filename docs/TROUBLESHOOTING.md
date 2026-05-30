@@ -10,10 +10,10 @@ workflow.
 2. Can MCP inspect the Semaphor project?
 3. Can governed analysis execute?
 4. Does the React app compile?
-5. Does the React app have a runtime token and API base URL?
+5. Does the React app have a runtime token?
 6. Does the browser show governed data?
 
-## Missing `SEMAPHOR_PROJECT_TOKEN`
+## Missing Project Token
 
 Symptom:
 
@@ -24,20 +24,21 @@ MCP tools are unavailable or unauthorized.
 Check:
 
 ```bash
-echo "$SEMAPHOR_PROJECT_TOKEN"
+cat .env.local
 ```
 
 Fix:
 
 ```bash
-export SEMAPHOR_PROJECT_TOKEN="<project-token>"
+VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 ```
 
-Do not commit this token into source control.
+For non-Vite workflows, use `SEMAPHOR_PROJECT_TOKEN` instead. Do not commit
+local env files containing real tokens into source control.
 
 Owner layer: local setup/auth docs unless the MCP error is unclear.
 
-## Wrong `SEMAPHOR_MCP_URL`
+## Wrong MCP URL Override
 
 Symptom:
 
@@ -45,7 +46,10 @@ Symptom:
 MCP connection fails, times out, or points at stale behavior.
 ```
 
-Customer default:
+Customer default: do not set `SEMAPHOR_MCP_URL`. The plugin infers the MCP URL
+from the project token's `apiServiceUrl`.
+
+Override example:
 
 ```bash
 export SEMAPHOR_MCP_URL="https://semaphor.cloud/api/mcp"
@@ -57,7 +61,8 @@ Self-hosted deployment example:
 export SEMAPHOR_MCP_URL="https://your-semaphor-host.example.com/api/mcp"
 ```
 
-Use the MCP URL that matches the Semaphor project token's environment.
+Use the MCP URL override only when it intentionally differs from the Semaphor
+project token's environment, such as local development or a tunnel.
 
 Owner layer: plugin setup unless the endpoint is up but returns poor
 diagnostics.
@@ -97,7 +102,7 @@ The agent can build locally, but save or publish cannot complete.
 Check:
 
 - Semaphor Data App lifecycle APIs are available in the target environment,
-- `SEMAPHOR_PROJECT_TOKEN` carries the correct `project_id`,
+- the local project token carries the correct `project_id`,
 - the resolved actor can create/edit the target Data App,
 - publish was started from the saved draft id and
   `sourceRevision.snapshotHash`,
@@ -209,12 +214,12 @@ bun add react-semaphor
 
 Owner layer: customer app dependency setup.
 
-## Hooks Stay Idle Or Return No Data
+## Queries Stay Idle Or Return No Data
 
 Symptom:
 
 ```text
-Hooks stay idle, or no network request is made.
+useSemaphorQuery stays idle, or no network request is made.
 ```
 
 Likely causes:
@@ -227,7 +232,7 @@ Likely causes:
 Fix:
 
 - ensure the hook component is inside a provider or hosted runtime,
-- pass a runtime token and API base URL,
+- pass a runtime token,
 - in Next.js, ensure hook components are client components.
 
 Owner layer: customer app integration or SDK diagnostics if the idle state is
@@ -243,11 +248,15 @@ Failed to fetch
 
 Check:
 
-- `apiBaseUrl` points at the intended Semaphor host,
+- a custom `apiBaseUrl` override, if present, points at the intended Semaphor
+  host,
 - the configured hosted or self-hosted Semaphor service is reachable,
 - CORS/proxy configuration allows the request,
 - browser network tab shows the actual target URL,
 - token is present and not expired.
+
+By default, the SDK derives the Semaphor API URL from the token's
+`apiServiceUrl`; most local apps should not set a separate API base URL.
 
 Owner layer: setup/networking if the request never reaches Semaphor;
 `semaphor-app` diagnostics if it reaches Semaphor but returns an unclear
@@ -270,7 +279,7 @@ Expected agent behavior:
 - do not guess physical table names as a semantic substitute.
 
 Owner layer: MCP metadata if source refs are missing or ambiguous; SDK/codegen
-if generated hook specs are stale.
+if generated query specs are stale.
 
 ## Singular `metric` Instead Of `metrics[]`
 
@@ -283,16 +292,18 @@ Typecheck fails or analytics intent validation rejects the hook spec.
 Fix:
 
 ```tsx
-useSemaphorMetric({
+const revenueQuery = semaphor.metric({
   source,
   metrics: [revenue],
   primaryMetric: revenue,
 });
+
+const result = useSemaphorQuery(revenueQuery);
 ```
 
 Owner layer: generated code or stale examples.
 
-## Insight View Uses Static Data Instead Of `useSemaphorAnalysis`
+## Insight View Uses Static Data Instead Of `semaphor.analysis`
 
 Symptom:
 
@@ -305,15 +316,16 @@ Expected behavior:
 
 - use MCP `semaphor_analyze` to answer and validate the insight during
   authoring,
-- productize the same canonical metric intent with `useSemaphorAnalysis`,
-- keep `analysis: { kind: "period_change", orderBy }` in the hook config for
+- productize the same canonical metric intent with `semaphor.analysis` plus
+  `useSemaphorQuery`,
+- keep `analysis: { kind: "period_change", orderBy }` in the query config for
   period-change views,
 - pass `driverMode` and `includePopulation` only when the insight needs them,
-- validate the extracted hook spec through Semaphor when possible.
+- validate the extracted query spec through Semaphor when possible.
 
 Owner layer: generated code or SDK docs if the hook is available; shared
 analytics protocol or `semaphor-app` execution if the requested analysis cannot
-be expressed by `useSemaphorAnalysis`.
+be expressed by `semaphor.analysis`.
 
 ## Record Key And Label Confusion
 

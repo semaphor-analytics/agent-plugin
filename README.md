@@ -11,8 +11,8 @@ and Data App lifecycle APIs.
 Distribution principle: this plugin must work with customer React apps as they
 exist. It should not require Vite, the starter scaffold, a prescribed router,
 provider filename, styling system, or component structure. The customer-facing
-contract is React plus public `react-semaphor/data-app-sdk` hooks, backed by
-Semaphor MCP/governed execution.
+contract is React plus the canonical `react-semaphor/data-app-sdk` builder and
+`useSemaphorQuery` runtime pattern, backed by Semaphor MCP/governed execution.
 
 This repository stays focused on plugin packaging and operational usage across
 agent hosts. Semaphor product, protocol, and lifecycle internals are maintained
@@ -23,7 +23,7 @@ Customer-facing setup and examples:
 - [Installation and auth](docs/INSTALLATION_AND_AUTH.md)
 - [Distribution model](docs/DISTRIBUTION.md)
 - [Golden workflows](docs/GOLDEN_WORKFLOWS.md)
-- [Data App SDK hook examples](docs/SDK_HOOK_EXAMPLES.md)
+- [Data App SDK examples](docs/SDK_HOOK_EXAMPLES.md)
 - [Publishing to Semaphor](docs/PUBLISHING_TO_SEMAPHOR.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 
@@ -31,15 +31,20 @@ Customer-facing setup and examples:
 
 Use this path for customer or design-partner beta installs.
 
-1. Configure MCP authoring credentials:
+1. Configure the project token:
 
    Customers can retrieve the project token from Semaphor at
    `https://semaphor.cloud/project`.
 
    ```bash
-   export SEMAPHOR_PROJECT_TOKEN="<project-token>"
-   export SEMAPHOR_MCP_URL="https://semaphor.cloud/api/mcp"
+   # In the target Vite app's ignored .env.local
+   VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
    ```
+
+   The plugin reads the target app's local env file for MCP authoring and
+   save/publish. It also infers the Semaphor MCP URL from the token's
+   `apiServiceUrl`.
+   Set `SEMAPHOR_MCP_URL` only for unusual local routing overrides.
 
 2. Open Codex, Claude Code, or another supported coding agent in the target
    React repository.
@@ -58,7 +63,7 @@ Use this path for customer or design-partner beta installs.
    What Semaphor data can I use in this project?
    ```
 
-6. Build or modify the app using public SDK hooks:
+6. Build or modify the app using the public SDK builder/query pattern:
 
    ```text
    Use my Semaphor project data to add an inventory movement dashboard to this app.
@@ -131,9 +136,10 @@ npm run validate:claude-plugin
 ```
 
 The customer setup stays the same: retrieve a project token from
-`https://semaphor.cloud/project`, set `SEMAPHOR_PROJECT_TOKEN`, set
-`SEMAPHOR_MCP_URL=https://semaphor.cloud/api/mcp`, and open the agent in the
-target React repo.
+`https://semaphor.cloud/project`, add it to the target app's ignored local env
+file, and open the agent in the target React repo. The MCP URL is inferred
+from the token; set `SEMAPHOR_MCP_URL` only for unusual local routing
+overrides.
 
 Do not commit project tokens. For shipped React apps, pass runtime tokens to
 `SemaphorDataAppProvider` through the customer app's normal backend, embed
@@ -179,16 +185,22 @@ Load, save, or publish a Semaphor-hosted Data App:
 ```bash
 node scripts/semaphor-data-app.mjs load --data-app-id <data-app-id>
 node scripts/semaphor-data-app.mjs save-draft --dir /path/to/customer-app --project-id <project-id> --title "Operations App"
-node scripts/semaphor-data-app.mjs publish --dir /path/to/customer-app --project-id <project-id> --data-app-id <data-app-id> --title "Operations App"
+node scripts/semaphor-data-app.mjs publish --dir /path/to/customer-app --project-id <project-id> --title "Operations App"
 ```
 
-The helper uses `SEMAPHOR_PROJECT_TOKEN` by default and `SEMAPHOR_API_BASE_URL`
-when the API is not `https://semaphor.cloud`. Publishing always saves a draft
-first, starts publish from that draft id and `sourceRevision.snapshotHash`,
-prepares the hosted runtime manifest, uploads hashed built assets, and
-completes or fails the same server publish session. Pass `--hook-specs <json>`
-when the agent can provide extracted SDK hook specs; the helper will call
-`POST /api/v1/data-app/validate` before saving or publishing.
+The helper reads the project token from shell env or the target app's local env
+files. It accepts `SEMAPHOR_PROJECT_TOKEN` and, for Vite dogfooding,
+`VITE_SEMAPHOR_PROJECT_TOKEN`. It infers the Semaphor app URL from the token's
+`apiServiceUrl`. Use `SEMAPHOR_API_BASE_URL` or `--api-base-url` only for
+unusual local or self-hosted routing where the token URL should not be used.
+Publishing always saves a draft first, starts publish from that draft id and
+`sourceRevision.snapshotHash`, prepares the hosted runtime manifest, uploads
+hashed built assets, and completes or fails the same server publish session.
+
+The first save or publish creates the Semaphor-hosted Data App and writes its
+identity to `semaphor.data-app.json` under `semaphor.projectId` and
+`semaphor.dataAppId`. Later saves and publishes read that identity and update
+the same app. Use `--new` only when intentionally creating a separate copy.
 
 ## Product Mental Model
 
@@ -200,12 +212,19 @@ customer request
   -> classify operation
   -> inspect Semaphor metadata through MCP
   -> answer exploratory data questions with semaphor_analyze
-  -> use useSemaphorAnalysis for productized insight/driver views
+  -> use semaphor.analysis plus useSemaphorQuery for productized insight/driver views
   -> plan app without editing files
-  -> generate React with react-semaphor/data-app-sdk
-  -> validate typecheck/build and SDK hook specs through Semaphor validation
+  -> generate React with react-semaphor/data-app-sdk builders and useSemaphorQuery
+  -> validate with typecheck/build and Semaphor execution diagnostics
   -> save draft or publish through Semaphor Data App lifecycle APIs
 ```
 
 The plugin must not create a host-specific analytics language. Data-bearing React
 views should use the public SDK and shared analytics protocol.
+
+For table-heavy apps, keep data volume explicit. Small tables can use bounded
+Semaphor result sets with client-side interaction over returned rows. Large
+or complete-dataset tables should use Semaphor server-side filtering, sorting,
+and pagination/windowing; table UI libraries such as `@tanstack/react-table`
+or `@tanstack/react-virtual` are optional rendering/state helpers, not a reason
+to pull unbounded rows into the browser.

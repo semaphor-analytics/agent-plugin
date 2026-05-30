@@ -75,13 +75,29 @@ Run:
 npm run publish:data-app -- \
   --dir /path/to/customer-app \
   --project-id <project-id> \
-  --data-app-id <data-app-id> \
   --title "Operations App"
 ```
 
 The publish command automatically runs the same prepare step before saving the
 draft. That matters because the saved source snapshot must include the prepared
 manifest that Semaphor publishes.
+
+On the first save or publish, the helper creates the hosted Data App and writes
+the returned identity to `semaphor.data-app.json`:
+
+```json
+{
+  "semaphor": {
+    "projectId": "proj_123",
+    "dataAppId": "dash_abc"
+  }
+}
+```
+
+Later saves and publishes use that identity by default and update the same
+Semaphor Data App. Pass `--data-app-id` to override the manifest identity, or
+`--new` to intentionally create a separate Data App and replace the local
+manifest identity with the newly-created id.
 
 The publish sequence is:
 
@@ -96,7 +112,7 @@ build static assets
 
 ## Server-Rendered Apps
 
-Next.js, Remix, or custom server-rendered apps can still use Semaphor SDK hooks
+Next.js, Remix, or custom server-rendered apps can still use Semaphor SDK query hooks
 in their own runtime. Semaphor-hosted publish needs a static browser entry.
 
 If the normal app build does not produce one, add a small static Data App

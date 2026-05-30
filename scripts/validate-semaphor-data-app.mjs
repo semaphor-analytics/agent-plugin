@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import process from 'node:process';
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
 
 function parseArgs(argv) {
   const args = { dir: process.cwd(), runBuild: true, strict: false };
   for (let i = 2; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--dir') {
+    if (arg === "--dir") {
       args.dir = argv[i + 1];
       i += 1;
-    } else if (arg === '--no-run') {
+    } else if (arg === "--no-run") {
       args.runBuild = false;
-    } else if (arg === '--strict') {
+    } else if (arg === "--strict") {
       args.strict = true;
-    } else if (arg === '--help' || arg === '-h') {
+    } else if (arg === "--help" || arg === "-h") {
       args.help = true;
     }
   }
@@ -23,20 +23,25 @@ function parseArgs(argv) {
 }
 
 function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
 function detectPackageManager(root) {
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) return 'yarn';
-  if (fs.existsSync(path.join(root, 'bun.lockb'))) return 'bun';
-  if (fs.existsSync(path.join(root, 'package-lock.json'))) return 'npm';
-  return 'npm';
+  if (fs.existsSync(path.join(root, "pnpm-lock.yaml"))) return "pnpm";
+  if (fs.existsSync(path.join(root, "yarn.lock"))) return "yarn";
+  if (fs.existsSync(path.join(root, "bun.lockb"))) return "bun";
+  if (fs.existsSync(path.join(root, "package-lock.json"))) return "npm";
+  return "npm";
 }
 
 function collectFiles(root, files = []) {
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === '.next') {
+    if (
+      entry.name === "node_modules" ||
+      entry.name === ".git" ||
+      entry.name === "dist" ||
+      entry.name === ".next"
+    ) {
       continue;
     }
     const fullPath = path.join(root, entry.name);
@@ -53,42 +58,91 @@ function formatLocation(root, filePath) {
   return path.relative(root, filePath);
 }
 
-function findSemaphorHookSpecs(content) {
-  const specs = [];
-  const hookPattern =
-    /useSemaphor(?:Analysis|Metric|Records|InputOptions)\s*(?:<[^)]*?>)?\s*\(\s*\{/g;
-  let match;
-  while ((match = hookPattern.exec(content))) {
-    let depth = 1;
-    let index = hookPattern.lastIndex;
-    for (; index < content.length; index += 1) {
-      const char = content[index];
-      if (char === '{') depth += 1;
-      if (char === '}') depth -= 1;
-      if (depth === 0) {
-        specs.push(content.slice(match.index, index + 1));
-        hookPattern.lastIndex = index + 1;
-        break;
-      }
-    }
-  }
-  return specs;
-}
-
 function scanSourceQuality(root, sourceFiles) {
   const advisories = [];
   let usesDataAppSdkHooks = false;
   let hasProvider = false;
 
   for (const filePath of sourceFiles) {
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, "utf8");
     const location = formatLocation(root, filePath);
 
-    if (/useSemaphor(?:Analysis|Metric|Records|Input|InputOptions)\b/.test(content)) {
+    if (
+      /useSemaphor(?:Analysis|Metric|Records|Input|Inputs|InputOptions|Query)\b/.test(
+        content,
+      ) ||
+      /\bsemaphor\.(?:filter|control|sqlParam|metric|records|analysis|sql|inputOptions)\b/.test(
+        content,
+      )
+    ) {
       usesDataAppSdkHooks = true;
     }
-    if (content.includes('SemaphorDataAppProvider')) {
+    if (
+      /\buseSemaphor(?:Analysis|Metric|Records|InputOptions|Sql)\b/.test(
+        content,
+      )
+    ) {
+      advisories.push(
+        `${location}: legacy query APIs are not part of the Data App contract; define queries with semaphor.* builders and execute them with useSemaphorQuery.`,
+      );
+    }
+    if (/ReturnType\s*<\s*typeof\s+useSemaphorQuery\s*>/.test(content)) {
+      advisories.push(
+        `${location}: do not type helper components with ReturnType<typeof useSemaphorQuery>; import SemaphorQueryResult, SemaphorRecordsQueryResult, SemaphorRowsQueryResult, or SemaphorSqlQueryResult from react-semaphor/data-app-sdk.`,
+      );
+    }
+    if (content.includes("SemaphorDataAppProvider")) {
       hasProvider = true;
+    }
+
+    const executesSemaphorQuery = /\buseSemaphorQuery\b/.test(content);
+    const rendersTable =
+      /<table\b/i.test(content) ||
+      /<Table\b/.test(content) ||
+      /\bTableHeader\b/.test(content);
+
+    if (executesSemaphorQuery) {
+      if (!/(isLoading|status\s*===\s*["']loading["']|\bLoading\b|Skeleton)/.test(content)) {
+        advisories.push(
+          `${location}: Semaphor query results should render a loading state so cards do not appear blank or zero-valued while data is fetching.`,
+        );
+      }
+      if (!/(\.error\b|status\s*===\s*["']error["']|\bError\b|query failed)/i.test(content)) {
+        advisories.push(
+          `${location}: Semaphor query results should render an error state with enough context to debug failed execution.`,
+        );
+      }
+      if (!/(records\.length|rowCount|No data|empty state|isEmpty|\bEmpty\b)/i.test(content)) {
+        advisories.push(
+          `${location}: Semaphor query views should handle empty results instead of rendering a blank chart or table.`,
+        );
+      }
+    }
+
+    if (rendersTable && /react-semaphor\/data-app-sdk|useSemaphorQuery|records\.map/.test(content)) {
+      if (!/(sort|Sort|orderBy|aria-sort)/.test(content)) {
+        advisories.push(
+          `${location}: Semaphor-backed tables should provide a sorting affordance or document why sorting is server-owned elsewhere.`,
+        );
+      }
+      if (!/(<tfoot\b|<TableFooter\b|totals?\s+row|grand\s+total|subtotal)/i.test(content)) {
+        advisories.push(
+          `${location}: Semaphor-backed tables with numeric columns should include a totals row for displayed rows, or use a separate aggregate query for all-data totals.`,
+        );
+      }
+
+      const hasPagingUi =
+        /\b(?:page|pageIndex|currentPage|pageSize|offset|nextPage|previousPage)\b/i.test(
+          content,
+        );
+      const slicesRows = /\.slice\s*\(/.test(content);
+      const usesServerPagination =
+        /\bpagination\s*:\s*\{/.test(content) || /\.pagination\b/.test(content);
+      if (hasPagingUi && slicesRows && !usesServerPagination) {
+        advisories.push(
+          `${location}: table pagination appears to slice Semaphor result rows client-side. For large or complete-dataset tables, request server pages with pagination: { page, pageSize } on semaphor.records(...) or semaphor.sql(...), then render controls from result.pagination.`,
+        );
+      }
     }
 
     if (
@@ -124,24 +178,11 @@ function scanSourceQuality(root, sourceFiles) {
         `${location}: Object.entries(row) renders raw result keys; prefer result.columns for labels and stable cell order.`,
       );
     }
-
-    for (const spec of findSemaphorHookSpecs(content)) {
-      if (/\bmetric\s*:/.test(spec)) {
-        advisories.push(
-          `${location}: useSemaphorMetric uses stale singular "metric"; use metrics: [...] and optional primaryMetric.`,
-        );
-      }
-      if (!/\bsource\s*:/.test(spec) && /\b(domainId|datasetName|datasetId)\s*:/.test(spec)) {
-        advisories.push(
-          `${location}: Semaphor hook uses direct domain/dataset fields; use a source-bearing Semaphor source ref.`,
-        );
-      }
-    }
   }
 
   if (usesDataAppSdkHooks && !hasProvider) {
     advisories.push(
-      'Data App SDK hooks were found, but no SemaphorDataAppProvider import/usage was found. Hooks stay idle without a runtime/provider unless the app supplies one through its own wrapper.',
+      "Data App SDK queries were found, but no SemaphorDataAppProvider import/usage was found. Queries stay idle without a runtime/provider unless the app supplies one through its own wrapper.",
     );
   }
 
@@ -150,18 +191,18 @@ function scanSourceQuality(root, sourceFiles) {
 
 function runScript(root, packageManager, scriptName) {
   const command =
-    packageManager === 'pnpm'
-      ? ['pnpm', [scriptName]]
-      : packageManager === 'yarn'
-        ? ['yarn', [scriptName]]
-        : packageManager === 'bun'
-          ? ['bun', ['run', scriptName]]
-          : ['npm', ['run', scriptName]];
+    packageManager === "pnpm"
+      ? ["pnpm", [scriptName]]
+      : packageManager === "yarn"
+        ? ["yarn", [scriptName]]
+        : packageManager === "bun"
+          ? ["bun", ["run", scriptName]]
+          : ["npm", ["run", scriptName]];
 
-  console.log(`Running ${command[0]} ${command[1].join(' ')}...`);
+  console.log(`Running ${command[0]} ${command[1].join(" ")}...`);
   const result = spawnSync(command[0], command[1], {
     cwd: root,
-    stdio: 'inherit',
+    stdio: "inherit",
     shell: false,
   });
   return result.status === 0;
@@ -171,13 +212,13 @@ function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
     console.log(
-      'Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict]',
+      "Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict]",
     );
     process.exit(0);
   }
 
   const root = path.resolve(args.dir);
-  const packageJsonPath = path.join(root, 'package.json');
+  const packageJsonPath = path.join(root, "package.json");
   if (!fs.existsSync(packageJsonPath)) {
     console.error(`No package.json found at ${packageJsonPath}`);
     process.exit(1);
@@ -191,17 +232,20 @@ function main() {
   const scripts = pkg.scripts || {};
   const issues = [];
 
-  if (!deps.react) issues.push('Missing react dependency.');
-  if (!deps['react-semaphor']) issues.push('Missing react-semaphor dependency.');
+  if (!deps.react) issues.push("Missing react dependency.");
+  if (!deps["react-semaphor"])
+    issues.push("Missing react-semaphor dependency.");
 
   const sourceFiles = collectFiles(root);
   const quality = scanSourceQuality(root, sourceFiles);
   const sdkImports = sourceFiles.filter((filePath) =>
-    fs.readFileSync(filePath, 'utf8').includes('react-semaphor/data-app-sdk')
+    fs.readFileSync(filePath, "utf8").includes("react-semaphor/data-app-sdk"),
   );
 
   if (sdkImports.length === 0) {
-    quality.advisories.push('No imports from react-semaphor/data-app-sdk were found.');
+    quality.advisories.push(
+      "No imports from react-semaphor/data-app-sdk were found.",
+    );
   }
 
   console.log(`Checked ${sourceFiles.length} source files.`);
@@ -211,8 +255,10 @@ function main() {
   }
 
   if (quality.advisories.length > 0) {
-    console.log('');
-    console.log(args.strict ? 'Validation strict issues:' : 'Validation advisories:');
+    console.log("");
+    console.log(
+      args.strict ? "Validation strict issues:" : "Validation advisories:",
+    );
     for (const advisory of quality.advisories) {
       console.log(`- ${advisory}`);
     }
@@ -223,8 +269,8 @@ function main() {
   }
 
   if (issues.length > 0) {
-    console.log('');
-    console.log('Validation issues:');
+    console.log("");
+    console.log("Validation issues:");
     for (const issue of issues) {
       console.log(`- ${issue}`);
     }
@@ -234,17 +280,17 @@ function main() {
   if (args.runBuild) {
     const packageManager = detectPackageManager(root);
     if (scripts.typecheck) {
-      scriptsOk = runScript(root, packageManager, 'typecheck') && scriptsOk;
+      scriptsOk = runScript(root, packageManager, "typecheck") && scriptsOk;
     }
     if (scripts.build) {
-      scriptsOk = runScript(root, packageManager, 'build') && scriptsOk;
+      scriptsOk = runScript(root, packageManager, "build") && scriptsOk;
     }
   }
 
   if (issues.length > 0 || !scriptsOk) {
     process.exit(1);
   }
-  console.log('Semaphor data app validation passed.');
+  console.log("Semaphor data app validation passed.");
 }
 
 main();

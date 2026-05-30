@@ -10,8 +10,8 @@ customer request
   -> classify operation
   -> inspect Semaphor metadata through MCP
   -> use governed analysis when needed
-  -> generate React with react-semaphor/data-app-sdk hooks when editing
-  -> use useSemaphorAnalysis for productized insight/driver views
+  -> define SDK inputs/queries with semaphor.* builders when editing
+  -> execute runtime data with useSemaphorQuery
   -> run local validation
   -> save draft or publish through Semaphor lifecycle APIs when requested
 ```
@@ -83,6 +83,9 @@ Expected agent behavior:
 Expected validation:
 
 - returned rows come from governed Semaphor execution,
+- if the user asks to add this as a runtime view, generated code uses
+  `semaphor.sql` with bounded SQL, `defaultParameters`, `semaphor.filter`
+  inputs, and `useSemaphorQuery` rather than static fixture rows,
 - no invented connection/table identifiers,
 - no token or credential leakage.
 
@@ -101,7 +104,7 @@ Expected agent behavior:
 - wait for explicit productization if the request is ambiguous,
 - inspect local React files before editing,
 - add a component, route, or panel that fits the existing app structure,
-- use Data App SDK hooks for runtime data,
+- use Data App SDK builders plus `useSemaphorQuery` for runtime data,
 - preserve the customer's styling and routing patterns.
 
 Expected validation:
@@ -122,7 +125,7 @@ Expected agent behavior:
 
 - inspect semantic metadata before answering,
 - use `semaphor_analyze` with period-change analysis during authoring,
-- generate a React view with `useSemaphorAnalysis`, not static markdown,
+- generate a React view with `semaphor.analysis` plus `useSemaphorQuery`, not static markdown,
   fixture data, or raw SQL output,
 - preserve the same semantic source, metric, date field, filters, time window,
   and analysis shape used for the governed answer,
@@ -130,7 +133,7 @@ Expected agent behavior:
 
 Expected validation:
 
-- extracted hook specs validate through `POST /api/v1/data-app/validate` when
+- extracted query specs validate through `POST /api/v1/data-app/validate` when
   available,
 - `/api/v1/data-app/execute` reaches the shared query-spec service for the
   analysis intent,
@@ -150,7 +153,19 @@ Expected agent behavior:
 - inspect local React app structure,
 - propose a grounded plan if the request is broad,
 - generate only after acceptance or an explicit build request,
-- create KPI, trend, table, and filter views using SDK hooks,
+- create KPI, trend, table, and filter views using `semaphor.*` query/input
+  builders plus `useSemaphorQuery`,
+- give each data-bearing card its own query by default unless the user asks for
+  a shared-query optimization,
+- render loading, error, and empty states for each visible query result,
+- make table views sortable and include totals for displayed numeric columns,
+- keep table queries bounded, and use Semaphor server-side sorting,
+  filtering, and pagination/windowing for large-table requests instead of
+  fetching unbounded rows into React,
+- ask before adding table dependencies; prefer an existing app table/grid
+  library, or `@tanstack/react-table` plus `@tanstack/react-virtual` when
+  richer table state and virtualized rendering are needed,
+- format numbers, dates, currencies, and percentages for scanning,
 - avoid static fixtures and invented datasets.
 
 Expected validation:
@@ -171,9 +186,9 @@ Expected agent behavior:
 
 - inspect the existing component and current Semaphor field refs,
 - verify the requested filter field through MCP if it is not already grounded,
-- use `useSemaphorInputOptions` when options should come from data,
-- use `useSemaphorInput` and pass the handle into downstream metric/records
-  hooks,
+- use `semaphor.inputOptions` when options should come from data,
+- use `semaphor.filter`/`semaphor.control`, bind with `useSemaphorInputs`, and
+  pass the handles into downstream `useSemaphorQuery` calls,
 - preserve existing app state conventions where possible.
 
 Expected validation:
@@ -226,8 +241,7 @@ Expected agent behavior:
   static build,
 - for publish, follow the Semaphor-hosted saved-draft-first lifecycle
   sequence,
-- pass `--hook-specs <json>` when extracted SDK hook specs are available so
-  Semaphor validates sources and fields before save/publish.
+- do not require or invent a hidden query-spec sidecar file for publish.
 
 Expected validation:
 
@@ -255,8 +269,8 @@ Expected agent behavior:
   writing files,
 - show conflict diagnostics and ask before overwriting local files,
 - treat saved workspace paths as hints only, never as authority,
-- continue editing with public SDK hooks after the user confirms the local repo
-  should be linked to that Data App.
+- continue editing with public SDK builders plus `useSemaphorQuery` after the
+  user confirms the local repo should be linked to that Data App.
 
 Expected validation:
 

@@ -35,8 +35,7 @@ import { SemaphorDataAppProvider } from "react-semaphor/data-app-sdk";
 export function SemaphorAppProvider({ children }: { children: ReactNode }) {
   return (
     <SemaphorDataAppProvider
-      apiBaseUrl={import.meta.env.VITE_SEMAPHOR_API_BASE_URL}
-      token={import.meta.env.VITE_SEMAPHOR_RUNTIME_TOKEN}
+      token={import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN}
     >
       {children}
     </SemaphorDataAppProvider>
@@ -45,8 +44,9 @@ export function SemaphorAppProvider({ children }: { children: ReactNode }) {
 `;
 
 const dashboardSource = `import {
-  useSemaphorMetric,
-  useSemaphorRecords,
+  defineSemaphorDataApp,
+  semaphor,
+  useSemaphorQuery,
 } from "react-semaphor/data-app-sdk";
 import type { SemaphorResultColumn } from "react-semaphor/data-app-sdk";
 
@@ -77,6 +77,32 @@ const dateField = {
   source,
 } as const;
 
+const totalMetric = semaphor.metric({
+  source,
+  id: "total",
+  label: "Total",
+  metrics: [metricField],
+  primaryMetric: metricField,
+});
+
+const recordsQuery = semaphor.records({
+  source,
+  id: "records",
+  label: "Records",
+  fields: [dimensionField, metricField],
+  dateField,
+  limit: 50,
+});
+
+export const semaphorApp = defineSemaphorDataApp({
+  id: "example-semaphor-data-app",
+  title: "Semaphor Data App",
+  views: [
+    { id: "total", title: "Total", query: totalMetric },
+    { id: "records", title: "Records", query: recordsQuery },
+  ],
+});
+
 const fallbackColumns: SemaphorResultColumn[] = [
   {
     key: dimensionField.name,
@@ -96,19 +122,8 @@ const fallbackColumns: SemaphorResultColumn[] = [
 ];
 
 export function ExampleSemaphorDashboard() {
-  const total = useSemaphorMetric({
-    source,
-    metrics: [metricField],
-    primaryMetric: metricField,
-    label: "Total",
-  });
-
-  const records = useSemaphorRecords({
-    source,
-    fields: [dimensionField, metricField],
-    dateField,
-    limit: 50,
-  });
+  const total = useSemaphorQuery(totalMetric);
+  const records = useSemaphorQuery(recordsQuery);
 
   if (total.isLoading || records.isLoading) {
     return <div>Loading Semaphor data...</div>;

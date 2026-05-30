@@ -80,8 +80,14 @@ function validateMcpConfig() {
     issues.push('.mcp.json: missing mcpServers.semaphor');
     return;
   }
-  if (!Array.isArray(server.args) || !server.args.includes('${SEMAPHOR_MCP_URL}')) {
-    issues.push('.mcp.json: semaphor server args must use SEMAPHOR_MCP_URL');
+  if (server.command !== 'node') {
+    issues.push('.mcp.json: semaphor server must use the local MCP launcher');
+  }
+  if (
+    !Array.isArray(server.args) ||
+    !server.args.includes('scripts/semaphor-mcp-remote.mjs')
+  ) {
+    issues.push('.mcp.json: semaphor server args must use scripts/semaphor-mcp-remote.mjs');
   }
   if (!JSON.stringify(server).includes('${SEMAPHOR_PROJECT_TOKEN}')) {
     issues.push('.mcp.json: semaphor server must use SEMAPHOR_PROJECT_TOKEN');

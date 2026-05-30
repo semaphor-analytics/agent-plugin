@@ -83,7 +83,7 @@ function parseArgs(argv) {
   const options = {
     command: command === '--help' || command === '-h' ? undefined : command,
     dir: process.cwd(),
-    apiBaseUrl: process.env.SEMAPHOR_API_BASE_URL || 'https://semaphor.cloud',
+    apiBaseUrl: process.env.SEMAPHOR_API_BASE_URL || '',
     token: process.env.SEMAPHOR_PROJECT_TOKEN || '',
     json: false,
     runBuild: true,
@@ -92,9 +92,9 @@ function parseArgs(argv) {
     manifest: '',
     writeManifest: true,
     validationStatus: '',
-    hookSpecs: '',
     description: undefined,
     bridgeWorkspaceHint: undefined,
+    newDataApp: false,
   };
   if (command === '--help' || command === '-h') {
     options.help = true;
@@ -117,6 +117,8 @@ function parseArgs(argv) {
     } else if (arg === '--data-app-id') {
       options.dataAppId = rest[i + 1];
       i += 1;
+    } else if (arg === '--new') {
+      options.newDataApp = true;
     } else if (arg === '--title') {
       options.title = rest[i + 1];
       i += 1;
@@ -139,9 +141,6 @@ function parseArgs(argv) {
     } else if (arg === '--validation-status') {
       options.validationStatus = rest[i + 1];
       i += 1;
-    } else if (arg === '--hook-specs') {
-      options.hookSpecs = rest[i + 1];
-      i += 1;
     } else if (arg === '--bridge-workspace-hint') {
       options.bridgeWorkspaceHint = rest[i + 1];
       i += 1;
@@ -151,6 +150,18 @@ function parseArgs(argv) {
       options.help = true;
     }
   }
+
+  const localEnv = readLocalEnv(options.dir);
+  options.token = firstEnvValue(
+    options.token,
+    localEnv.SEMAPHOR_PROJECT_TOKEN,
+    localEnv.VITE_SEMAPHOR_PROJECT_TOKEN,
+  );
+  options.apiBaseUrl = firstEnvValue(
+    options.apiBaseUrl,
+    localEnv.SEMAPHOR_API_BASE_URL,
+    localEnv.VITE_SEMAPHOR_API_BASE_URL,
+  );
 
   return options;
 }
@@ -164,14 +175,14 @@ function printHelp() {
 
 Options:
   --dir <path>                  React app root. Defaults to cwd.
-  --api-base-url <url>          Semaphor app URL. Defaults to SEMAPHOR_API_BASE_URL or https://semaphor.cloud.
-  --token <token>               Project token. Defaults to SEMAPHOR_PROJECT_TOKEN.
+  --api-base-url <url>          Semaphor app URL override. Defaults to SEMAPHOR_API_BASE_URL, local env, token apiServiceUrl, then https://semaphor.cloud.
+  --token <token>               Project token. Defaults to SEMAPHOR_PROJECT_TOKEN, then target app local env.
   --manifest <path>             Manifest JSON. Defaults to semaphor.data-app.json.
+  --new                         Create a new Data App even if the manifest has semaphor.dataAppId.
   --assets-dir <path>           Built asset directory for publish. Defaults to dist.
   --build-command <command>     Build command for publish. Defaults to package build script.
   --no-build                    Skip local build before upload.
   --check                       Validate inferred publish metadata without writing the manifest.
-  --hook-specs <path>           JSON array of SDK hook specs to validate through Semaphor.
   --validation-status <path>    Precomputed validation status JSON.
   --json                        Print compact JSON only.`);
 }
@@ -184,9 +195,97 @@ function writeJson(value, compact) {
   console.log(JSON.stringify(value, null, compact ? 0 : 2));
 }
 
+function readLocalEnv(startDir) {
+  const env = {};
+  for (const directory of candidateEnvDirectories(startDir)) {
+    for (const fileName of [
+      '.env.local',
+      '.env.development.local',
+      '.env.development',
+      '.env',
+    ]) {
+      for (const [key, value] of Object.entries(readEnvFile(path.join(directory, fileName)))) {
+        if (env[key] === undefined) {
+          env[key] = value;
+        }
+      }
+    }
+    if (Object.keys(env).length > 0) {
+      return env;
+    }
+  }
+  return env;
+}
+
+function candidateEnvDirectories(startDir) {
+  const directories = [];
+  const seen = new Set();
+  for (const value of [startDir, process.env.INIT_CWD, process.env.PWD]) {
+    const directory = normalizeEnvValue(value);
+    if (!directory) {
+      continue;
+    }
+    const resolved = path.resolve(directory);
+    if (!seen.has(resolved)) {
+      seen.add(resolved);
+      directories.push(resolved);
+    }
+  }
+  return directories;
+}
+
+function readEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
+
+  const parsed = {};
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)?\s*$/);
+    if (!match) {
+      continue;
+    }
+    const [, key, rawValue = ''] = match;
+    parsed[key] = parseEnvValue(rawValue);
+  }
+  return parsed;
+}
+
+function parseEnvValue(rawValue) {
+  const trimmed = rawValue.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  const commentIndex = trimmed.indexOf(' #');
+  return commentIndex === -1 ? trimmed : trimmed.slice(0, commentIndex).trim();
+}
+
+function firstEnvValue(...values) {
+  for (const value of values) {
+    const normalized = normalizeEnvValue(value);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return '';
+}
+
+function normalizeEnvValue(value) {
+  if (!value || value.startsWith('${')) {
+    return '';
+  }
+  return value.trim();
+}
+
 function requireToken(options) {
   if (!options.token) {
-    throw new Error('SEMAPHOR_PROJECT_TOKEN or --token is required.');
+    throw new Error(
+      'SEMAPHOR_PROJECT_TOKEN, VITE_SEMAPHOR_PROJECT_TOKEN, or --token is required.',
+    );
   }
 }
 
@@ -198,7 +297,56 @@ function requireValue(value, label) {
 }
 
 function apiUrl(options, pathname) {
-  return `${options.apiBaseUrl.replace(/\/+$/, '')}${pathname}`;
+  return `${resolveApiBaseUrl(options)}${pathname}`;
+}
+
+function resolveApiBaseUrl(options) {
+  const explicitBaseUrl = normalizeAppBaseUrl(options.apiBaseUrl);
+  if (explicitBaseUrl) {
+    return explicitBaseUrl;
+  }
+
+  const tokenBaseUrl = normalizeAppBaseUrl(readProjectTokenApiServiceUrl(options.token));
+  if (tokenBaseUrl) {
+    return tokenBaseUrl;
+  }
+
+  return 'https://semaphor.cloud';
+}
+
+function readProjectTokenApiServiceUrl(token) {
+  if (!token) {
+    return '';
+  }
+
+  const [, payloadSegment] = token.split('.');
+  if (!payloadSegment) {
+    return '';
+  }
+
+  try {
+    const normalizedPayload = payloadSegment
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(payloadSegment.length / 4) * 4, '=');
+    const payload = JSON.parse(Buffer.from(normalizedPayload, 'base64').toString('utf8'));
+    return typeof payload.apiServiceUrl === 'string' ? payload.apiServiceUrl : '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeAppBaseUrl(value) {
+  const normalized = normalizeEnvValue(value);
+  if (!normalized) {
+    return '';
+  }
+
+  const trimmed = normalized.replace(/\/+$/, '');
+  if (trimmed.endsWith('/api')) {
+    return trimmed.slice(0, -4);
+  }
+  return trimmed;
 }
 
 async function requestJson(options, pathname, init = {}, requestOptions = {}) {
@@ -451,6 +599,60 @@ function writeManifest(root, options, manifest) {
   return manifestPath;
 }
 
+function stringValue(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function manifestSemaphor(manifest) {
+  return manifest && typeof manifest.semaphor === 'object' && manifest.semaphor
+    ? manifest.semaphor
+    : {};
+}
+
+function manifestSemaphorForOptions(manifest, options) {
+  const semaphor = { ...manifestSemaphor(manifest) };
+  if (options.newDataApp) {
+    delete semaphor.dataAppId;
+  }
+  return semaphor;
+}
+
+function resolveDataAppOptions(root, options) {
+  const manifest = readManifest(root, options);
+  const semaphor = manifestSemaphor(manifest);
+  return {
+    ...options,
+    projectId: stringValue(options.projectId) || stringValue(semaphor.projectId),
+    dataAppId: options.newDataApp
+      ? undefined
+      : stringValue(options.dataAppId) || stringValue(semaphor.dataAppId),
+    title: stringValue(options.title) || stringValue(manifest.app?.name),
+    description:
+      options.description !== undefined
+        ? options.description
+        : stringValue(manifest.app?.description),
+  };
+}
+
+function mergeManifestIdentity(manifest, identity) {
+  return {
+    ...manifest,
+    semaphor: {
+      ...manifestSemaphor(manifest),
+      ...(identity.projectId ? { projectId: identity.projectId } : {}),
+      ...(identity.dataAppId ? { dataAppId: identity.dataAppId } : {}),
+    },
+  };
+}
+
+function writeManifestIdentity(root, options, identity) {
+  if (!options.writeManifest) {
+    return undefined;
+  }
+  const manifest = readManifest(root, options);
+  return writeManifest(root, options, mergeManifestIdentity(manifest, identity));
+}
+
 function readValidationStatus(root, options) {
   if (!options.validationStatus) {
     return undefined;
@@ -458,50 +660,12 @@ function readValidationStatus(root, options) {
   return readJson(path.resolve(root, options.validationStatus));
 }
 
-function readHookSpecs(root, options) {
-  if (!options.hookSpecs) {
-    return undefined;
-  }
-  const hooks = readJson(path.resolve(root, options.hookSpecs));
-  if (!Array.isArray(hooks)) {
-    throw new Error('--hook-specs must point to a JSON array of SDK hook specs.');
-  }
-  return hooks;
-}
-
 async function resolveValidationStatus(root, options) {
   const explicitValidationStatus = readValidationStatus(root, options);
   if (explicitValidationStatus) {
     return explicitValidationStatus;
   }
-
-  const hooks = readHookSpecs(root, options);
-  if (!hooks) {
-    return undefined;
-  }
-
-  const validation = await requestJson(
-    options,
-    '/api/v1/data-app/validate',
-    {
-      method: 'POST',
-      body: JSON.stringify({ hooks }),
-    },
-    { allowStatuses: [422] },
-  );
-  if (!validation.ok) {
-    const diagnosticSummary = Array.isArray(validation.diagnostics)
-      ? validation.diagnostics
-          .slice(0, 5)
-          .map((diagnostic) => diagnostic.message || diagnostic.code)
-          .filter(Boolean)
-          .join('; ')
-      : '';
-    throw new Error(
-      `Semaphor Data App validation failed${diagnosticSummary ? `: ${diagnosticSummary}` : '.'}`,
-    );
-  }
-  return validation;
+  return undefined;
 }
 
 function buildDraftPayload(root, options, validationStatus) {
@@ -519,36 +683,56 @@ function buildDraftPayload(root, options, validationStatus) {
 }
 
 async function loadDataApp(options) {
-  const dataAppId = requireValue(options.dataAppId, '--data-app-id');
-  return requestJson(options, `/api/data-apps/${encodeURIComponent(dataAppId)}`);
+  const root = path.resolve(options.dir);
+  const resolvedOptions = resolveDataAppOptions(root, options);
+  const dataAppId = requireValue(
+    resolvedOptions.dataAppId,
+    '--data-app-id or semaphor.dataAppId in the manifest',
+  );
+  return requestJson(
+    resolvedOptions,
+    `/api/data-apps/${encodeURIComponent(dataAppId)}`,
+  );
 }
 
 async function saveDraft(options, context = {}) {
   const root = path.resolve(options.dir);
+  const resolvedOptions = resolveDataAppOptions(root, options);
   const validationStatus =
-    context.validationStatus ?? (await resolveValidationStatus(root, options));
-  const payload = buildDraftPayload(root, options, validationStatus);
+    context.validationStatus ??
+    (await resolveValidationStatus(root, resolvedOptions));
+  const payload = buildDraftPayload(root, resolvedOptions, validationStatus);
 
-  if (options.dataAppId) {
+  if (resolvedOptions.dataAppId) {
     const result = await requestJson(
-      options,
-      `/api/data-apps/${encodeURIComponent(options.dataAppId)}/draft`,
+      resolvedOptions,
+      `/api/data-apps/${encodeURIComponent(resolvedOptions.dataAppId)}/draft`,
       {
         method: 'POST',
         body: JSON.stringify(payload),
       },
     );
+    writeManifestIdentity(root, resolvedOptions, {
+      projectId: resolvedOptions.projectId,
+      dataAppId: resolvedOptions.dataAppId,
+    });
     return {
-      dataAppId: options.dataAppId,
+      dataAppId: resolvedOptions.dataAppId,
       draftId: result.draft?.id,
       sourceRevision: payload.sourceRevision,
       result,
     };
   }
 
-  const projectId = requireValue(options.projectId, '--project-id');
-  const title = requireValue(options.title, '--title');
-  const result = await requestJson(options, '/api/data-apps', {
+  const projectId = requireValue(
+    resolvedOptions.projectId,
+    '--project-id or semaphor.projectId in the manifest',
+  );
+  const title = requireValue(
+    resolvedOptions.title,
+    '--title or app.name in the manifest',
+  );
+  const result = await requestJson(resolvedOptions, '/api/data-apps', {
     method: 'POST',
     body: JSON.stringify({
       ...payload,
@@ -556,8 +740,10 @@ async function saveDraft(options, context = {}) {
       title,
     }),
   });
+  const dataAppId = result.dataApp?.id;
+  writeManifestIdentity(root, resolvedOptions, { projectId, dataAppId });
   return {
-    dataAppId: result.dataApp?.id,
+    dataAppId,
     draftId: result.draft?.id,
     sourceRevision: payload.sourceRevision,
     result,
@@ -794,6 +980,11 @@ function preparePublishManifest(root, options) {
       description: manifest.app?.description || options.description,
       createdWith: manifest.app?.createdWith || 'semaphor-agent-plugin',
     },
+    semaphor: {
+      ...manifestSemaphorForOptions(manifest, options),
+      ...(options.projectId ? { projectId: options.projectId } : {}),
+      ...(options.dataAppId ? { dataAppId: options.dataAppId } : {}),
+    },
     runtime,
   };
 
@@ -905,14 +1096,19 @@ function isPublishableBuildAssetPath(assetPath) {
 
 async function publish(options) {
   const root = path.resolve(options.dir);
-  const validationStatus = await resolveValidationStatus(root, options);
-  const prepared = preparePublish(root, options);
-  const saved = await saveDraft(options, { validationStatus });
+  const resolvedOptions = resolveDataAppOptions(root, options);
+  const validationStatus = await resolveValidationStatus(root, resolvedOptions);
+  const prepared = preparePublish(root, resolvedOptions);
+  const saved = await saveDraft(resolvedOptions, { validationStatus });
   const dataAppId = requireValue(saved.dataAppId, 'Saved Data App id');
   const draftId = requireValue(saved.draftId, 'Saved draft id');
+  const projectId = requireValue(
+    resolvedOptions.projectId,
+    '--project-id or semaphor.projectId in the manifest',
+  );
 
   const start = await requestJson(
-    { ...options, dataAppId },
+    { ...resolvedOptions, dataAppId },
     `/api/data-apps/${encodeURIComponent(dataAppId)}/publish/start`,
     {
       method: 'POST',
@@ -930,11 +1126,17 @@ async function publish(options) {
   let publishStarted = true;
 
   try {
-    const manifest = prepared.manifest;
-    const assets = collectAssets(root, options, manifest);
+    const manifest = mergeManifestIdentity(prepared.manifest, {
+      projectId,
+      dataAppId,
+    });
+    if (resolvedOptions.writeManifest) {
+      writeManifest(root, resolvedOptions, manifest);
+    }
+    const assets = collectAssets(root, resolvedOptions, manifest);
     for (const asset of assets) {
       await requestJson(
-        { ...options, dataAppId },
+        { ...resolvedOptions, dataAppId },
         `/api/data-apps/${encodeURIComponent(dataAppId)}/publish/upload`,
         {
           method: 'POST',
@@ -949,7 +1151,7 @@ async function publish(options) {
     }
 
     const completed = await requestJson(
-      { ...options, dataAppId },
+      { ...resolvedOptions, dataAppId },
       `/api/data-apps/${encodeURIComponent(dataAppId)}/publish/complete`,
       {
         method: 'POST',
@@ -974,7 +1176,7 @@ async function publish(options) {
   } catch (error) {
     if (publishStarted && versionId) {
       await requestJson(
-        { ...options, dataAppId },
+        { ...resolvedOptions, dataAppId },
         `/api/data-apps/${encodeURIComponent(dataAppId)}/publish/fail`,
         {
           method: 'POST',
@@ -1005,7 +1207,9 @@ async function main() {
   } else if (options.command === 'save-draft') {
     result = await saveDraft(options);
   } else if (options.command === 'prepare-publish') {
-    const prepared = preparePublish(path.resolve(options.dir), options);
+    const root = path.resolve(options.dir);
+    const resolvedOptions = resolveDataAppOptions(root, options);
+    const prepared = preparePublish(root, resolvedOptions);
     result = {
       manifestPath: prepared.manifestPath,
       assetsDir: prepared.assetsRoot,

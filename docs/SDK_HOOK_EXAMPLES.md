@@ -1,12 +1,15 @@
-# Data App SDK Hook Examples
+# Data App SDK Examples
 
-These examples show the runtime contract generated React should use. They are
-framework-neutral and can be adapted to any React app structure.
+These examples show the canonical runtime contract generated React should use.
+New agent-authored Data Apps should define typed inputs and queries with
+`semaphor.*` builders, then execute them with `useSemaphorQuery`.
+
+Validation, save, and publish use the canonical `useSemaphorQuery` contract.
+Do not generate any alternate query execution pattern.
 
 ## Provider
 
-Wrap the part of the app that uses Semaphor hooks with
-`SemaphorDataAppProvider`.
+Wrap the app surface that uses Semaphor queries with `SemaphorDataAppProvider`.
 
 ```tsx
 import type { ReactNode } from "react";
@@ -20,24 +23,25 @@ export function SemaphorAnalyticsProvider({
   token: string;
 }) {
   return (
-    <SemaphorDataAppProvider
-      apiBaseUrl="https://semaphor.cloud"
-      token={token}
-    >
+    <SemaphorDataAppProvider token={token}>
       {children}
     </SemaphorDataAppProvider>
   );
 }
 ```
 
-In production, pass a scoped runtime token from the customer app's backend,
-embed token flow, or hosted Semaphor runtime. Do not commit long-lived tokens
-into frontend source.
+In production, pass a scoped runtime token from the customer app backend, embed
+token flow, or hosted Semaphor runtime. Do not commit long-lived tokens into
+frontend source.
 
-## Source And Fields
+The SDK decodes the Semaphor API URL from the token. Set `apiBaseUrl` only for
+unusual local or self-hosted routing where the token's `apiServiceUrl` should
+not be used.
 
-Use MCP-discovered semantic metadata. Do not invent domains, datasets, or
-fields.
+## Sources And Fields
+
+Use MCP-discovered semantic metadata. Do not invent domains, datasets, fields,
+or connection ids.
 
 ```tsx
 const source = {
@@ -74,21 +78,37 @@ const segment = {
 } as const;
 ```
 
-## KPI Metric
-
-Use `metrics[]` and, when useful, `primaryMetric`.
+## Canonical Metric Query
 
 ```tsx
-import { useSemaphorMetric } from "react-semaphor/data-app-sdk";
+import {
+  defineSemaphorDataApp,
+  semaphor,
+  useSemaphorQuery,
+} from "react-semaphor/data-app-sdk";
+
+const totalRevenueQuery = semaphor.metric({
+  id: "total-revenue",
+  label: "Total Revenue",
+  source,
+  metrics: [revenue],
+  primaryMetric: revenue,
+});
+
+export const semaphorApp = defineSemaphorDataApp({
+  id: "revenue-app",
+  title: "Revenue App",
+  views: [
+    {
+      id: "total-revenue",
+      title: "Total Revenue",
+      query: totalRevenueQuery,
+    },
+  ],
+});
 
 export function RevenueKpi() {
-  const totalRevenue = useSemaphorMetric({
-    source,
-    id: "total-revenue",
-    label: "Total Revenue",
-    metrics: [revenue],
-    primaryMetric: revenue,
-  });
+  const totalRevenue = useSemaphorQuery(totalRevenueQuery);
 
   if (totalRevenue.isLoading) return <span>Loading...</span>;
   if (totalRevenue.error) return <span>{totalRevenue.error.message}</span>;
@@ -97,35 +117,258 @@ export function RevenueKpi() {
 }
 ```
 
-## Governed Analysis Or Driver View
+## Canonical Records Query
 
-Use `useSemaphorAnalysis` when the UI needs the same advanced governed
-analytics kernel as MCP `semaphor_analyze`: period changes, drivers, spikes,
-drops, and "why did this change?" views.
+Use `columns[].key` for code access and `columns[].label` for display. Labels
+are display-only and may change.
 
 ```tsx
-import { useSemaphorAnalysis } from "react-semaphor/data-app-sdk";
+const ordersBySegmentQuery = semaphor.records({
+  id: "orders-by-segment",
+  label: "Orders by Segment",
+  source,
+  fields: [segment, revenue],
+  dateField: orderDate,
+  timeWindow: {
+    unit: "month",
+    value: 6,
+    anchor: "latest_available",
+  },
+  limit: 100,
+});
+
+export function OrdersBySegmentTable() {
+  const result = useSemaphorQuery(ordersBySegmentQuery);
+
+  if (result.isLoading) return <span>Loading...</span>;
+  if (result.error) return <span>{result.error.message}</span>;
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          {(result.columns ?? []).map((column) => (
+            <th key={column.key}>{column.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {result.records.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {(result.columns ?? []).map((column) => (
+              <td key={column.key}>{formatCell(row[column.key])}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+Do not access records with display labels such as `row[column.label]` or
+`row["Movement Date"]`.
+
+## Typing Reusable Query Components
+
+Do not type helper components with `ReturnType<typeof useSemaphorQuery>`.
+`useSemaphorQuery` is overloaded, and TypeScript can collapse the overloads to a
+shape that does not match the query being passed around.
+
+Use the public SDK result types instead:
+
+```tsx
+import type {
+  SemaphorQueryResult,
+  SemaphorRecordsQueryResult,
+  SemaphorRowsQueryResult,
+  SemaphorSqlQueryResult,
+} from "react-semaphor/data-app-sdk";
+
+function QueryStatus({ result }: { result: SemaphorQueryResult }) {
+  if (result.isLoading) return <span>Loading...</span>;
+  if (result.error) return <span>{result.error.message}</span>;
+  return null;
+}
+
+function RecordsTable({
+  result,
+}: {
+  result: SemaphorRecordsQueryResult;
+}) {
+  return <DataTable rows={result.records} columns={result.columns ?? []} />;
+}
+
+function SqlRowsTable({
+  result,
+}: {
+  result: SemaphorSqlQueryResult;
+}) {
+  return <DataTable rows={result.records} columns={result.columns ?? []} />;
+}
+
+function RowTable({
+  result,
+}: {
+  result: SemaphorRowsQueryResult;
+}) {
+  return <DataTable rows={result.records} columns={result.columns ?? []} />;
+}
+```
+
+Use `SemaphorRecordsQueryResult` for `semaphor.records(...)`,
+`SemaphorSqlQueryResult` for `semaphor.sql(...)`, `SemaphorRowsQueryResult` for
+table components that accept either records-backed or SQL-backed row results,
+and `SemaphorQueryResult` only for generic status/error wrappers.
+
+For production dashboard tables, add the expected table affordances around this
+basic pattern: loading/error/empty states, sortable headers, formatted cells,
+and a totals row for displayed numeric columns. If the total must represent all
+filtered data rather than the currently returned rows, define a separate
+aggregate query for that total instead of summing a limited table result.
+
+Keep table queries bounded. For large or complete-dataset tables, use
+Semaphor server-side filtering, sorting, and pagination/windowing; do not fetch
+a million rows into React and hide the problem with client-side pagination or
+virtualization. If the target app does not already have a table library, ask
+before adding one. Prefer `@tanstack/react-table` for rich table state and
+controls, and add `@tanstack/react-virtual` only when virtualized row rendering
+is needed.
+
+Server-paginated table queries carry page state in the query spec and use the
+returned pagination metadata for controls:
+
+```tsx
+import { useMemo, useState } from "react";
+import {
+  semaphor,
+  useSemaphorQuery,
+} from "react-semaphor/data-app-sdk";
+
+const pageSize = 50;
+const inventorySource = {
+  kind: "semantic",
+  domainId: "domain_inventory",
+  datasetName: "inventory_movements",
+} as const;
+
+function inventoryRowsQuery(page: number) {
+  return semaphor.records({
+    id: "inventory-rows",
+    source: inventorySource,
+    fields: [
+      { name: "movement_date", role: "date", dataType: "date" },
+      { name: "region", role: "dimension", dataType: "string" },
+      { name: "quantity_tons", role: "measure", dataType: "number" },
+    ],
+    orderBy: {
+      field: { name: "movement_date", role: "date" },
+      direction: "desc",
+    },
+    pagination: { page, pageSize },
+  });
+}
+
+function InventoryTable() {
+  const [page, setPage] = useState(1);
+  const query = useMemo(() => inventoryRowsQuery(page), [page]);
+  const result = useSemaphorQuery(query);
+
+  return (
+    <DataTable
+      rows={result.records}
+      columns={result.columns ?? []}
+      page={result.pagination?.page ?? page}
+      pageCount={result.pagination?.pageCount ?? 0}
+      onPageChange={setPage}
+    />
+  );
+}
+```
+
+## Shared Inputs
+
+Inputs are the public abstraction for filters and controls. Define them once,
+bind runtime values with `useSemaphorInputs` or explicit `useSemaphorInput`,
+then pass the handles into each query that should subscribe.
+
+```tsx
+import {
+  semaphor,
+  useSemaphorInputs,
+  useSemaphorQuery,
+} from "react-semaphor/data-app-sdk";
+
+const regionFilter = semaphor.filter({
+  id: "region",
+  label: "Region",
+  field: segment,
+  operator: "in",
+  defaultValue: ["Enterprise"],
+});
+
+const filteredRevenueQuery = semaphor.metric({
+  id: "filtered-revenue",
+  source,
+  metrics: [revenue],
+  primaryMetric: revenue,
+  inputs: [regionFilter],
+});
+
+const filteredOrdersQuery = semaphor.records({
+  id: "filtered-orders",
+  source,
+  fields: [segment, revenue],
+  inputs: [regionFilter],
+});
+
+export function RevenueWithSharedFilter() {
+  const inputs = useSemaphorInputs([regionFilter]);
+  const filteredRevenue = useSemaphorQuery(filteredRevenueQuery, { inputs });
+  const filteredOrders = useSemaphorQuery(filteredOrdersQuery, { inputs });
+
+  return (
+    <section>
+      <strong>{formatNumber(filteredRevenue.value)}</strong>
+      <DataTable
+        rows={filteredOrders.records}
+        columns={filteredOrders.columns ?? []}
+      />
+    </section>
+  );
+}
+```
+
+This is opt-in subscription. A view is affected by an input only when that
+input handle is passed to that query.
+
+## Governed Analysis Or Driver View
+
+Use `semaphor.analysis` when the UI needs the same advanced governed analytics
+kernel as MCP `semaphor_analyze`: period changes, drivers, spikes, drops, and
+"why did this change?" views.
+
+```tsx
+const revenueDriversQuery = semaphor.analysis({
+  id: "revenue-driver-insight",
+  label: "Revenue Drivers",
+  source,
+  metrics: [revenue],
+  primaryMetric: revenue,
+  dateField: orderDate,
+  timeGrain: "month",
+  timeWindow: {
+    unit: "month",
+    value: 6,
+    anchor: "latest_available",
+  },
+  analysis: { kind: "period_change", orderBy: "absolute_change" },
+  driverMode: "all",
+  includePopulation: true,
+});
 
 export function RevenueDriverInsight() {
-  const insight = useSemaphorAnalysis({
-    source,
-    id: "revenue-driver-insight",
-    label: "Revenue Drivers",
-    metrics: [revenue],
-    primaryMetric: revenue,
-    dateField: orderDate,
-    timeGrain: "month",
-    timeWindow: {
-      kind: "relative",
-      unit: "month",
-      value: 6,
-      anchor: "latest_available",
-      completeness: "complete_periods",
-    },
-    analysis: { kind: "period_change", orderBy: "absolute_change" },
-    driverMode: "all",
-    includePopulation: true,
-  });
+  const insight = useSemaphorQuery(revenueDriversQuery);
 
   if (insight.isLoading) return <span>Loading...</span>;
   if (insight.error) return <span>{insight.error.message}</span>;
@@ -155,225 +398,66 @@ export function RevenueDriverInsight() {
 }
 ```
 
-Do not turn `semaphor_analyze` markdown or raw SQL diagnostics into the runtime
-contract. Productized insight views should use `useSemaphorAnalysis` or another
-public SDK hook backed by the shared analytics protocol.
-The SDK normalizes analysis rows into typed `resultSets`; it also exposes
-`records` and `columns` for the default row-bearing result so simple insight
-views do not need to guess label-based row keys.
+Do not turn `semaphor_analyze` markdown or raw SQL diagnostics into static
+fixture data.
 
-## Records Or Table
+## SQL Views
 
-Use `columns[].key` for code access and `columns[].label` for display. Labels
-are display-only and may change.
+Use `semaphor.sql` when the product requirement is explicitly SQL-first or
+cannot be expressed with semantic metric/records/analysis queries. Inline SQL
+is supported; keep it bounded, use Semaphor template helpers for params and
+filters, and let Semaphor execute it server-side.
 
-Bounded row and chart datasets can use `timeWindow` directly on
-`useSemaphorRecords`; use `dateField` with the same grounded date ref used by
-MCP `semaphor_analyze`.
+Use `inputs` for runtime filter/control values. Use `defaultParameters` only
+for static SQL `param(...)` fallback values.
 
 ```tsx
-import { useSemaphorRecords } from "react-semaphor/data-app-sdk";
+const regionSqlFilter = semaphor.filter({
+  id: "region",
+  label: "Region",
+  field: { name: "region", role: "dimension", dataType: "string" },
+  operator: "in",
+});
 
-export function RevenueTable() {
-  const result = useSemaphorRecords({
-    source,
-    id: "revenue-by-segment",
-    label: "Revenue by Segment",
-    fields: [segment, revenue],
-    dateField: orderDate,
-    timeWindow: {
-      unit: "month",
-      value: 6,
-      anchor: "latest_available",
-    },
-    orderBy: { field: revenue, direction: "desc" },
-    limit: 25,
-  });
+const limitParam = semaphor.sqlParam({
+  id: "limit",
+  label: "Limit",
+  defaultValue: 100,
+});
 
-  if (result.isLoading) return <span>Loading...</span>;
-  if (result.error) return <span>{result.error.message}</span>;
+const latestMovementsQuery = semaphor.sql({
+  id: "latest-movements",
+  source: {
+    kind: "sql",
+    connectionId: "conn_clickhouse",
+    dialect: "clickhouse",
+  },
+  sql: `
+    select movement_date, sku, quantity_tons
+    from inventory_movements
+    where 1 = 1
+      {{ filter("region").sql }}
+    order by movement_date desc
+    limit {{ param("limit") }}
+  `,
+  inputs: [regionSqlFilter, limitParam],
+  defaultParameters: { limit: 100 },
+  limit: 100,
+});
 
-  return (
-    <table>
-      <thead>
-        <tr>
-          {result.columns?.map((column) => (
-            <th key={column.key}>{column.label}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {result.records.map((row, rowIndex) => (
-          <tr key={rowIndex}>
-            {result.columns?.map((column) => (
-              <td key={column.key}>{formatCell(row[column.key])}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+export function LatestMovements() {
+  const inputs = useSemaphorInputs([regionSqlFilter, limitParam]);
+  const result = useSemaphorQuery(latestMovementsQuery, { inputs });
+
+  return <DataTable rows={result.records} columns={result.columns ?? []} />;
 }
 ```
 
-Avoid:
+Existing Semaphor SQL template expressions remain first-class:
 
-```tsx
-row[column.label]
-row["Revenue"]
-```
+- `{{ filters | where }}`
+- `{{ filters | and }}`
+- `filter("name")`
+- `param("name")`
 
-## Dynamic Filter Options
-
-Use `useSemaphorInputOptions` to load selectable values and
-`useSemaphorInput` to bind the selected value into downstream queries.
-Filter input operators accept canonical SDK symbols such as `"="`, `"in"`, and
-`"between"` plus common MCP aliases such as `"equals"` and `"not_equals"`. The
-SDK normalizes them before execution.
-
-```tsx
-import {
-  useSemaphorInput,
-  useSemaphorInputOptions,
-  useSemaphorRecords,
-} from "react-semaphor/data-app-sdk";
-
-export function RevenueBySegmentWithFilter() {
-  const segmentOptions = useSemaphorInputOptions({
-    source,
-    field: segment,
-    limit: 50,
-  });
-
-  const segmentFilter = useSemaphorInput<string[]>({
-    id: "segment-filter",
-    kind: "filter",
-    label: "Segment",
-    field: segment,
-    operator: "in",
-    multi: true,
-    options: segmentOptions.options,
-  });
-
-  const result = useSemaphorRecords({
-    source,
-    id: "revenue-by-segment-filtered",
-    fields: [segment, revenue],
-    inputs: [segmentFilter],
-    limit: 25,
-  });
-
-  return (
-    <>
-      <select
-        multiple
-        value={Array.isArray(segmentFilter.value) ? segmentFilter.value : []}
-        onChange={(event) =>
-          segmentFilter.setValue(
-            Array.from(event.currentTarget.selectedOptions).map(
-              (option) => option.value,
-            ),
-          )
-        }
-      >
-        {segmentOptions.options.map((option) => (
-          <option key={String(option.value)} value={String(option.value)}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-
-      <pre>{JSON.stringify(result.records, null, 2)}</pre>
-    </>
-  );
-}
-```
-
-## Shared Or Top-Level Filters (Opt-In Subscription)
-
-A dashboard-wide filter is composition, not a global setting. Own one
-`useSemaphorInput` in a shared parent (or a context you create), then pass the
-same handle into the `inputs` of each card that should respond. A card
-subscribes by including the handle and stays unfiltered by omitting it.
-
-```tsx
-import {
-  useSemaphorInput,
-  useSemaphorMetric,
-  useSemaphorRecords,
-} from "react-semaphor/data-app-sdk";
-
-export function OperationsDashboard() {
-  const region = useSemaphorInput<string>({
-    id: "region",
-    kind: "filter",
-    label: "Region",
-    field: regionField,
-    operator: "=",
-  });
-
-  // Subscribes to the region filter.
-  const filteredRevenue = useSemaphorRecords({
-    source,
-    id: "revenue-by-region",
-    fields: [regionField, revenue],
-    inputs: [region],
-  });
-
-  // Intentionally NOT subscribed: a company-wide total stays unfiltered.
-  const companyTotal = useSemaphorMetric({
-    source,
-    id: "company-total-revenue",
-    metrics: [revenue],
-    primaryMetric: revenue,
-  });
-
-  return (
-    <>
-      <RegionPicker handle={region} />
-      <Kpi label="Company total (all regions)" value={companyTotal.value} />
-      <RevenueTable result={filteredRevenue} />
-    </>
-  );
-}
-```
-
-Per-hook subscription is intentional. Not every filter is meaningful for every
-visual, so this lets you control exactly which cards a filter touches. It
-mirrors Semaphor's dashboard model, where filter subscription is opt-in per
-card. Do not reach for a global "apply to all queries" filter or assume every
-card inherits a control.
-
-## Formatting Helpers
-
-Generated apps may use their own design system. Keep formatting local and
-simple unless the customer app already has shared formatters.
-
-```tsx
-function formatNumber(value: unknown) {
-  if (typeof value !== "number") return "--";
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatCell(value: unknown) {
-  if (value == null) return "--";
-  if (typeof value === "number") return formatNumber(value);
-  return String(value);
-}
-```
-
-## Generation Rules
-
-- Inspect Semaphor metadata through MCP before writing data-bearing hooks.
-- Use `useSemaphorAnalysis` for insight, driver, spike/drop, and period-change
-  views.
-- Prefer semantic source refs with domain plus dataset id/name.
-- Use `metrics[]`, not a singular `metric`.
-- Use `row[column.key]`, not display labels, for record access.
-- For shared or top-level filters, thread one input handle into each card's
-  `inputs`; subscription is opt-in per card, so leave a card out to keep it
-  unfiltered. Do not assume a global apply-to-all filter.
-- Keep customer app structure intact.
-- Let the customer's own typecheck/build decide whether the integration works.
+Do not concatenate SQL strings in React.

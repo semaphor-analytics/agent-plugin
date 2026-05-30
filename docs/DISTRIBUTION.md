@@ -6,13 +6,13 @@ across agent hosts by sharing the same Semaphor-owned contracts:
 ```text
 agent plugin
   -> Semaphor MCP for authoring discovery and governed analysis
-  -> react-semaphor/data-app-sdk for React runtime hooks
+  -> react-semaphor/data-app-sdk builders plus useSemaphorQuery for runtime data
   -> Semaphor Data App lifecycle REST APIs for save and publish
 ```
 
 The plugin must not fork the analytics language by host. Codex, Claude Code,
-Cursor, and future agents should all exercise the same MCP tools, SDK hook
-contracts, validation route, and lifecycle APIs.
+Cursor, and future agents should all exercise the same MCP tools, SDK
+builder/query contracts, validation route, and lifecycle APIs.
 
 ## Current Package Shape
 
@@ -35,11 +35,10 @@ manifests are thin host adapters over those shared files.
 Current beta shape:
 
 1. Install or enable the Semaphor Agent Plugin package.
-2. Set:
+2. Add the project token to the target Vite app's ignored `.env.local`:
 
    ```bash
-   export SEMAPHOR_PROJECT_TOKEN="<project-token>"
-   export SEMAPHOR_MCP_URL="https://semaphor.cloud/api/mcp"
+   VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
    ```
 
 3. Open Codex in the target React repository.
@@ -75,8 +74,7 @@ entry that points at this plugin repository. The customer setup remains the
 same:
 
 ```bash
-export SEMAPHOR_PROJECT_TOKEN="<project-token>"
-export SEMAPHOR_MCP_URL="https://semaphor.cloud/api/mcp"
+VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 ```
 
 Then the user opens Claude Code in a React repo and invokes the Semaphor plugin
@@ -84,18 +82,25 @@ or asks naturally for Semaphor-backed app work. Claude Code should use the
 namespaced Semaphor skill and MCP server instead of project-local one-off
 instructions.
 
+The plugin infers the MCP URL from the project token's `apiServiceUrl`. Use
+`SEMAPHOR_MCP_URL` only for unusual local routing overrides.
+
 ## Shared Customer Contract
 
 For both Codex and Claude Code:
 
 - Customer app shape is arbitrary React.
 - `init:data-app` is optional starter scaffolding, not a required layout.
-- Runtime app code uses public `react-semaphor/data-app-sdk` hooks:
-  - `useSemaphorAnalysis`
-  - `useSemaphorMetric`
-  - `useSemaphorRecords`
-  - `useSemaphorInput`
-  - `useSemaphorInputOptions`
+- Runtime app code uses public `react-semaphor/data-app-sdk` builders and
+  canonical query execution:
+  - `semaphor.metric`
+  - `semaphor.records`
+  - `semaphor.analysis`
+  - `semaphor.sql`
+  - `semaphor.filter`
+  - `semaphor.sqlParam`
+  - `useSemaphorInputs`
+  - `useSemaphorQuery`
 - Authoring questions use MCP:
   - discovery and grounding tools first,
   - `semaphor_analyze` for governed BI,

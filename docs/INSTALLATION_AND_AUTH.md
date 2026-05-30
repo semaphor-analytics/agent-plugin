@@ -46,12 +46,15 @@ usage contract should remain the same:
 
 ## Required Credentials
 
-The plugin uses a Semaphor project token for MCP authoring:
+The plugin uses a Semaphor project token for MCP authoring. For Vite local
+dogfooding, put the token in the target app's ignored `.env.local`:
 
 ```bash
-export SEMAPHOR_PROJECT_TOKEN="<project-token>"
-export SEMAPHOR_MCP_URL="https://semaphor.cloud/api/mcp"
+VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 ```
+
+The MCP launcher and lifecycle helper read this local file. They also accept
+`SEMAPHOR_PROJECT_TOKEN` from shell env or local env for non-Vite workflows.
 
 Customers retrieve this token from the Semaphor project page:
 
@@ -65,21 +68,15 @@ credentials.
 
 Store real tokens in a local ignored env file, not in source control.
 
-## Hosted Or Self-Hosted MCP
+## MCP URL Resolution
 
-Customers should use hosted Semaphor MCP:
+The plugin infers the MCP URL from the project token's `apiServiceUrl` and
+connects to that Semaphor host's `/api/mcp` route. Hosted and self-hosted
+tokens should both work without a separate MCP env var.
 
-```bash
-export SEMAPHOR_MCP_URL="https://semaphor.cloud/api/mcp"
-```
-
-Self-hosted Semaphor deployments should point at the deployment's MCP route:
-
-```bash
-export SEMAPHOR_MCP_URL="https://your-semaphor-host.example.com/api/mcp"
-```
-
-Use the MCP URL that matches the Semaphor project token's environment.
+Set `SEMAPHOR_MCP_URL` only for unusual local routing overrides, such as a
+developer tunnel or a temporary localhost MCP route that intentionally differs
+from the token's `apiServiceUrl`.
 
 ## Authoring Token Versus Runtime Token
 
@@ -102,12 +99,16 @@ purpose or equivalent Semaphor contract.
 
 ## Save And Publish Auth
 
-Alpha save/publish uses the same project token configured for MCP authoring.
+Save/publish uses the same project token configured for MCP authoring.
 When lifecycle APIs are available, the agent should call the Semaphor Data App
 REST API/command path, not MCP lifecycle wrappers.
 
-The helper commands read `SEMAPHOR_PROJECT_TOKEN` and optionally
-`SEMAPHOR_API_BASE_URL`:
+The helper commands read the project token from shell env or the target app's
+local env files. They accept `SEMAPHOR_PROJECT_TOKEN` and, for Vite dogfooding,
+`VITE_SEMAPHOR_PROJECT_TOKEN`. The Semaphor app URL is inferred from the
+token's `apiServiceUrl`. `SEMAPHOR_API_BASE_URL` is optional and should be used
+only for unusual local or self-hosted routing where the token URL should not be
+used:
 
 ```bash
 npm run prepare:publish -- --dir /path/to/customer-app
@@ -136,30 +137,48 @@ snapshots, build artifacts, validation output, or screenshots.
 1. Install or enable the Semaphor plugin in Codex, Claude Code, or the target
    agent host.
 2. Retrieve the project token from `https://semaphor.cloud/project`.
-3. Set `SEMAPHOR_PROJECT_TOKEN`.
-4. Set `SEMAPHOR_MCP_URL=https://semaphor.cloud/api/mcp`.
-5. Open the agent host in the target React repo.
-6. Run detection:
+3. Add `VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"` to the target app's
+   ignored `.env.local`.
+4. Open the agent host in the target React repo.
+5. Run detection:
 
    ```bash
    npm run detect -- --dir /path/to/customer-app
    ```
 
-7. Install `react-semaphor` in the customer app if missing.
-8. Ask the agent to inspect Semaphor data and plan the app before editing.
-9. Add SDK-hook based components into the app's existing structure.
-10. Run the app's own typecheck/build and browser smoke checks.
+6. Install `react-semaphor` in the customer app if missing.
+7. Ask the agent to inspect Semaphor data and plan the app before editing.
+8. Add SDK-hook based components into the app's existing structure.
+9. Run the app's own typecheck/build and browser smoke checks.
+
+## External Local App Smoke Test
+
+For a quick test in an arbitrary Vite React app, create or update `.env.local`:
+
+```bash
+VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
+```
+
+The generated provider should only need the token:
+
+```tsx
+<SemaphorDataAppProvider token={runtimeToken}>{children}</SemaphorDataAppProvider>
+```
+
+Do not set a separate Semaphor API base URL for the normal cloud case. The SDK
+decodes `apiServiceUrl` from the token.
 
 ## Local Runtime Configuration
 
-For local development, pass a runtime token and API base URL into
-`SemaphorDataAppProvider` using the target app's normal configuration system.
+For local development, pass the project token into `SemaphorDataAppProvider`
+using the target app's normal configuration system. The SDK decodes the
+Semaphor API URL from the token. Provide `apiBaseUrl` only for unusual local
+or self-hosted routing where the token's `apiServiceUrl` should not be used.
 
 Vite-style local env:
 
 ```bash
-VITE_SEMAPHOR_API_BASE_URL=https://semaphor.cloud
-VITE_SEMAPHOR_RUNTIME_TOKEN=<runtime-token>
+VITE_SEMAPHOR_PROJECT_TOKEN=<project-token>
 ```
 
 Next.js or custom apps may use different names. The plugin should adapt to the
@@ -191,13 +210,13 @@ same Semaphor MCP, SDK, validation, and lifecycle contracts.
 
 Common setup failures should be reported directly:
 
-- missing `SEMAPHOR_PROJECT_TOKEN`,
-- wrong `SEMAPHOR_MCP_URL`,
+- missing project token in shell env or local env,
+- wrong `SEMAPHOR_MCP_URL` override,
 - expired or unauthorized project token,
 - no semantic domain access,
 - missing `react-semaphor` package,
 - runtime app has no token,
-- runtime API base URL points at the wrong Semaphor host,
+- runtime `apiBaseUrl` override points at the wrong Semaphor host,
 - app typecheck/build fails.
 
 When a failure comes from Semaphor metadata or governed execution, fix the MCP,
