@@ -10,6 +10,21 @@ The current beta shape is a shared Semaphor agent plugin repository:
 
 ```text
 agent-plugin/
+  .agents/plugins/marketplace.json
+  .claude-plugin/marketplace.json
+  plugins/semaphor/
+    .codex-plugin/plugin.json
+    .claude-plugin/plugin.json
+    .mcp.json
+    skills/
+    scripts/
+```
+
+The repository root is the marketplace root. The installable plugin package is
+`plugins/semaphor`.
+
+```text
+plugins/semaphor/
   .codex-plugin/plugin.json
   .claude-plugin/plugin.json
   .mcp.json
@@ -202,7 +217,7 @@ components such as `skills/` and `.mcp.json`.
 For local development:
 
 ```bash
-claude --plugin-dir /path/to/agent-plugin
+claude --plugin-dir /path/to/agent-plugin/plugins/semaphor
 ```
 
 Validate when Claude Code is installed:

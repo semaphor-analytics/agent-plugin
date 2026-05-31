@@ -1,0 +1,19 @@
+{
+  "name": "semaphor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "detect": "node scripts/detect-react-app.mjs",
+    "init:data-app": "node scripts/init-semaphor-data-app.mjs",
+    "data-app": "node scripts/semaphor-data-app.mjs",
+    "load:data-app": "node scripts/semaphor-data-app.mjs load",
+    "save:data-app": "node scripts/semaphor-data-app.mjs save-draft",
+    "prepare:publish": "node scripts/semaphor-data-app.mjs prepare-publish",
+    "publish:data-app": "node scripts/semaphor-data-app.mjs publish",
+    "validate:data-app": "node scripts/validate-semaphor-data-app.mjs",
+    "validate:plugin": "node scripts/validate-plugin-package.mjs",
+    "validate:codex-plugin": "node scripts/validate-plugin-package.mjs --codex",
+    "validate:claude-plugin": "claude plugin validate ."
+  }
+}

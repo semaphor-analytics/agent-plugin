@@ -21,19 +21,42 @@ layout.
 
 ### Codex
 
-Install **Semaphor** from the Codex plugin distribution channel provided by
-Semaphor.
+Add the Semaphor marketplace from GitHub, then install the Semaphor plugin:
+
+```bash
+codex plugin marketplace add semaphor-analytics/agent-plugin
+codex plugin add semaphor --marketplace semaphor
+```
 
 After installation, open Codex in your React app repository and confirm the
 Semaphor plugin is enabled.
 
 ### Claude Code
 
-Install **Semaphor** from the Claude Code plugin distribution channel provided
-by Semaphor.
+Add the Semaphor marketplace from GitHub, then install the Semaphor plugin:
+
+```text
+/plugin marketplace add semaphor-analytics/agent-plugin
+/plugin install semaphor@semaphor
+/reload-plugins
+```
 
 After installation, open Claude Code in your React app repository and confirm
 the Semaphor plugin is enabled.
+
+## Repository Layout
+
+This GitHub repo is the marketplace root for both Codex and Claude Code:
+
+```text
+agent-plugin/
+  .agents/plugins/marketplace.json      # Codex marketplace catalog
+  .claude-plugin/marketplace.json       # Claude Code marketplace catalog
+  plugins/semaphor/                     # Shared installable plugin package
+```
+
+Codex and Claude Code use different marketplace file locations, but both
+marketplaces point to the same `plugins/semaphor` package.
 
 ## Connect To Semaphor
 
@@ -196,8 +219,8 @@ same app.
 
 ## More Documentation
 
-- [Golden workflows](docs/GOLDEN_WORKFLOWS.md)
-- [Data App SDK reference](docs/DATA_APP_SDK_REFERENCE.md)
-- [Data App SDK examples](docs/SDK_HOOK_EXAMPLES.md)
-- [Publishing to Semaphor](docs/PUBLISHING_TO_SEMAPHOR.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Golden workflows](plugins/semaphor/docs/GOLDEN_WORKFLOWS.md)
+- [Data App SDK reference](plugins/semaphor/docs/DATA_APP_SDK_REFERENCE.md)
+- [Data App SDK examples](plugins/semaphor/docs/SDK_HOOK_EXAMPLES.md)
+- [Publishing to Semaphor](plugins/semaphor/docs/PUBLISHING_TO_SEMAPHOR.md)
+- [Troubleshooting](plugins/semaphor/docs/TROUBLESHOOTING.md)

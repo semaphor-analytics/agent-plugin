@@ -4,16 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "detect": "node scripts/detect-react-app.mjs",
-    "init:data-app": "node scripts/init-semaphor-data-app.mjs",
-    "data-app": "node scripts/semaphor-data-app.mjs",
-    "load:data-app": "node scripts/semaphor-data-app.mjs load",
-    "save:data-app": "node scripts/semaphor-data-app.mjs save-draft",
-    "prepare:publish": "node scripts/semaphor-data-app.mjs prepare-publish",
-    "publish:data-app": "node scripts/semaphor-data-app.mjs publish",
-    "validate:data-app": "node scripts/validate-semaphor-data-app.mjs",
-    "validate:plugin": "node scripts/validate-plugin-package.mjs",
-    "validate:codex-plugin": "node scripts/validate-plugin-package.mjs --codex",
-    "validate:claude-plugin": "claude plugin validate ."
+    "detect": "npm --prefix plugins/semaphor run detect --",
+    "init:data-app": "npm --prefix plugins/semaphor run init:data-app --",
+    "data-app": "npm --prefix plugins/semaphor run data-app --",
+    "load:data-app": "npm --prefix plugins/semaphor run load:data-app --",
+    "save:data-app": "npm --prefix plugins/semaphor run save:data-app --",
+    "prepare:publish": "npm --prefix plugins/semaphor run prepare:publish --",
+    "publish:data-app": "npm --prefix plugins/semaphor run publish:data-app --",
+    "validate:data-app": "npm --prefix plugins/semaphor run validate:data-app --",
+    "validate:plugin": "npm --prefix plugins/semaphor run validate:plugin",
+    "validate:codex-plugin": "npm --prefix plugins/semaphor run validate:codex-plugin",
+    "validate:claude-plugin": "claude plugin validate plugins/semaphor",
+    "validate:marketplaces": "node --check plugins/semaphor/scripts/validate-plugin-package.mjs && node -e \"JSON.parse(require('fs').readFileSync('.agents/plugins/marketplace.json','utf8')); JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8'))\""
   }
 }

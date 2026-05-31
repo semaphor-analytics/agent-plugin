@@ -18,6 +18,22 @@ builder/query contracts, validation route, and lifecycle APIs.
 
 ```text
 agent-plugin/
+  .agents/plugins/marketplace.json
+  .claude-plugin/marketplace.json
+  plugins/semaphor/
+    .codex-plugin/plugin.json
+    .claude-plugin/plugin.json
+    .mcp.json
+    skills/
+    scripts/
+    docs/
+```
+
+The repository root is the marketplace root. The installable plugin package is
+`plugins/semaphor`.
+
+```text
+plugins/semaphor/
   .codex-plugin/plugin.json
   .claude-plugin/plugin.json
   .mcp.json
@@ -60,7 +76,7 @@ Semaphor's Claude plugin manifest points at the same shared `skills/` and
 Local development install:
 
 ```bash
-claude --plugin-dir /path/to/agent-plugin
+claude --plugin-dir /path/to/agent-plugin/plugins/semaphor
 ```
 
 Local validation:

@@ -1,0 +1,23 @@
+{
+  "name": "semaphor",
+  "owner": {
+    "name": "Semaphor Analytics Corp."
+  },
+  "description": "Semaphor plugins for agentic analytics app development.",
+  "plugins": [
+    {
+      "name": "semaphor",
+      "displayName": "Semaphor",
+      "description": "Build Semaphor-backed React data apps with governed analytics.",
+      "version": "0.1.0",
+      "source": "./plugins/semaphor",
+      "author": {
+        "name": "Semaphor Analytics Corp."
+      },
+      "repository": "https://github.com/semaphor-analytics/agent-plugin",
+      "homepage": "https://semaphor.cloud",
+      "category": "Productivity",
+      "tags": ["analytics", "react", "dashboard", "mcp"]
+    }
+  ]
+}
