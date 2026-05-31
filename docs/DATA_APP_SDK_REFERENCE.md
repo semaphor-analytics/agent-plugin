@@ -292,7 +292,7 @@ virtualized rendering is required.
 After editing:
 
 ```bash
-node /path/to/semaphor-agent-plugin/scripts/validate-semaphor-data-app.mjs --dir <app>
+node /path/to/agent-plugin/scripts/validate-semaphor-data-app.mjs --dir <app>
 npm run typecheck
 npm run build
 ```

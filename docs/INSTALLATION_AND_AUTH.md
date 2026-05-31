@@ -9,7 +9,7 @@ React Router, monorepos, and custom product shells.
 The current beta shape is a shared Semaphor agent plugin repository:
 
 ```text
-semaphor-agent-plugin/
+agent-plugin/
   .codex-plugin/plugin.json
   .claude-plugin/plugin.json
   .mcp.json
@@ -202,7 +202,7 @@ components such as `skills/` and `.mcp.json`.
 For local development:
 
 ```bash
-claude --plugin-dir /path/to/semaphor-agent-plugin
+claude --plugin-dir /path/to/agent-plugin
 ```
 
 Validate when Claude Code is installed:
