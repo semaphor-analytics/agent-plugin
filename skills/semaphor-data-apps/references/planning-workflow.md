@@ -33,6 +33,30 @@ Include:
   Semaphor dashboard;
 - one next step: build the plan, revise the plan, or inspect more data.
 
+## MCP-To-Runtime Parity
+
+Treat MCP answers as authoring evidence, not automatically as dashboard-ready
+runtime views. A view is dashboard-ready only when it has all three:
+
+- shared Semaphor analytics intent;
+- public SDK builder/query shape;
+- governed runtime execution through `useSemaphorQuery`.
+
+Common mappings:
+
+- semantic BI answer from `semaphor_analyze` -> `semaphor.metric(...)` or
+  `semaphor.analysis(...)`;
+- semantic records/table view -> `semaphor.records(...)`;
+- SQL-first answer validated with `semaphor_query_sql_advanced` ->
+  `semaphor.sql(...)`;
+- filter option list -> `semaphor.inputOptions(...)` plus
+  `semaphor.filter(...)` and `useSemaphorInputs(...)`.
+
+Discovery tools are authoring-only unless their result is compiled into a
+supported SDK query. If MCP can answer a question but the SDK/runtime cannot
+execute it yet, mark the view unsupported and name the missing Semaphor
+capability instead of hardcoding MCP output into React.
+
 ## Large Table Planning
 
 For large-table plans, the table view entry must explicitly say whether the

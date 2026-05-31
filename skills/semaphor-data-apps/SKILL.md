@@ -83,6 +83,9 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
   use display labels as row keys.
 - Prefer `semaphor_analyze` for governed semantic BI checks. Use
   `semaphor_query_sql_advanced` for SQL-first or unsupported analysis.
+- If MCP can answer a governed analytical question, make the dashboard version
+  durable through a shared analytics intent and SDK query spec. If no SDK
+  runtime path exists, explain the gap instead of rendering static MCP output.
 - When validating SQL through MCP during authoring, start with a tiny preview
   such as `LIMIT 5` or `LIMIT 10` unless the user explicitly needs more rows.
   Runtime app queries can use their own bounded `limit`, pagination, or
