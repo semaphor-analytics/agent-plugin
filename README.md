@@ -219,6 +219,7 @@ same app.
 
 ## More Documentation
 
+- [Installation and auth](plugins/semaphor/docs/INSTALLATION_AND_AUTH.md)
 - [Golden workflows](plugins/semaphor/docs/GOLDEN_WORKFLOWS.md)
 - [Data App SDK reference](plugins/semaphor/docs/DATA_APP_SDK_REFERENCE.md)
 - [Data App SDK examples](plugins/semaphor/docs/SDK_HOOK_EXAMPLES.md)

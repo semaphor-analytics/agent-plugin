@@ -349,4 +349,4 @@ Expected validation:
 - Use `columns[].key` for row access and `columns[].label` for display.
 - Keep customer app structure intact.
 - Treat plugin validation advisories as guidance unless running explicit
-  `--strict` package-maintainer gates.
+  `--strict` quality gates.

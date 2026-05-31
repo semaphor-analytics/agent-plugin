@@ -12,7 +12,8 @@ normal discovery path. Record the missing example as a plugin or SDK docs gap.
 
 ## Runtime Provider
 
-Generated customer code should use the project/runtime token only:
+Generated customer code should pass the project/runtime token only. Vite
+example:
 
 ```tsx
 import { SemaphorDataAppProvider } from "react-semaphor/data-app-sdk";
@@ -30,6 +31,9 @@ The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` unless
 the user explicitly needs local or self-hosted routing that intentionally
 differs from the token's `apiServiceUrl`.
+
+For Next.js, Remix, React Router, or custom shells, follow the app's existing
+runtime configuration convention instead of forcing Vite env names.
 
 ## Public Imports
 

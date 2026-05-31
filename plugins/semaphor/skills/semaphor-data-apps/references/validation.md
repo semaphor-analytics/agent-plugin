@@ -15,7 +15,7 @@ completion on a passing typecheck alone.
 
 The validator is a compatibility smoke check by default. Treat its Semaphor
 advisories as guidance, not customer-facing blockers. Use `--strict` only for
-Semaphor package-maintainer quality gates.
+explicit quality gates.
 
 Do not reimplement source/field validation in plugin prompts or scripts once
 the Semaphor validation route is available. Plugin-local scans are package and

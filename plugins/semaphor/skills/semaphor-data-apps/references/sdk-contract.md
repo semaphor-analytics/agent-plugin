@@ -105,7 +105,7 @@ signatures in a way that can produce the wrong result shape.
 
 ## Provider
 
-Provider setup should be project-token-only by default:
+Provider setup should be token-only by default. Vite example:
 
 ```tsx
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
@@ -122,9 +122,10 @@ not need to call runtime helpers itself.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl` prop
-for normal customer apps. Use `apiBaseUrl` only when the user explicitly needs
-self-hosted or local routing that intentionally differs from the token's
-`apiServiceUrl`.
+for normal customer apps. For Next.js, Remix, React Router, or custom shells,
+follow the app's existing runtime configuration convention instead of forcing
+Vite env names. Use `apiBaseUrl` only when the user explicitly needs self-hosted
+or local routing that intentionally differs from the token's `apiServiceUrl`.
 
 Do not import `readWindowRuntime` or generate extra token fallback variables
 such as `VITE_SEMAPHOR_TOKEN` for normal customer apps. Use hosted runtime

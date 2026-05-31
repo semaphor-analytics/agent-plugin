@@ -24,7 +24,7 @@ MCP tools are unavailable or unauthorized.
 Check:
 
 ```bash
-cat .env.local
+test -n "$VITE_SEMAPHOR_PROJECT_TOKEN" || test -n "$SEMAPHOR_PROJECT_TOKEN"
 ```
 
 Fix:
@@ -49,20 +49,15 @@ MCP connection fails, times out, or points at stale behavior.
 Customer default: do not set `SEMAPHOR_MCP_URL`. The plugin infers the MCP URL
 from the project token's `apiServiceUrl`.
 
-Override example:
-
-```bash
-export SEMAPHOR_MCP_URL="https://semaphor.cloud/api/mcp"
-```
-
-Self-hosted deployment example:
+If you set an override for a custom route, verify it points at the intended
+Semaphor host:
 
 ```bash
 export SEMAPHOR_MCP_URL="https://your-semaphor-host.example.com/api/mcp"
 ```
 
-Use the MCP URL override only when it intentionally differs from the Semaphor
-project token's environment, such as local development or a tunnel.
+Unset the override when it does not intentionally differ from the Semaphor
+project token's environment.
 
 Owner layer: plugin setup unless the endpoint is up but returns poor
 diagnostics.
@@ -118,7 +113,7 @@ Expected agent behavior:
   publish start,
 - classify unavailable APIs as lifecycle gaps, not plugin-only prompt issues.
 
-Owner layer: `semaphor-app` Data App lifecycle unless the failure is local
+Owner layer: Semaphor Data App lifecycle unless the failure is local
 build/package setup.
 
 ## Hosted Publish Cannot Infer Runtime Entry
@@ -258,9 +253,8 @@ Check:
 By default, the SDK derives the Semaphor API URL from the token's
 `apiServiceUrl`; most local apps should not set a separate API base URL.
 
-Owner layer: setup/networking if the request never reaches Semaphor;
-`semaphor-app` diagnostics if it reaches Semaphor but returns an unclear
-error.
+Owner layer: setup/networking if the request never reaches Semaphor; Semaphor
+API diagnostics if it reaches Semaphor but returns an unclear error.
 
 ## Dataset Or Field Not Found
 
@@ -323,9 +317,9 @@ Expected behavior:
 - pass `driverMode` and `includePopulation` only when the insight needs them,
 - validate the extracted query spec through Semaphor when possible.
 
-Owner layer: generated code or SDK docs if the hook is available; shared
-analytics protocol or `semaphor-app` execution if the requested analysis cannot
-be expressed by `semaphor.analysis`.
+Owner layer: generated code or SDK docs if the hook is available; Semaphor
+analytics execution if the requested analysis cannot be expressed by
+`semaphor.analysis`.
 
 ## Record Key And Label Confusion
 
@@ -375,9 +369,9 @@ Expected agent behavior:
 - do not move the calculation into frontend-only React code unless it is a
   presentation-only transformation.
 
-Owner layer: generated code if the expression or inputs are wrong; shared SDK,
-analytics protocol, or `semaphor-app` execution if a valid derived-field spec
-cannot be validated or executed.
+Owner layer: generated code if the expression or inputs are wrong; Semaphor SDK
+or analytics execution if a valid derived-field spec cannot be validated or
+executed.
 
 ## Matrix Or Pivot View Is Wrong
 
@@ -401,8 +395,8 @@ Expected agent behavior:
 - avoid unbounded detail-row queries followed by React-only pivoting.
 
 Owner layer: generated code if the agent chose the wrong axes or rendered the
-wrong result shape; shared analytics protocol, SDK, or `semaphor-app` execution
-if a valid matrix intent cannot be represented or executed.
+wrong result shape; Semaphor SDK or analytics execution if a valid matrix
+intent cannot be represented or executed.
 
 ## App Typecheck Or Build Fails
 
@@ -423,45 +417,6 @@ Expected agent behavior:
 Owner layer: customer app integration or SDK type exports if public SDK types
 are missing.
 
-## Plugin Validation Fails
-
-Symptom:
-
-```text
-npm run validate:plugin
-```
-
-This validates the Agent Plugin package, not the customer's React app.
-
-Fix:
-
-- inspect `.codex-plugin/plugin.json`,
-- inspect `.mcp.json`,
-- ensure plugin skill paths and metadata are valid.
-
-Owner layer: plugin packaging.
-
-## Claude Plugin Validation Fails
-
-Symptom:
-
-```text
-npm run validate:claude-plugin
-```
-
-This validates the Claude Code plugin manifest and shared plugin components,
-not the customer's React app.
-
-Fix:
-
-- inspect `.claude-plugin/plugin.json`,
-- inspect `.mcp.json`,
-- ensure Claude Code is installed and current,
-- keep Claude pointing at the same shared `skills/` and `.mcp.json` rather
-  than copying a Claude-only skill.
-
-Owner layer: plugin packaging.
-
 ## `validate:data-app` Advisories
 
 Symptom:
@@ -474,7 +429,7 @@ Default advisories are not blockers. They point the agent at likely issues such 
 placeholder refs, stale SDK shapes, missing obvious provider wiring, or record
 label/key confusion.
 
-Use `--strict` only for explicit Semaphor package-maintainer quality gates.
+Use `--strict` only for explicit quality gates.
 
 Owner layer: usually generated code or docs, unless the advisory points to a
 missing SDK/MCP capability.

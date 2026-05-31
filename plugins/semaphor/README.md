@@ -33,6 +33,7 @@ https://github.com/semaphor-analytics/agent-plugin
 
 ## Documentation
 
+- [Installation and auth](docs/INSTALLATION_AND_AUTH.md)
 - [Golden workflows](docs/GOLDEN_WORKFLOWS.md)
 - [Data App SDK reference](docs/DATA_APP_SDK_REFERENCE.md)
 - [Data App SDK examples](docs/SDK_HOOK_EXAMPLES.md)
