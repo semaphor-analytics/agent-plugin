@@ -1,6 +1,6 @@
 {
   "name": "semaphor",
-  "version": "0.1.0+codex.20260530141832",
+  "version": "0.1.0",
   "description": "Build Semaphor-backed React data apps with governed analytics.",
   "author": {
     "name": "Semaphor"

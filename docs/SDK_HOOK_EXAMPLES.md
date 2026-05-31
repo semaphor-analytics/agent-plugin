@@ -273,6 +273,102 @@ export function OrdersBySegmentTable() {
 Do not access records with display labels such as `row[column.label]` or
 `row["Movement Date"]`.
 
+## Derived Fields
+
+Use `semaphor.derivedField(...)` when an app needs a calculated field that is
+not yet modeled in Semaphor, but should still run through governed Semaphor
+execution. Do not calculate analytically meaningful metrics only in React when
+the SDK can express the calculation.
+
+```tsx
+const grossMargin = semaphor.derivedField({
+  name: "gross_margin",
+  label: "Gross Margin",
+  resultRole: "measure",
+  dataType: "number",
+  computeStage: "aggregate",
+  expression: "({revenue} - {cost}) / nullif({revenue}, 0)",
+  inputs: {
+    revenue: { kind: "field", field: revenue },
+    cost: { kind: "field", field: cost },
+  },
+  aggregationBehavior: "ratio_of_sums",
+  format: { kind: "percent", maximumFractionDigits: 1 },
+});
+
+const grossMarginField = {
+  name: "gross_margin",
+  label: "Gross Margin",
+  role: "measure",
+  dataType: "number",
+  aggregate: "SUM",
+  source,
+} as const;
+
+const grossMarginQuery = semaphor.metric({
+  id: "gross-margin",
+  source,
+  metrics: [grossMarginField],
+  primaryMetric: grossMarginField,
+  derivedFields: [grossMargin],
+});
+
+export function GrossMarginKpi() {
+  const result = useSemaphorQuery(grossMarginQuery);
+
+  if (result.isLoading) return <span>Loading...</span>;
+  if (result.error) return <span>{result.error.message}</span>;
+
+  return <strong>{formatPercent(result.value)}</strong>;
+}
+```
+
+Rules:
+
+- ground every derived-field input through MCP before generating code,
+- keep the derived field on one Semaphor source unless the shared model
+  explicitly supports the relationship,
+- ensure expression placeholders such as `{revenue}` match `inputs[].name`,
+- avoid names that collide with source/catalog fields,
+- move broadly reusable calculations into the Semaphor semantic model later
+  instead of copying the same app-local definition across many apps.
+
+## Matrix Or Pivot Query
+
+Use `semaphor.matrix(...)` for pivot tables, hierarchy tables, subtotals, grand
+totals, sparse cells, and server-shaped matrix display limits.
+
+```tsx
+const revenueMatrix = semaphor.matrix({
+  id: "revenue-matrix",
+  label: "Revenue by Region and Segment",
+  source,
+  rows: [region],
+  columns: [segment],
+  values: [revenue],
+  totals: { rows: true, columns: true, grandTotal: true },
+  layout: { hierarchy: "tabular", stickyRowHeaders: true },
+  displayLimits: {
+    rows: { limit: 100, by: "value", direction: "top", others: true },
+    columns: { limit: 20, by: "label", direction: "top" },
+  },
+});
+
+export function RevenueMatrix() {
+  const result = useSemaphorQuery(revenueMatrix);
+
+  if (result.isLoading) return <span>Loading...</span>;
+  if (result.error) return <span>{result.error.message}</span>;
+  if (!result.grid?.rows?.length) return <span>No revenue found.</span>;
+
+  return <MatrixTable grid={result.grid} payload={result.payload} />;
+}
+```
+
+During authoring, validate the shape with MCP `semaphor_matrix` when available,
+then productize the same semantic axes and measures with `semaphor.matrix(...)`.
+Do not fake a pivot by fetching all detail rows and pivoting them in React.
+
 ## Typing Reusable Query Components
 
 Do not type helper components with `ReturnType<typeof useSemaphorQuery>`.
@@ -284,6 +380,7 @@ Use the public SDK result types instead:
 ```tsx
 import type {
   SemaphorQueryResult,
+  SemaphorMatrixQueryResult,
   SemaphorRecordsQueryResult,
   SemaphorRowsQueryResult,
   SemaphorSqlQueryResult,
@@ -301,6 +398,14 @@ function RecordsTable({
   result: SemaphorRecordsQueryResult;
 }) {
   return <DataTable rows={result.records} columns={result.columns ?? []} />;
+}
+
+function MatrixView({
+  result,
+}: {
+  result: SemaphorMatrixQueryResult;
+}) {
+  return <MatrixTable grid={result.grid} payload={result.payload} />;
 }
 
 function SqlRowsTable({

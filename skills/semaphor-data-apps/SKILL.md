@@ -83,6 +83,12 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
   use display labels as row keys.
 - Prefer `semaphor_analyze` for governed semantic BI checks. Use
   `semaphor_query_sql_advanced` for SQL-first or unsupported analysis.
+- Use `semaphor_matrix` during authoring and `semaphor.matrix(...)` at runtime
+  for pivot, hierarchy, subtotal, and grand-total table views. Do not emulate
+  matrix behavior by fetching unbounded rows and pivoting only in React.
+- Use `semaphor.derivedField(...)` for app-local calculations that should run
+  through governed Semaphor execution. Do not make analytically meaningful
+  derived metrics frontend-only when the shared SDK supports them.
 - If MCP can answer a governed analytical question, make the dashboard version
   durable through a shared analytics intent and SDK query spec. If no SDK
   runtime path exists, explain the gap instead of rendering static MCP output.
@@ -104,6 +110,10 @@ Load the narrow reference needed for the task:
 
 - SDK imports, provider setup, public result types, query builders, row access:
   [sdk-contract.md](references/sdk-contract.md)
+- App-local derived metrics, groups, and calculated fields:
+  [derived-fields.md](references/derived-fields.md)
+- Pivot, hierarchy, subtotal, and matrix table views:
+  [matrix.md](references/matrix.md)
 - Dashboard planning, existing-app planning, unsupported insights:
   [planning-workflow.md](references/planning-workflow.md)
 - SQL-backed runtime views, SQL validation, bounded raw SQL:

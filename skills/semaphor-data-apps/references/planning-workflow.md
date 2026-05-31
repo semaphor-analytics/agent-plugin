@@ -13,9 +13,6 @@ model.
 
 For broad dashboard or app-building requests, respond with a compact plan
 before editing files. Treat this as a required gate, not background reasoning.
-In internal eval runs, also persist the plan to the provided planning artifact
-before editing. Customer apps do not need a `plan.json`; they need the visible
-plan.
 
 Include:
 
@@ -24,6 +21,10 @@ Include:
 - planned filters and which views they affect;
 - planned views with visual type, query kind, source fields, and whether each
   view is server-backed, derived, presentation-only, or unsupported;
+- app-local derived fields, why they are needed, and whether they are row-stage
+  or aggregate-stage calculations;
+- matrix/pivot views with row axes, column axes, values, totals/subtotals, and
+  display limits;
 - table UX expectations such as sorting and numeric totals;
 - table data-volume expectations: bounded result, server-side
   pagination/windowing, or unsupported SDK capability;
@@ -51,6 +52,8 @@ Common mappings:
   `semaphor.sql(...)`;
 - filter option list -> `semaphor.inputOptions(...)` plus
   `semaphor.filter(...)` and `useSemaphorInputs(...)`.
+- pivot, hierarchy, subtotal, and grand-total table view ->
+  `semaphor_matrix` during authoring and `semaphor.matrix(...)` at runtime.
 
 Discovery tools are authoring-only unless their result is compiled into a
 supported SDK query. If MCP can answer a question but the SDK/runtime cannot

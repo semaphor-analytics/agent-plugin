@@ -39,6 +39,8 @@ import type {
   SemaphorResultColumn,
   SemaphorRowsQueryResult,
   SemaphorSqlQueryResult,
+  SemaphorMatrixQueryResult,
+  SemaphorDerivedFieldDefinition,
 } from "react-semaphor/data-app-sdk";
 ```
 
@@ -95,6 +97,7 @@ signatures in a way that can produce the wrong result shape.
 - Use `SemaphorSqlQueryResult` for `semaphor.sql(...)` results.
 - Use `SemaphorRowsQueryResult` for table helpers that accept records-backed
   or SQL-backed row results.
+- Use `SemaphorMatrixQueryResult` for `semaphor.matrix(...)` results.
 - Use `SemaphorRecordsField` for source-bearing fields passed to
   `semaphor.records(...)`. `SemaphorFieldRef` is too loose for records queries
   because the records contract requires every selected field to have a definite
@@ -147,6 +150,11 @@ Builder selection:
   cannot express the product requirement or the user explicitly asks for raw
   SQL. Execution must still go through Semaphor SDK and governed server-side
   execution.
+- `semaphor.matrix` for pivot tables, hierarchy tables, subtotals, grand
+  totals, sparse cells, and matrix display limits.
+- `semaphor.derivedField` for governed app-local calculations used by
+  `semaphor.metric`, `semaphor.records`, `semaphor.analysis`, or
+  `semaphor.inputOptions`.
 - `semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control` for filters
   and controls.
 
@@ -158,6 +166,73 @@ const result = useSemaphorQuery<RowType>(someQuery, { inputs: inputHandles });
 ```
 
 The `inputs` option accepts handles returned by `useSemaphorInputs`.
+
+## Derived Fields
+
+Use `semaphor.derivedField(...)` when a view needs a calculated field that is
+not yet modeled in Semaphor but should still execute through governed Semaphor
+query execution.
+
+```tsx
+const grossMargin = semaphor.derivedField({
+  name: "gross_margin",
+  label: "Gross Margin",
+  resultRole: "measure",
+  dataType: "number",
+  computeStage: "row",
+  expression: "{revenue} - {cost}",
+  inputs: {
+    revenue: { kind: "field", field: revenueField },
+    cost: { kind: "field", field: costField },
+  },
+  defaultAggregate: "SUM",
+  aggregationBehavior: "additive",
+});
+
+const grossMarginQuery = semaphor.metric({
+  id: "gross-margin-by-segment",
+  source,
+  derivedFields: [grossMargin],
+  metrics: [{ name: "gross_margin", role: "measure", dataType: "number", source }],
+  dimensions: [segmentField],
+});
+```
+
+Rules:
+
+- every derived field input must reference a visible field from the selected
+  source;
+- derived field names must not collide with source/catalog fields;
+- row-stage derived measures need `defaultAggregate`;
+- use aggregate-stage only for calculations that must happen after grouping;
+- if the calculation is important to analytical correctness, keep it in the
+  SDK query spec instead of computing it only in React.
+
+## Matrix Queries
+
+Use `semaphor.matrix(...)` for pivot-style and hierarchy-style tables.
+
+```tsx
+const revenueMatrix = semaphor.matrix({
+  id: "revenue-matrix",
+  source,
+  rows: [
+    { id: "region", field: regionField, subtotal: { enabled: true, position: "after" } },
+    countryField,
+  ],
+  columns: [{ id: "quarter", field: orderDateField, grain: "quarter" }],
+  values: [{ id: "revenue", field: revenueField, aggregate: "SUM", label: "Revenue" }],
+  totals: { rows: true, columns: true, grandTotal: true },
+  displayLimits: {
+    rows: { limit: 100, by: "value", direction: "top", others: true },
+  },
+});
+```
+
+`useSemaphorQuery(revenueMatrix)` returns matrix payload/grid data, not
+`records`. Render from the matrix result shape or a local matrix projection
+component. Do not fake a matrix by loading all detail rows and pivoting them on
+the client.
 
 ## Input Handles
 

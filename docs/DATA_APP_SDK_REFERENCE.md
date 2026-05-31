@@ -48,6 +48,8 @@ import type {
   SemaphorRecordsQueryResult,
   SemaphorRowsQueryResult,
   SemaphorSqlQueryResult,
+  SemaphorMatrixQueryResult,
+  SemaphorDerivedFieldDefinition,
   SemaphorSourceRef,
 } from "react-semaphor/data-app-sdk";
 ```
@@ -64,6 +66,10 @@ shape. Use the exported result types above.
   period-change views.
 - `semaphor.sql`: SQL-backed views when the user explicitly asks for SQL or
   the semantic contract cannot express the view yet.
+- `semaphor.matrix`: pivot tables, hierarchy tables, subtotals, grand totals,
+  sparse cells, and matrix display limits.
+- `semaphor.derivedField`: app-local calculated fields that should execute
+  through governed Semaphor query execution.
 - `semaphor.filter`, `semaphor.sqlParam`, `semaphor.control`: runtime inputs.
 
 Always inspect Semaphor MCP metadata first. Do not invent source, connection,

@@ -355,6 +355,55 @@ row["Movement Date"]
 Owner layer: SDK examples/codegen if generated incorrectly; SDK contract if
 `columns[].key` is missing.
 
+## Derived Field Fails Validation
+
+Symptom:
+
+```text
+Derived field expression is invalid, unknown, or cannot be compiled.
+```
+
+Expected agent behavior:
+
+- re-run MCP discovery for every source field used by the expression,
+- verify placeholders such as `{revenue}` match the derived field `inputs`,
+- confirm the derived field name does not collide with a source/catalog field,
+- keep the calculation within one source unless Semaphor grounding exposes a
+  valid relationship,
+- use `computeStage` and `aggregationBehavior` intentionally for row-stage
+  versus aggregate-stage calculations,
+- do not move the calculation into frontend-only React code unless it is a
+  presentation-only transformation.
+
+Owner layer: generated code if the expression or inputs are wrong; shared SDK,
+analytics protocol, or `semaphor-app` execution if a valid derived-field spec
+cannot be validated or executed.
+
+## Matrix Or Pivot View Is Wrong
+
+Symptom:
+
+```text
+The pivot table has missing totals, wrong axes, too many rows, or client-only
+pivot logic.
+```
+
+Expected agent behavior:
+
+- re-run MCP metadata discovery for row axes, column axes, value fields,
+  filters, date field, and relationships,
+- use MCP `semaphor_matrix` to validate the intended matrix shape when
+  available,
+- use `semaphor.matrix(...)` for the runtime view,
+- define totals, subtotals, sort order, display limits, and sparse/empty-cell
+  behavior explicitly,
+- render from the matrix result shape rather than ordinary `records`,
+- avoid unbounded detail-row queries followed by React-only pivoting.
+
+Owner layer: generated code if the agent chose the wrong axes or rendered the
+wrong result shape; shared analytics protocol, SDK, or `semaphor-app` execution
+if a valid matrix intent cannot be represented or executed.
+
 ## App Typecheck Or Build Fails
 
 Symptom:

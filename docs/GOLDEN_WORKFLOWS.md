@@ -178,6 +178,59 @@ Expected validation:
 - local typecheck/build passes,
 - browser smoke check shows governed Semaphor data.
 
+## 4A. Add A Derived Metric
+
+Customer prompt:
+
+```text
+Add gross margin to this app even though it is not modeled yet.
+```
+
+Expected agent behavior:
+
+- inspect Semaphor metadata and identify the source fields needed for the
+  calculation,
+- use `semaphor.derivedField(...)` for the app-local calculated field,
+- attach the derived field to the query through `derivedFields`,
+- use `semaphor.metric`, `semaphor.records`, or another semantic SDK query
+  builder so execution remains governed,
+- state when the calculation should eventually move into the Semaphor semantic
+  model because it is reusable across apps,
+- do not compute the metric only from already-returned React rows unless the
+  user asked for a presentation-only calculation.
+
+Expected validation:
+
+- expression placeholders match the grounded input field names,
+- the derived field name does not collide with a source/catalog field,
+- local typecheck/build passes,
+- Semaphor validation/execution accepts the derived field when available.
+
+## 4B. Build A Matrix Or Pivot Table
+
+Customer prompt:
+
+```text
+Show revenue by region and segment with row totals and a grand total.
+```
+
+Expected agent behavior:
+
+- inspect the relevant semantic source, row axes, column axes, value measures,
+  date field, and filters through MCP,
+- use MCP `semaphor_matrix` during planning or validation when available,
+- productize the view with `semaphor.matrix(...)` plus `useSemaphorQuery`,
+- define totals, subtotals, display limits, and sorting/windowing explicitly,
+- render loading, error, empty, sparse-cell, subtotal, and grand-total states,
+- do not fetch unbounded detail rows and pivot them only in React.
+
+Expected validation:
+
+- generated code uses source-bearing field refs from MCP,
+- matrix display limits are bounded,
+- local typecheck/build passes,
+- browser smoke check shows a server-shaped matrix result.
+
 ## 5. Add A Filter Or Control
 
 Customer prompt:

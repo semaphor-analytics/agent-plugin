@@ -97,13 +97,18 @@ For both Codex and Claude Code:
   - `semaphor.records`
   - `semaphor.analysis`
   - `semaphor.sql`
+  - `semaphor.matrix`
+  - `semaphor.derivedField`
   - `semaphor.filter`
   - `semaphor.sqlParam`
+  - `semaphor.inputOptions`
   - `useSemaphorInputs`
   - `useSemaphorQuery`
 - Authoring questions use MCP:
   - discovery and grounding tools first,
   - `semaphor_analyze` for governed BI,
+  - `semaphor_matrix` for pivot, hierarchy, subtotal, and grand-total table
+    authoring,
   - `semaphor_query_sql_advanced` for SQL-first or unsupported analysis.
 - Save/publish uses Semaphor Data App lifecycle APIs through the helper
   command path, not MCP lifecycle wrappers.

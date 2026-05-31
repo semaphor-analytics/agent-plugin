@@ -113,6 +113,8 @@ function validateSkillStructure() {
 
   const requiredReferences = [
     'sdk-contract.md',
+    'derived-fields.md',
+    'matrix.md',
     'planning-workflow.md',
     'sql.md',
     'filters-and-inputs.md',
