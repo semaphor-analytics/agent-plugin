@@ -175,7 +175,6 @@ function collectFiles(current, files = []) {
 
 requireFile('README.md');
 requireFile('AGENTS.md');
-requireFile('.env.example');
 requireFile('.codex-plugin/plugin.json');
 requireFile('.claude-plugin/plugin.json');
 requireFile('.mcp.json');
