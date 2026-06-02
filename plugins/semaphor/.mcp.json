@@ -4,7 +4,8 @@
       "command": "node",
       "args": [
         "scripts/semaphor-mcp-remote.mjs"
-      ]
+      ],
+      "cwd": "."
     }
   }
 }
