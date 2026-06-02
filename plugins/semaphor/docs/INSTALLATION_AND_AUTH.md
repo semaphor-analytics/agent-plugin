@@ -85,6 +85,14 @@ The plugin MCP server is named `semaphor`, so hosts that include the server name
 in the tool namespace should expose a Semaphor-shaped namespace instead of a
 generic bridge name.
 
+Some agent hosts launch plugin MCP servers from the installed plugin directory
+and do not pass workspace roots to the MCP process. In that case, direct
+Semaphor MCP calls may not see the React app's `.env.local` automatically.
+Agents should retry the Semaphor tool call with an internal `workspaceDir`
+argument set to the current React app repository root. The bridge uses that
+path only to read ignored local env files, then strips `workspaceDir` before
+forwarding the request to Semaphor.
+
 If a host does not expose those tools, use the fallback wrapper for debugging or
 evals:
 

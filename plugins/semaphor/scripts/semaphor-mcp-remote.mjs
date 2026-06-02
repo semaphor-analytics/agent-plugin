@@ -204,7 +204,12 @@ async function forwardRequest(message) {
   }
 
   if (message.method === 'tools/call') {
-    const context = await resolveSemaphorContext({ allowMissing: false, includeClientRoots: true });
+    const toolArguments = message.params?.arguments;
+    const context = await resolveSemaphorContext({
+      allowMissing: false,
+      includeClientRoots: true,
+      toolArguments,
+    });
     if (!context?.token) {
       return {
         jsonrpc: '2.0',
@@ -217,6 +222,7 @@ async function forwardRequest(message) {
               text: [
                 'Semaphor project token was not found for this workspace.',
                 'Add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.',
+                'If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.',
                 'For local development, add SEMAPHOR_SERVER_URL=http://localhost:3000 to the same .env.local. Hosted Semaphor defaults to https://semaphor.cloud.',
               ].join(' '),
             },
@@ -224,7 +230,7 @@ async function forwardRequest(message) {
         },
       };
     }
-    const response = await postMcpJsonRpc(message, context);
+    const response = await postMcpJsonRpc(stripBridgeOnlyToolArguments(message), context);
     return normalizeJsonRpcResponse(message, response);
   }
 
@@ -318,8 +324,8 @@ async function postMcpJsonRpc(message, context) {
   }
 }
 
-async function resolveSemaphorContext({ allowMissing, includeClientRoots }) {
-  const env = await readWorkspaceEnv({ includeClientRoots });
+async function resolveSemaphorContext({ allowMissing, includeClientRoots, toolArguments }) {
+  const env = await readWorkspaceEnv({ includeClientRoots, toolArguments });
   const token = firstEnvValue(
     process.env.SEMAPHOR_PROJECT_TOKEN,
     process.env.VITE_SEMAPHOR_PROJECT_TOKEN,
@@ -347,8 +353,9 @@ async function resolveSemaphorContext({ allowMissing, includeClientRoots }) {
   return { token, mcpUrl };
 }
 
-async function readWorkspaceEnv({ includeClientRoots }) {
+async function readWorkspaceEnv({ includeClientRoots, toolArguments }) {
   const directories = [
+    ...bridgeWorkspaceDirectories(toolArguments),
     process.env.SEMAPHOR_WORKSPACE,
     process.env.INIT_CWD,
     process.env.PWD,
@@ -357,6 +364,42 @@ async function readWorkspaceEnv({ includeClientRoots }) {
     pluginRoot,
   ];
   return readLocalEnvFromDirectories(directories);
+}
+
+function bridgeWorkspaceDirectories(toolArguments) {
+  if (!toolArguments || typeof toolArguments !== 'object') {
+    return [];
+  }
+  return [
+    toolArguments.workspaceDir,
+    toolArguments.workspaceRoot,
+    toolArguments.projectDir,
+    toolArguments.repoRoot,
+    toolArguments.appDir,
+  ].filter((value) => typeof value === 'string' && value.trim());
+}
+
+function stripBridgeOnlyToolArguments(message) {
+  const originalArguments = message.params?.arguments;
+  if (!originalArguments || typeof originalArguments !== 'object') {
+    return message;
+  }
+
+  const {
+    workspaceDir,
+    workspaceRoot,
+    projectDir,
+    repoRoot,
+    appDir,
+    ...forwardedArguments
+  } = originalArguments;
+  return {
+    ...message,
+    params: {
+      ...message.params,
+      arguments: forwardedArguments,
+    },
+  };
 }
 
 async function listClientRootDirectories() {

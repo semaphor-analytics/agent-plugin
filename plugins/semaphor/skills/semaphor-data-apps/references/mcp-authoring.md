@@ -15,6 +15,14 @@ Start with one of:
 - `semaphor_get_analysis_context` for project scope, recommended path,
   semantic-domain count, fallback connection count, and next discovery tool.
 
+When using Codex or another host that launches plugin MCP servers from the
+plugin install directory, direct MCP calls may not automatically see the React
+app's `.env.local`. If the first Semaphor tool call reports that no project
+token was found, retry the same call with `workspaceDir` set to the current
+React app repository root. The Semaphor bridge uses `workspaceDir` only to read
+local env files and removes it before forwarding the tool arguments to
+Semaphor.
+
 Then follow the returned recommendation:
 
 - Semantic path:
