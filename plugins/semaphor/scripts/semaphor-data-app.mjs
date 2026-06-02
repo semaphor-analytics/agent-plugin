@@ -83,7 +83,10 @@ function parseArgs(argv) {
   const options = {
     command: command === '--help' || command === '-h' ? undefined : command,
     dir: process.cwd(),
-    apiBaseUrl: process.env.SEMAPHOR_API_BASE_URL || '',
+    apiBaseUrl: firstEnvValue(
+      process.env.SEMAPHOR_SERVER_URL,
+      process.env.SEMAPHOR_API_BASE_URL,
+    ),
     token: process.env.SEMAPHOR_PROJECT_TOKEN || '',
     json: false,
     runBuild: true,
@@ -162,6 +165,7 @@ function parseArgs(argv) {
   );
   options.apiBaseUrl = firstEnvValue(
     options.apiBaseUrl,
+    localEnv.SEMAPHOR_SERVER_URL,
     localEnv.SEMAPHOR_API_BASE_URL,
     localEnv.VITE_SEMAPHOR_API_BASE_URL,
   );
@@ -178,7 +182,7 @@ function printHelp() {
 
 Options:
   --dir <path>                  React app root. Defaults to cwd.
-  --api-base-url <url>          Semaphor app URL override. Defaults to SEMAPHOR_API_BASE_URL, local env, token apiServiceUrl, then https://semaphor.cloud.
+  --api-base-url <url>          Exact Semaphor app URL override. Defaults to SEMAPHOR_SERVER_URL, then token apiServiceUrl, then https://semaphor.cloud.
   --token <token>               Project token. Defaults to SEMAPHOR_PROJECT_TOKEN, then target app local env.
   --manifest <path>             Manifest JSON. Defaults to semaphor.data-app.json.
   --new                         Create a new Data App even if the manifest has semaphor.dataAppId.

@@ -20,6 +20,10 @@ const explicitMcpUrl = firstEnvValue(
   process.env.SEMAPHOR_MCP_URL,
   localEnv.SEMAPHOR_MCP_URL,
 );
+const explicitServerUrl = firstEnvValue(
+  process.env.SEMAPHOR_SERVER_URL,
+  localEnv.SEMAPHOR_SERVER_URL,
+);
 
 if (!token) {
   console.error(
@@ -28,10 +32,14 @@ if (!token) {
   process.exit(1);
 }
 
-const mcpUrl = explicitMcpUrl || inferMcpUrlFromProjectToken(token);
+const mcpUrl =
+  explicitMcpUrl ||
+  inferMcpUrlFromServerUrl(explicitServerUrl) ||
+  inferMcpUrlFromProjectToken(token) ||
+  'https://semaphor.cloud/api/mcp';
 if (!mcpUrl) {
   console.error(
-    'Unable to infer the Semaphor MCP URL from the project token. Set SEMAPHOR_MCP_URL as an override.',
+    'Unable to infer the Semaphor MCP URL. Set SEMAPHOR_SERVER_URL or SEMAPHOR_MCP_URL as an override.',
   );
   process.exit(1);
 }
@@ -245,6 +253,11 @@ function inferMcpUrlFromProjectToken(projectToken) {
     return '';
   }
   return `${normalizeAppBaseUrl(apiServiceUrl)}/api/mcp`;
+}
+
+function inferMcpUrlFromServerUrl(serverUrl) {
+  const normalized = normalizeAppBaseUrl(serverUrl);
+  return normalized ? `${normalized}/api/mcp` : '';
 }
 
 function readProjectTokenApiServiceUrl(projectToken) {

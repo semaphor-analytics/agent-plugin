@@ -116,8 +116,10 @@ Options:
 
 The wrapper reads SEMAPHOR_PROJECT_TOKEN or VITE_SEMAPHOR_PROJECT_TOKEN from
 shell env or the target app's local env files through semaphor-mcp-remote.mjs.
-It is a fallback for debugging and evals. Normal agent hosts should expose the
-Semaphor MCP server as first-class callable tools after plugin install.
+For local/self-hosted routing, set SEMAPHOR_SERVER_URL in the target app's
+.env.local; the bridge derives MCP as $SEMAPHOR_SERVER_URL/api/mcp. It is a
+fallback for debugging and evals. Normal agent hosts should expose the Semaphor
+MCP server as first-class callable tools after plugin install.
 `);
 }
 

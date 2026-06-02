@@ -20,10 +20,12 @@ files. It accepts:
 - `SEMAPHOR_PROJECT_TOKEN`
 - `VITE_SEMAPHOR_PROJECT_TOKEN`
 
-It infers the Semaphor app URL from the token's `apiServiceUrl`. Use
-`SEMAPHOR_API_BASE_URL` or `--api-base-url` only for unusual local or
-self-hosted routing where the token URL should not be used. Use
-`--validation-status <path>` only for a precomputed Semaphor validation result.
+It resolves the Semaphor app URL from `SEMAPHOR_SERVER_URL`, then the token's
+`apiServiceUrl`, then `https://semaphor.cloud`. Use `SEMAPHOR_SERVER_URL` for
+local dogfooding, self-hosted deployments, or tunnels where the token URL
+should not be used. Use `--api-base-url` only for an exact helper override.
+Use `--validation-status <path>` only for a precomputed Semaphor validation
+result.
 
 Do not use `allowEdit: false` as an auth or runtime boundary.
 

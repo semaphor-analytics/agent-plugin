@@ -40,15 +40,29 @@ plugin also accepts `SEMAPHOR_PROJECT_TOKEN` from shell env or local env files.
 Do not commit real tokens. Agents should check for expected variable names, but
 should not print, search, or log token values.
 
-## MCP URL Resolution
+## Semaphor Server Resolution
 
-In normal hosted or self-hosted usage, do not set a separate MCP URL. The plugin
-infers the Semaphor host from the project token's `apiServiceUrl` and connects
-to that host's `/api/mcp` route.
+In normal hosted usage, do not set a separate server URL. The plugin connects
+to the Semaphor host encoded in the project token's `apiServiceUrl`, which is
+usually `https://semaphor.cloud`.
+
+For local development, self-hosted deployments, tunnels, or dogfooding against
+an unreleased Semaphor app, set one host-level override in the same ignored
+local env file:
+
+```bash
+VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
+SEMAPHOR_SERVER_URL="http://localhost:3000"
+```
+
+The plugin derives MCP from that host as `${SEMAPHOR_SERVER_URL}/api/mcp`, and
+the save/publish helpers use the same Semaphor host. If
+`SEMAPHOR_SERVER_URL` is not set and the token does not contain `apiServiceUrl`,
+the plugin defaults to `https://semaphor.cloud`.
 
 Set `SEMAPHOR_MCP_URL` only when the MCP route intentionally differs from the
-Semaphor host encoded in the token, such as a temporary tunnel or custom
-self-hosted routing setup.
+Semaphor app host, such as a custom proxy path. `SEMAPHOR_MCP_URL` must be the
+full MCP endpoint URL.
 
 ## MCP Tool Exposure
 
@@ -126,7 +140,8 @@ self-hosted or local routing that intentionally differs from the token's
 
 Save and publish use the same project token configured for MCP authoring. The
 helper commands read the token from shell env or the target app's local env
-files and infer the Semaphor app URL from the token's `apiServiceUrl`.
+files. They resolve the Semaphor app URL from `SEMAPHOR_SERVER_URL`, then the
+token's `apiServiceUrl`, then `https://semaphor.cloud`.
 
 Common commands:
 
@@ -164,6 +179,7 @@ snapshots, build artifacts, validation output, or screenshots.
 Common setup failures:
 
 - missing project token in shell env or local env;
+- stale or incorrect `SEMAPHOR_SERVER_URL` override;
 - stale or incorrect `SEMAPHOR_MCP_URL` override;
 - expired or unauthorized project token;
 - no semantic domain access;

@@ -73,7 +73,7 @@ local env files containing real tokens into source control.
 
 Owner layer: local setup/auth docs unless the MCP error is unclear.
 
-## Wrong MCP URL Override
+## Wrong Semaphor Server Override
 
 Symptom:
 
@@ -81,18 +81,28 @@ Symptom:
 MCP connection fails, times out, or points at stale behavior.
 ```
 
-Customer default: do not set `SEMAPHOR_MCP_URL`. The plugin infers the MCP URL
-from the project token's `apiServiceUrl`.
+Hosted customer default: do not set a server override. The plugin infers the
+Semaphor host from the project token's `apiServiceUrl`, then connects to
+`/api/mcp`.
 
-If you set an override for a custom route, verify it points at the intended
-Semaphor host:
+For local development, self-hosted deployments, tunnels, or dogfooding against
+an unreleased Semaphor app, set the host-level override in the target app's
+ignored `.env.local`:
 
 ```bash
-export SEMAPHOR_MCP_URL="https://your-semaphor-host.example.com/api/mcp"
+SEMAPHOR_SERVER_URL="http://localhost:3000"
 ```
 
-Unset the override when it does not intentionally differ from the Semaphor
-project token's environment.
+The plugin derives MCP as `$SEMAPHOR_SERVER_URL/api/mcp`, and save/publish use
+the same host. Use `SEMAPHOR_MCP_URL` only when the MCP route intentionally
+differs from the Semaphor app host, such as a custom proxy path:
+
+```bash
+SEMAPHOR_MCP_URL="https://your-semaphor-host.example.com/custom/mcp"
+```
+
+Unset overrides when they do not intentionally differ from the project token's
+environment.
 
 Owner layer: plugin setup unless the endpoint is up but returns poor
 diagnostics.
