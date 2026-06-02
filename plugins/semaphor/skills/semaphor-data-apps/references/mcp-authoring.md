@@ -69,3 +69,7 @@ npm run call:mcp -- semaphor_analyze --dir /path/to/react-app --input-file query
 If `--list-tools` works but first-class MCP tools are unavailable in the agent
 session, classify the failure as plugin-host MCP exposure. Do not continue by
 manually speaking MCP protocol.
+
+The wrapper uses the packaged local Semaphor MCP bridge. It must not download
+or run `mcp-remote` through `npx` at call time, because that would combine
+freshly downloaded executable code with the customer's project token.

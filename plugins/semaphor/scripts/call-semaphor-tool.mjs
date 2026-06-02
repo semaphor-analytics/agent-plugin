@@ -136,7 +136,7 @@ async function callTool(callOptions) {
       capabilities: {},
       clientInfo: {
         name: 'semaphor-agent-plugin-cli',
-        version: '0.1.0',
+        version: '0.1.1',
       },
     });
     client.notify('notifications/initialized', {});

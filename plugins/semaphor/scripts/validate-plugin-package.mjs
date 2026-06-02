@@ -58,6 +58,12 @@ function validateCodexManifest() {
   if (!manifest?.interface?.displayName) {
     issues.push('.codex-plugin/plugin.json: missing interface.displayName');
   }
+  if (manifest?.interface?.composerIcon !== './assets/composer-icon.png') {
+    issues.push('.codex-plugin/plugin.json: interface.composerIcon must point to ./assets/composer-icon.png');
+  }
+  if (manifest?.interface?.logo !== './assets/logo.png') {
+    issues.push('.codex-plugin/plugin.json: interface.logo must point to ./assets/logo.png');
+  }
 }
 
 function validateClaudeManifest() {
@@ -70,6 +76,9 @@ function validateClaudeManifest() {
   }
   if (manifest?.mcpServers !== './.mcp.json') {
     issues.push('.claude-plugin/plugin.json: mcpServers must point to ./.mcp.json');
+  }
+  if (manifest?.displayName !== 'Semaphor') {
+    issues.push('.claude-plugin/plugin.json: displayName must be Semaphor');
   }
 }
 
@@ -93,6 +102,16 @@ function validateMcpConfig() {
     issues.push(
       '.mcp.json: do not pass a literal SEMAPHOR_PROJECT_TOKEN placeholder; the launcher reads real env and target app env files',
     );
+  }
+
+  const launcherPath = path.join(root, 'scripts/semaphor-mcp-remote.mjs');
+  if (fs.existsSync(launcherPath)) {
+    const launcherText = fs.readFileSync(launcherPath, 'utf8');
+    if (/\bnpx\b/.test(launcherText) || /mcp-remote['"\s,]/.test(launcherText)) {
+      issues.push(
+        'scripts/semaphor-mcp-remote.mjs: launcher must be self-contained and must not shell out to npx mcp-remote',
+      );
+    }
   }
 }
 
@@ -179,6 +198,9 @@ requireFile('AGENTS.md');
 requireFile('.codex-plugin/plugin.json');
 requireFile('.claude-plugin/plugin.json');
 requireFile('.mcp.json');
+requireFile('assets/composer-icon.png');
+requireFile('assets/logo.png');
+requireFile('assets/logo-source.png');
 requireFile('scripts/call-semaphor-tool.mjs');
 requireDirectory('skills');
 requireDirectory('scripts');

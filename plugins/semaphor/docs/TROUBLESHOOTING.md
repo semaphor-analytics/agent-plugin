@@ -41,6 +41,11 @@ protocol in the target app. Capture the host, Codex or Claude version,
 marketplace/plugin install commands, and whether the MCP server appears in the
 host's plugin list.
 
+The wrapper and MCP launcher are packaged local scripts. They should not use
+`npx mcp-remote` or fetch bridge code from npm while holding a project token.
+If a run attempts that, update the plugin package before continuing the eval or
+customer workflow.
+
 Owner layer: plugin host integration or plugin MCP packaging.
 
 ## Missing Project Token

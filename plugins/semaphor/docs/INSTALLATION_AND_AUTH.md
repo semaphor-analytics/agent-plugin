@@ -79,9 +79,9 @@ npm run call:mcp -- --list-tools --dir /path/to/react-app
 npm run call:mcp -- semaphor_get_analysis_context --dir /path/to/react-app
 ```
 
-The wrapper handles env loading, MCP startup, token redaction, timeout, and
-clean JSON output. It is not the preferred customer authoring loop; direct MCP
-tools are.
+The wrapper handles env loading, the packaged local MCP bridge, token
+redaction, timeout, and clean JSON output. It does not download bridge code at
+runtime. It is not the preferred customer authoring loop; direct MCP tools are.
 
 ## Authoring Token Versus Runtime Token
 

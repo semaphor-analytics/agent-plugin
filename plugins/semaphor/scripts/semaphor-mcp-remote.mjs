@@ -1,12 +1,18 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
+const MCP_PROTOCOL_VERSION = '2024-11-05';
+const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const pluginRoot = path.resolve(scriptDir, '..');
 const localEnv = readLocalEnv(process.cwd());
 const token = firstEnvValue(
   process.env.SEMAPHOR_PROJECT_TOKEN,
+  process.env.VITE_SEMAPHOR_PROJECT_TOKEN,
   localEnv.SEMAPHOR_PROJECT_TOKEN,
   localEnv.VITE_SEMAPHOR_PROJECT_TOKEN,
 );
@@ -30,106 +36,207 @@ if (!mcpUrl) {
   process.exit(1);
 }
 
-const child = spawn(
-  resolveNpxCommand(),
-  [
-    '-y',
-    'mcp-remote',
-    mcpUrl,
-    '--transport',
-    'http-only',
-    '--header',
-    `Authorization:Bearer ${token}`,
-  ],
-  {
-    stdio: ['inherit', 'inherit', 'pipe'],
-    env: process.env,
-  },
-);
+let stdinBuffer = Buffer.alloc(0);
+let shuttingDown = false;
 
-pipeRedactedStderr(child);
+process.stdin.on('data', (chunk) => {
+  stdinBuffer = Buffer.concat([stdinBuffer, chunk]);
+  for (;;) {
+    const parsed = readMcpMessage(stdinBuffer);
+    if (!parsed) {
+      return;
+    }
+    stdinBuffer = parsed.remaining;
+    void handleClientMessage(parsed.message);
+  }
+});
+
+process.stdin.on('end', () => {
+  shuttingDown = true;
+});
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
-    child.kill(signal);
+    shuttingDown = true;
+    process.exit(0);
   });
 }
 
-child.on('exit', (code, signal) => {
-  if (signal) {
-    process.kill(process.pid, signal);
+async function handleClientMessage(message) {
+  if (shuttingDown || !message || typeof message !== 'object') {
     return;
   }
-  process.exit(code ?? 0);
-});
 
-child.on('error', (error) => {
-  console.error(`Failed to start Semaphor MCP server: ${error.message}`);
-  process.exit(1);
-});
-
-function pipeRedactedStderr(childProcess) {
-  let buffer = '';
-
-  childProcess.stderr?.setEncoding('utf8');
-  childProcess.stderr?.on('data', (chunk) => {
-    buffer += chunk;
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      process.stderr.write(`${redactSensitiveText(line)}\n`);
-    }
-
-    if (buffer.length > 4096) {
-      process.stderr.write(redactSensitiveText(buffer.slice(0, -1024)));
-      buffer = buffer.slice(-1024);
-    }
-  });
-
-  childProcess.stderr?.on('end', () => {
-    if (buffer) {
-      process.stderr.write(redactSensitiveText(buffer));
-      buffer = '';
-    }
-  });
-}
-
-function redactSensitiveText(value) {
-  return String(value)
-    .replace(
-      /((?:Authorization|authorization)(?:"?\s*[:=]\s*"?|:\s*)Bearer\s*)[A-Za-z0-9._-]+/g,
-      '$1[REDACTED]',
-    )
-    .replace(
-      /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
-      '[REDACTED_JWT]',
-    );
-}
-
-function resolveNpxCommand() {
-  const candidates = [
-    path.join(path.dirname(process.execPath), 'npx'),
-    '/opt/homebrew/bin/npx',
-    '/usr/local/bin/npx',
-  ];
-
-  for (const candidate of candidates) {
-    if (isExecutableFile(candidate)) {
-      return candidate;
-    }
+  if (message.id === undefined) {
+    await forwardNotification(message);
+    return;
   }
 
-  return 'npx';
-}
-
-function isExecutableFile(filePath) {
   try {
-    fs.accessSync(filePath, fs.constants.X_OK);
-    return true;
-  } catch {
-    return false;
+    const response = await forwardRequest(message);
+    writeMcpMessage(process.stdout, response);
+  } catch (error) {
+    writeMcpMessage(process.stdout, {
+      jsonrpc: '2.0',
+      id: message.id,
+      error: {
+        code: -32000,
+        message: redactSensitiveText(error instanceof Error ? error.message : String(error)),
+      },
+    });
   }
+}
+
+async function forwardRequest(message) {
+  const response = await postMcpJsonRpc(message);
+  if (response === undefined || response === null || response === '') {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {},
+    };
+  }
+
+  if (Array.isArray(response)) {
+    const matching = response.find((item) => item?.id === message.id);
+    return matching || response[0] || { jsonrpc: '2.0', id: message.id, result: {} };
+  }
+
+  if (response.id === undefined) {
+    return {
+      ...response,
+      jsonrpc: response.jsonrpc || '2.0',
+      id: message.id,
+    };
+  }
+
+  return response;
+}
+
+async function forwardNotification(message) {
+  try {
+    await postMcpJsonRpc(message);
+  } catch (error) {
+    const text = redactSensitiveText(error instanceof Error ? error.message : String(error));
+    if (process.env.SEMAPHOR_MCP_VERBOSE === 'true') {
+      process.stderr.write(`${text}\n`);
+    }
+  }
+}
+
+async function postMcpJsonRpc(message) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(mcpUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(message),
+      signal: controller.signal,
+    });
+
+    const body = await response.text();
+    if (!response.ok) {
+      throw new Error(formatHttpError(response, body));
+    }
+
+    if (!body.trim()) {
+      return undefined;
+    }
+
+    return parseMcpHttpBody(body, response.headers.get('content-type') || '');
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms calling Semaphor MCP.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function parseMcpHttpBody(body, contentType) {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (contentType.includes('text/event-stream') || trimmed.startsWith('event:')) {
+    return parseEventStreamJson(trimmed);
+  }
+
+  return JSON.parse(trimmed);
+}
+
+function parseEventStreamJson(text) {
+  const messages = [];
+  let dataLines = [];
+
+  for (const line of text.split(/\r?\n/)) {
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart());
+      continue;
+    }
+
+    if (line.trim() === '') {
+      if (dataLines.length > 0) {
+        messages.push(JSON.parse(dataLines.join('\n')));
+        dataLines = [];
+      }
+    }
+  }
+
+  if (dataLines.length > 0) {
+    messages.push(JSON.parse(dataLines.join('\n')));
+  }
+
+  if (messages.length === 0) {
+    throw new Error('Semaphor MCP returned an event-stream response without JSON data.');
+  }
+
+  return messages.length === 1 ? messages[0] : messages;
+}
+
+function formatHttpError(response, body) {
+  const trimmed = redactSensitiveText(body).trim();
+  const suffix = trimmed ? `: ${trimmed.slice(0, 1000)}` : '';
+  return `Semaphor MCP HTTP ${response.status} ${response.statusText}${suffix}`;
+}
+
+function readMcpMessage(buffer) {
+  const separator = buffer.indexOf('\r\n\r\n');
+  if (separator === -1) {
+    return null;
+  }
+
+  const header = buffer.subarray(0, separator).toString('utf8');
+  const match = header.match(/content-length:\s*(\d+)/i);
+  if (!match) {
+    throw new Error(`Invalid MCP message header: ${header}`);
+  }
+
+  const length = Number(match[1]);
+  const bodyStart = separator + 4;
+  const bodyEnd = bodyStart + length;
+  if (buffer.length < bodyEnd) {
+    return null;
+  }
+
+  const body = buffer.subarray(bodyStart, bodyEnd).toString('utf8');
+  return {
+    message: JSON.parse(body),
+    remaining: buffer.subarray(bodyEnd),
+  };
+}
+
+function writeMcpMessage(stream, message) {
+  const body = JSON.stringify(message);
+  stream.write(`Content-Length: ${Buffer.byteLength(body, 'utf8')}\r\n\r\n${body}`);
 }
 
 function inferMcpUrlFromProjectToken(projectToken) {
@@ -208,7 +315,7 @@ function readLocalEnv(startDir) {
 function candidateEnvDirectories(startDir) {
   const directories = [];
   const seen = new Set();
-  for (const value of [startDir, process.env.INIT_CWD, process.env.PWD]) {
+  for (const value of [startDir, process.env.INIT_CWD, process.env.PWD, pluginRoot]) {
     const directory = normalizeEnvValue(value);
     if (!directory) {
       continue;
@@ -250,4 +357,21 @@ function parseEnvValue(rawValue) {
   }
   const commentIndex = trimmed.indexOf(' #');
   return commentIndex === -1 ? trimmed : trimmed.slice(0, commentIndex).trim();
+}
+
+function redactSensitiveText(value) {
+  return String(value)
+    .replace(
+      /((?:Authorization|authorization)(?:"?\s*[:=]\s*"?|:\s*)Bearer\s*)[A-Za-z0-9._-]+/g,
+      '$1[REDACTED]',
+    )
+    .replace(
+      /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+      '[REDACTED_JWT]',
+    );
+}
+
+if (process.env.SEMAPHOR_MCP_VERBOSE === 'true') {
+  process.stderr.write(`Semaphor MCP bridge connected to ${mcpUrl}\n`);
+  process.stderr.write(`Semaphor MCP bridge protocol ${MCP_PROTOCOL_VERSION}\n`);
 }

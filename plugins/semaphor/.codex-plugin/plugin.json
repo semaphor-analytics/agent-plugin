@@ -1,6 +1,6 @@
 {
   "name": "semaphor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build Semaphor-backed React data apps with governed analytics.",
   "author": {
     "name": "Semaphor"
@@ -12,6 +12,12 @@
     "longDescription": "Adds workflows for inspecting Semaphor project data, planning React data apps, generating components with react-semaphor/data-app-sdk builders and useSemaphorQuery, running local and governed validation, and saving or publishing apps through Semaphor-hosted Data App lifecycle APIs.",
     "developerName": "Semaphor",
     "category": "Productivity",
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/composer-icon.png",
+    "logo": "./assets/logo.png",
+    "websiteURL": "https://semaphor.cloud",
+    "privacyPolicyURL": "https://semaphor.cloud/privacy",
+    "termsOfServiceURL": "https://semaphor.cloud/terms",
     "capabilities": [
       "Interactive",
       "Read",
