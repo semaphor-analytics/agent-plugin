@@ -171,11 +171,15 @@ async function handleClientMessage(message) {
 
 async function forwardRequest(message) {
   if (message.method === 'initialize') {
+    const requestedProtocolVersion =
+      typeof message.params?.protocolVersion === 'string'
+        ? message.params.protocolVersion
+        : MCP_PROTOCOL_VERSION;
     return {
       jsonrpc: '2.0',
       id: message.id,
       result: {
-        protocolVersion: MCP_PROTOCOL_VERSION,
+        protocolVersion: requestedProtocolVersion,
         capabilities: {
           tools: {
             listChanged: false,
