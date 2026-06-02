@@ -63,6 +63,10 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
 - Use Semaphor MCP to discover real projects, domains, datasets, fields,
   relationships, SQL connections, and permissioned capabilities before
   generating data-bearing code.
+- Treat host-exposed Semaphor MCP tools as the primary authoring interface. If
+  they are unavailable, use the fallback wrapper only for debugging/evals and
+  classify the run as plugin-host MCP exposure. Never manually speak MCP
+  protocol.
 - Do not invent dataset names, field names, joins, metrics, IDs, or raw
   database credentials.
 - Generated runtime analytics code must use public
@@ -81,11 +85,9 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
   public SDK result types.
 - Use `columns[].key` for row access and `columns[].label` for display. Never
   use display labels as row keys.
-- Prefer `semaphor_analyze` for governed semantic BI checks. Use
-  `semaphor_query_sql_advanced` for SQL-first or unsupported analysis.
-- Use `semaphor_matrix` during authoring and `semaphor.matrix(...)` at runtime
-  for pivot, hierarchy, subtotal, and grand-total table views. Do not emulate
-  matrix behavior by fetching unbounded rows and pivoting only in React.
+- Prefer `semaphor_analyze` for governed semantic BI checks,
+  `semaphor_matrix` for pivot/matrix checks, and
+  `semaphor_query_sql_advanced` only for SQL-first or unsupported analysis.
 - Use `semaphor.derivedField(...)` for app-local calculations that should run
   through governed Semaphor execution. Do not make analytically meaningful
   derived metrics frontend-only when the shared SDK supports them.
@@ -108,6 +110,8 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
 
 Load the narrow reference needed for the task:
 
+- MCP tool selection, direct tool exposure, and fallback wrapper:
+  [mcp-authoring.md](references/mcp-authoring.md)
 - SDK imports, provider setup, public result types, query builders, row access:
   [sdk-contract.md](references/sdk-contract.md)
 - App-local derived metrics, groups, and calculated fields:

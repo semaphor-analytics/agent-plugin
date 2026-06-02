@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "detect": "node scripts/detect-react-app.mjs",
+    "call:mcp": "node scripts/call-semaphor-tool.mjs",
     "init:data-app": "node scripts/init-semaphor-data-app.mjs",
     "data-app": "node scripts/semaphor-data-app.mjs",
     "load:data-app": "node scripts/semaphor-data-app.mjs load",

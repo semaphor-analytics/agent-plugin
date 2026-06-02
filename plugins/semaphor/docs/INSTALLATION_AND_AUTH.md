@@ -50,6 +50,39 @@ Set `SEMAPHOR_MCP_URL` only when the MCP route intentionally differs from the
 Semaphor host encoded in the token, such as a temporary tunnel or custom
 self-hosted routing setup.
 
+## MCP Tool Exposure
+
+After installation, the agent host should expose the Semaphor MCP server as
+first-class callable tools. The exact namespace is host-specific, but the
+available tools should include:
+
+```text
+semaphor_get_access_context
+semaphor_get_analysis_context
+semaphor_list_semantic_domains
+semaphor_list_datasets
+semaphor_get_dataset_schema
+semaphor_analyze
+semaphor_matrix
+semaphor_query_sql_advanced
+```
+
+The plugin MCP server is named `semaphor`, so hosts that include the server name
+in the tool namespace should expose a Semaphor-shaped namespace instead of a
+generic bridge name.
+
+If a host does not expose those tools, use the fallback wrapper for debugging or
+evals:
+
+```bash
+npm run call:mcp -- --list-tools --dir /path/to/react-app
+npm run call:mcp -- semaphor_get_analysis_context --dir /path/to/react-app
+```
+
+The wrapper handles env loading, MCP startup, token redaction, timeout, and
+clean JSON output. It is not the preferred customer authoring loop; direct MCP
+tools are.
+
 ## Authoring Token Versus Runtime Token
 
 Keep these concerns separate:

@@ -75,19 +75,19 @@ function validateClaudeManifest() {
 
 function validateMcpConfig() {
   const config = readJson('.mcp.json');
-  const server = config?.mcpServers?.['semaphor-agent'];
+  const server = config?.mcpServers?.semaphor;
   if (!server) {
-    issues.push('.mcp.json: missing mcpServers.semaphor-agent');
+    issues.push('.mcp.json: missing mcpServers.semaphor');
     return;
   }
   if (server.command !== 'node') {
-    issues.push('.mcp.json: semaphor-agent server must use the local MCP launcher');
+    issues.push('.mcp.json: semaphor server must use the local MCP launcher');
   }
   if (
     !Array.isArray(server.args) ||
     !server.args.includes('scripts/semaphor-mcp-remote.mjs')
   ) {
-    issues.push('.mcp.json: semaphor-agent server args must use scripts/semaphor-mcp-remote.mjs');
+    issues.push('.mcp.json: semaphor server args must use scripts/semaphor-mcp-remote.mjs');
   }
   if (JSON.stringify(server).includes('${SEMAPHOR_PROJECT_TOKEN}')) {
     issues.push(
@@ -112,6 +112,7 @@ function validateSkillStructure() {
   }
 
   const requiredReferences = [
+    'mcp-authoring.md',
     'sdk-contract.md',
     'derived-fields.md',
     'matrix.md',
@@ -178,6 +179,7 @@ requireFile('AGENTS.md');
 requireFile('.codex-plugin/plugin.json');
 requireFile('.claude-plugin/plugin.json');
 requireFile('.mcp.json');
+requireFile('scripts/call-semaphor-tool.mjs');
 requireDirectory('skills');
 requireDirectory('scripts');
 requireDirectory('docs');

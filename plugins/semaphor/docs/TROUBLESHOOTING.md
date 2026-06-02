@@ -13,6 +13,36 @@ workflow.
 5. Does the React app have a runtime token?
 6. Does the browser show governed data?
 
+## MCP Tools Not Exposed By The Agent Host
+
+Symptom:
+
+```text
+The plugin is installed, but the agent cannot call semaphor_* MCP tools.
+```
+
+Expected behavior:
+
+- the plugin MCP server is named `semaphor`;
+- the host exposes Semaphor MCP tools as first-class callable tools;
+- the agent can call `semaphor_get_access_context` or
+  `semaphor_get_analysis_context` without manually starting the bridge.
+
+Fallback check:
+
+```bash
+npm run call:mcp -- --list-tools --dir /path/to/react-app
+npm run call:mcp -- semaphor_get_access_context --dir /path/to/react-app
+```
+
+If the wrapper works but first-class tools are missing, this is a plugin-host
+mounting issue. Do not debug by printing tokens or manually speaking MCP
+protocol in the target app. Capture the host, Codex or Claude version,
+marketplace/plugin install commands, and whether the MCP server appears in the
+host's plugin list.
+
+Owner layer: plugin host integration or plugin MCP packaging.
+
 ## Missing Project Token
 
 Symptom:

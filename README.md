@@ -46,6 +46,15 @@ codex plugin remove semaphor@semaphor-analytics
 codex plugin marketplace remove semaphor-analytics
 ```
 
+After installation, Semaphor MCP tools should be available to Codex as
+first-class callable tools from the plugin's `semaphor` MCP server. If a host
+does not expose the tools, use the plugin fallback wrapper only for debugging:
+
+```bash
+npm run call:mcp -- --list-tools --dir /path/to/react-app
+npm run call:mcp -- semaphor_get_access_context --dir /path/to/react-app
+```
+
 ### Claude Code
 
 Add the Semaphor marketplace from GitHub, then install the Semaphor plugin:

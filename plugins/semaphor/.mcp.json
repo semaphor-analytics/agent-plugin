@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "semaphor-agent": {
+    "semaphor": {
       "command": "node",
       "args": [
         "scripts/semaphor-mcp-remote.mjs"
