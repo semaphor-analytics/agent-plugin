@@ -5,6 +5,12 @@
       "args": [
         "scripts/semaphor-mcp-remote.mjs"
       ],
+      "env_vars": [
+        "SEMAPHOR_PROJECT_TOKEN",
+        "VITE_SEMAPHOR_PROJECT_TOKEN",
+        "SEMAPHOR_SERVER_URL",
+        "SEMAPHOR_MCP_URL"
+      ],
       "cwd": "."
     }
   }
