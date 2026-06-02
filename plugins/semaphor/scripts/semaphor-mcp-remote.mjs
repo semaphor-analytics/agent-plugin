@@ -476,6 +476,29 @@ function formatHttpError(response, body) {
 }
 
 function readMcpMessage(buffer) {
+  const firstNonWhitespace = buffer.findIndex((byte) => ![9, 10, 13, 32].includes(byte));
+  if (firstNonWhitespace > 0) {
+    buffer = buffer.subarray(firstNonWhitespace);
+  }
+
+  if (buffer[0] === 123) {
+    const lineEnd = buffer.indexOf('\n');
+    if (lineEnd === -1) {
+      return null;
+    }
+    const line = buffer.subarray(0, lineEnd).toString('utf8').trim();
+    if (!line) {
+      return {
+        message: null,
+        remaining: buffer.subarray(lineEnd + 1),
+      };
+    }
+    return {
+      message: JSON.parse(line),
+      remaining: buffer.subarray(lineEnd + 1),
+    };
+  }
+
   let separator = buffer.indexOf('\r\n\r\n');
   let separatorLength = 4;
   if (separator === -1) {
@@ -507,8 +530,7 @@ function readMcpMessage(buffer) {
 }
 
 function writeMcpMessage(stream, message) {
-  const body = JSON.stringify(message);
-  stream.write(`Content-Length: ${Buffer.byteLength(body, 'utf8')}\r\n\r\n${body}`);
+  stream.write(`${JSON.stringify(message)}\n`);
 }
 
 function inferMcpUrlFromProjectToken(projectToken) {

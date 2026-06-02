@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 
 const pluginRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -243,6 +244,22 @@ function createMcpClient(child, callOptions) {
   }
 
   function handleMessage(message) {
+    if (message?.method === 'roots/list' && message.id !== undefined) {
+      writeMcpMessage(child.stdin, {
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          roots: [
+            {
+              uri: pathToFileURL(path.resolve(callOptions.dir)).href,
+              name: path.basename(path.resolve(callOptions.dir)),
+            },
+          ],
+        },
+      });
+      return;
+    }
+
     if (message?.id === undefined) {
       return;
     }
@@ -278,6 +295,29 @@ function createMcpClient(child, callOptions) {
 }
 
 function readMcpMessage(buffer) {
+  const firstNonWhitespace = buffer.findIndex((byte) => ![9, 10, 13, 32].includes(byte));
+  if (firstNonWhitespace > 0) {
+    buffer = buffer.subarray(firstNonWhitespace);
+  }
+
+  if (buffer[0] === 123) {
+    const lineEnd = buffer.indexOf('\n');
+    if (lineEnd === -1) {
+      return null;
+    }
+    const line = buffer.subarray(0, lineEnd).toString('utf8').trim();
+    if (!line) {
+      return {
+        message: null,
+        remaining: buffer.subarray(lineEnd + 1),
+      };
+    }
+    return {
+      message: JSON.parse(line),
+      remaining: buffer.subarray(lineEnd + 1),
+    };
+  }
+
   const separator = buffer.indexOf('\r\n\r\n');
   if (separator === -1) {
     return null;
