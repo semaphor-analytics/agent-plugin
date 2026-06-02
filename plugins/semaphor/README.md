@@ -21,6 +21,21 @@ https://github.com/semaphor-analytics/agent-plugin
    VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
    ```
 
+   For non-Vite apps, use your app's normal runtime config. The plugin helper
+   scripts also accept `SEMAPHOR_PROJECT_TOKEN` from shell env or local env
+   files.
+
+   Hosted Semaphor needs no extra server URL. For local development,
+   self-hosted deployments, tunnels, or Semaphor dogfooding, add the optional
+   host override:
+
+   ```bash
+   SEMAPHOR_SERVER_URL="http://localhost:3000"
+   ```
+
+   If `SEMAPHOR_SERVER_URL` is absent, the plugin uses the host encoded in the
+   project token and falls back to `https://semaphor.cloud`.
+
 2. Open Codex or Claude Code in your React app repository.
 
 3. Ask:

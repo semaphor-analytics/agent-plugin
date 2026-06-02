@@ -91,7 +91,19 @@ VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 ```
 
 For non-Vite apps, use the same token through your app's normal local
-configuration system.
+configuration system. The plugin helper scripts also accept
+`SEMAPHOR_PROJECT_TOKEN` from shell env or local env files.
+
+Hosted Semaphor does not require a separate server URL. For local development,
+self-hosted deployments, tunnels, or dogfooding against an unreleased Semaphor
+app, add this optional host override to the same ignored local env file:
+
+```bash
+SEMAPHOR_SERVER_URL="http://localhost:3000"
+```
+
+When `SEMAPHOR_SERVER_URL` is absent, the plugin uses the Semaphor host encoded
+in the project token and falls back to `https://semaphor.cloud`.
 
 Do not commit real tokens. For production, provide runtime tokens through your
 backend, Semaphor embed/token flow, or Semaphor hosted Data App runtime.
