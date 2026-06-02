@@ -5,6 +5,19 @@ cannot express the product requirement or when the user explicitly asks for raw
 SQL. Inline SQL is supported, but execution must still go through the Semaphor
 SDK and governed server-side execution.
 
+SQL is the fallback path, not the default dashboard path. Before writing SQL,
+try to express the view as:
+
+1. `semaphor.metric(...)` for KPIs and aggregates;
+2. `semaphor.records(...)` for bounded rows, charts, and tables;
+3. `semaphor.analysis(...)` for governed insights, drivers, trends, and
+   period-change analysis;
+4. `semaphor.matrix(...)` for pivot or hierarchy tables;
+5. `semaphor.derivedField(...)` for calculated metrics that should still run
+   through governed execution.
+
+Only keep SQL for the part that remains unsupported after that path.
+
 ## Rules
 
 - Use MCP to identify the connection, dialect, tables, and columns.
@@ -21,6 +34,10 @@ SDK and governed server-side execution.
 - Keep readonly assumptions explicit. Readonly database access does not remove
   the need for governed execution, row limits, secrets hygiene, and server-side
   filtering.
+- In the app plan and code comments, record the exact fallback reason: explicit
+  user SQL request, no semantic domain, field not exposed, unsupported
+  latest-snapshot/windowing, unsupported join/grain, raw-row inspection, or
+  validation/debugging.
 
 ## Public SQL Spec Shape
 

@@ -68,10 +68,17 @@ function scanSourceQuality(root, sourceFiles) {
   const advisories = [];
   let usesDataAppSdkHooks = false;
   let hasProvider = false;
+  let sqlQueryCount = 0;
+  let governedQueryCount = 0;
 
   for (const filePath of sourceFiles) {
     const content = fs.readFileSync(filePath, "utf8");
     const location = formatLocation(root, filePath);
+    sqlQueryCount += countMatches(content, /\bsemaphor\.sql\s*\(/g);
+    governedQueryCount += countMatches(
+      content,
+      /\bsemaphor\.(?:metric|records|analysis|matrix)\s*\(/g,
+    );
 
     if (
       /useSemaphor(?:Analysis|Metric|Records|Input|Inputs|InputOptions|Query)\b/.test(
@@ -211,7 +218,17 @@ function scanSourceQuality(root, sourceFiles) {
     );
   }
 
+  if (sqlQueryCount > 0 && governedQueryCount === 0) {
+    advisories.push(
+      "The app uses semaphor.sql(...) but no governed semaphor.metric(...), semaphor.records(...), semaphor.analysis(...), or semaphor.matrix(...) queries. For dashboards, try the governed semantic path first and keep SQL only for explicitly unsupported views with documented fallback reasons.",
+    );
+  }
+
   return { advisories };
+}
+
+function countMatches(content, pattern) {
+  return Array.from(content.matchAll(pattern)).length;
 }
 
 function runScript(root, packageManager, scriptName) {

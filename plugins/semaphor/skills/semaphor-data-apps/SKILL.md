@@ -71,6 +71,12 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
   database credentials.
 - Generated runtime analytics code must use public
   `react-semaphor/data-app-sdk` builders and `useSemaphorQuery`.
+- For data-bearing dashboards, use the governed path before SQL: discover
+  semantic domains/datasets/schema, validate with `semaphor_analyze` or
+  `semaphor_matrix`, then productize with `semaphor.metric`,
+  `semaphor.records`, `semaphor.analysis`, `semaphor.matrix`, and
+  `semaphor.derivedField` where possible. Use `semaphor.sql` only after naming
+  the specific governed capability gap or explicit user SQL request.
 - Do not create a host-specific query language as the source of truth. Missing
   analytical behavior belongs in the shared analytics protocol, SDK, MCP, or
   Semaphor App execution adapter.
@@ -88,6 +94,10 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
 - Prefer `semaphor_analyze` for governed semantic BI checks,
   `semaphor_matrix` for pivot/matrix checks, and
   `semaphor_query_sql_advanced` only for SQL-first or unsupported analysis.
+- Do not use SQL merely because it is faster for the agent to express joins,
+  latest-snapshot logic, labels, ranked top-N, or grouped rollups. First try
+  semantic metrics/records/analysis plus relationships and derived fields; then
+  fall back to SQL only for the remaining unsupported pieces.
 - Use `semaphor.derivedField(...)` for app-local calculations that should run
   through governed Semaphor execution. Do not make analytically meaningful
   derived metrics frontend-only when the shared SDK supports them.

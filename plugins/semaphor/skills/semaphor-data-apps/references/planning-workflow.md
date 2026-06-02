@@ -55,6 +55,28 @@ Common mappings:
 - pivot, hierarchy, subtotal, and grand-total table view ->
   `semaphor_matrix` during authoring and `semaphor.matrix(...)` at runtime.
 
+## Governed-First Planning Gate
+
+For broad dashboard requests, do not jump straight to SQL. The visible plan must
+show a governed-first attempt for each data-bearing view:
+
+- `metric`: KPI or aggregate view backed by `semaphor_analyze` during
+  authoring and `semaphor.metric(...)` or `semaphor.analysis(...)` at runtime;
+- `records`: bounded chart/table rows backed by `semaphor.records(...)`;
+- `matrix`: pivot, hierarchy, subtotal, or grand-total view backed by
+  `semaphor_matrix` and `semaphor.matrix(...)`;
+- `derived`: calculation backed by `semaphor.derivedField(...)`;
+- `sql_fallback`: SQL-backed view used only after an explicit reason.
+
+When a view is `sql_fallback`, include:
+
+- the governed path attempted or inspected;
+- the missing capability, such as latest-snapshot windowing, unsupported join,
+  unmodeled field, unsupported ranking/window function, or explicit user SQL
+  request;
+- the smallest SQL needed for that view, with bounded limits/pagination and
+  server-side filters.
+
 Discovery tools are authoring-only unless their result is compiled into a
 supported SDK query. If MCP can answer a question but the SDK/runtime cannot
 execute it yet, mark the view unsupported and name the missing Semaphor
