@@ -194,18 +194,13 @@ async function forwardRequest(message) {
   }
 
   if (message.method === 'tools/list') {
-    const context = await resolveSemaphorContext({ allowMissing: true, includeClientRoots: false });
-    if (!context?.token) {
-      return {
-        jsonrpc: '2.0',
-        id: message.id,
-        result: {
-          tools: BOOTSTRAP_TOOLS,
-        },
-      };
-    }
-    const response = await postMcpJsonRpc(message, context);
-    return normalizeJsonRpcResponse(message, response);
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        tools: BOOTSTRAP_TOOLS,
+      },
+    };
   }
 
   if (message.method === 'tools/call') {
