@@ -1,7 +1,7 @@
 # Planning Workflow
 
 Planning and editing are separate. If the user asks to plan, do not change
-files. For broad dashboard/app requests, large-table requests, or existing-app
+files. For broad Data App requests, large-table requests, or existing-app
 changes, produce a visible plan before editing.
 
 The plan should reduce churn by deciding the analytical shape before codegen:
@@ -9,14 +9,14 @@ which views are server-backed, which are derived from existing query results,
 which are presentation-only, and which cannot be supported by the current data
 model.
 
-## Dashboard Planning Response
+## Data App Planning Response
 
-For broad dashboard or app-building requests, respond with a compact plan
-before editing files. Treat this as a required gate, not background reasoning.
+For broad Data App-building requests, respond with a compact plan before
+editing files. Treat this as a required gate, not background reasoning.
 
 Include:
 
-- app/dashboard title and purpose;
+- app title and purpose;
 - selected Semaphor sources and why they were chosen;
 - planned filters and which views they affect;
 - planned views with visual type, query kind, source fields, and whether each
@@ -30,14 +30,13 @@ Include:
   pagination/windowing, or unsupported SDK capability;
 - unsupported insights plus the semantic-model improvement needed to support
   them;
-- whether the target is a new app, an existing Data App, or an existing
-  Semaphor dashboard;
+- whether the target is a new app or an existing Data App;
 - one next step: build the plan, revise the plan, or inspect more data.
 
 ## MCP-To-Runtime Parity
 
-Treat MCP answers as authoring evidence, not automatically as dashboard-ready
-runtime views. A view is dashboard-ready only when it has all three:
+Treat MCP answers as authoring evidence, not automatically as Data App-ready
+runtime views. A view is Data App-ready only when it has all three:
 
 - shared Semaphor analytics intent;
 - public SDK builder/query shape;
@@ -57,7 +56,7 @@ Common mappings:
 
 ## Governed-First Planning Gate
 
-For broad dashboard requests, do not jump straight to SQL. The visible plan must
+For broad Data App requests, do not jump straight to SQL. The visible plan must
 show a governed-first attempt for each data-bearing view:
 
 - `metric`: KPI or aggregate view backed by `semaphor_analyze` during
