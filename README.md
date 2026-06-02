@@ -21,23 +21,29 @@ layout.
 
 ### Codex
 
-Add the Semaphor marketplace from GitHub:
+Add the Semaphor marketplace from GitHub, then install the Semaphor plugin from
+that marketplace:
 
 ```bash
 codex plugin marketplace add semaphor-analytics/agent-plugin
+codex plugin add semaphor@semaphor-analytics
 ```
 
-Current Codex CLI versions install plugins through configured marketplaces; the
-CLI exposes `codex plugin marketplace add|upgrade|remove` and does not have a
-separate `codex plugin add` command. After adding the marketplace, open Codex in
-your React app repository and confirm the Semaphor plugin is available.
-
-Codex registers this marketplace under the name `semaphor`. Use that name for
-update and remove commands:
+You can verify the marketplace and available plugin before installing:
 
 ```bash
-codex plugin marketplace upgrade semaphor
-codex plugin marketplace remove semaphor
+codex plugin marketplace list
+codex plugin list --marketplace semaphor-analytics
+```
+
+Codex registers this marketplace under the name `semaphor-analytics`. Use that
+name for update and remove commands. `marketplace remove` removes the
+marketplace source; `plugin remove` removes the installed plugin:
+
+```bash
+codex plugin marketplace upgrade semaphor-analytics
+codex plugin remove semaphor@semaphor-analytics
+codex plugin marketplace remove semaphor-analytics
 ```
 
 ### Claude Code
@@ -46,7 +52,7 @@ Add the Semaphor marketplace from GitHub, then install the Semaphor plugin:
 
 ```text
 /plugin marketplace add semaphor-analytics/agent-plugin
-/plugin install semaphor@semaphor
+/plugin install semaphor@semaphor-analytics
 /reload-plugins
 ```
 
