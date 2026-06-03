@@ -9,6 +9,13 @@ The agent host should expose Semaphor MCP servers as first-class callable
 tools. Use those tools directly. Do not inspect plugin implementation files,
 start the MCP bridge manually, or write JSON-RPC glue.
 
+For Semaphor build, plan, answer, save, and publish workflows, the first
+observable step should be MCP auth/project preflight. Call
+`semaphor_get_access_context` before inspecting the React workspace, package
+files, SDK declarations, helper scripts, or generated app source. Resolve the
+project before codegen so every later discovery, plan, and runtime token is
+scoped to the correct governed project.
+
 There are two server names:
 
 - `semaphor`: hosted OAuth MCP. Use this for first-run login and project

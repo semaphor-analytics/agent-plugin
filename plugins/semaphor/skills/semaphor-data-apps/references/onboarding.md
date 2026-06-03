@@ -18,20 +18,17 @@ based on what is already configured.
 
 ## First-Run Flow
 
-1. Inspect the current workspace.
-   - If it is a React app, use it by default.
-   - If it is not a React app, ask whether to start from
-     `semaphor-analytics/semaphor-data-app-starter`.
+1. Check Semaphor auth first.
+   - Call `semaphor_get_access_context` before reading local package files,
+     inspecting source, searching SDK declarations, or running helper scripts.
+   - If the host exposes the OAuth MCP server `semaphor`, use it as the
+     first-run path when no project token is already active.
+   - If a project token is already active, the project-token MCP server
+     `semaphor-project` can report the fixed project scope.
+   - If neither OAuth nor a project token is available, ask the user to log in
+     or add a project token from `https://semaphor.cloud/project`.
 
-2. Check Semaphor auth.
-   - If `VITE_SEMAPHOR_PROJECT_TOKEN` or `SEMAPHOR_PROJECT_TOKEN` is present,
-     use the project-token MCP server `semaphor-project`.
-   - If no project token is present and the hosted OAuth MCP server is
-     available, use the OAuth MCP server `semaphor` and ask the user to log in.
-   - If OAuth is unavailable, ask the user to add a project token from
-     `https://semaphor.cloud/project`.
-
-3. Resolve project context.
+2. Resolve project context.
    - Project-token mode: the token fixes the active project. Do not list
      projects unless the tool reports interactive mode.
    - OAuth mode: call `semaphor_list_projects`, ask the user which project to
@@ -40,6 +37,11 @@ based on what is already configured.
      queries in the browser, call `semaphor_get_data_app_runtime_token` for the
      chosen project and write `VITE_SEMAPHOR_PROJECT_TOKEN` to the app's
      ignored `.env.local`. Do not print the token.
+
+3. Inspect the current workspace.
+   - If it is a React app, use it by default.
+   - If it is not a React app, ask whether to start from
+     `semaphor-analytics/semaphor-data-app-starter`.
 
 4. Plan before broad codegen.
    - Use `semaphor_plan_data_app` for broad new apps.

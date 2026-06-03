@@ -27,13 +27,22 @@ Normal loop:
 ```text
 user request
   -> classify operation
-  -> run onboarding preflight for auth, project, and local app context
+  -> run Semaphor auth and project preflight first
   -> inspect Semaphor MCP metadata and local React source
   -> visibly plan when the request is broad or data-bearing
   -> edit with public react-semaphor/data-app-sdk builders and hooks
   -> validate locally and through Semaphor when credentials are available
   -> save or publish through Semaphor lifecycle APIs when requested
 ```
+
+Auth preflight is step zero for Semaphor work. Before reading package files,
+searching source, checking SDK declarations, running helper scripts, or editing
+code, call `semaphor_get_access_context` through the host-exposed Semaphor MCP
+tools. If the current auth is OAuth and no project is fixed, call
+`semaphor_list_projects` and resolve the project before local app inspection.
+If the local browser runtime needs a project token, call
+`semaphor_get_data_app_runtime_token` after the project is chosen and write only
+`VITE_SEMAPHOR_PROJECT_TOKEN` to an ignored local env file.
 
 ## Operation Types
 
@@ -76,6 +85,10 @@ as a required dashboard quality checklist, not optional inspiration.
 
 ## Hard Rules
 
+- Start Semaphor auth/project preflight before local repo inspection for
+  build, plan, answer, save, and publish workflows. Do not inspect React files,
+  SDK internals, helper scripts, or package metadata until auth and project
+  context are known, unless the user explicitly asks only about local setup.
 - Use Semaphor MCP to discover real projects, domains, datasets, fields,
   relationships, SQL connections, and permissioned capabilities before
   generating data-bearing code.
@@ -165,7 +178,7 @@ Load the narrow reference needed for the task:
 
 ## Local App Integration
 
-Before editing, inspect the target repo:
+After Semaphor auth and project context are resolved, inspect the target repo:
 
 1. Locate `package.json`.
 2. Detect package manager from lockfiles.

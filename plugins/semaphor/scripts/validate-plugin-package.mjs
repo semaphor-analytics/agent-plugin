@@ -165,6 +165,15 @@ function validateSkillStructure() {
       `skills/semaphor-data-apps/SKILL.md: ${lineCount} lines exceeds 500-line progressive disclosure limit`,
     );
   }
+  if (
+    !/Auth preflight is step zero/i.test(skillText) ||
+    !/semaphor_get_access_context/i.test(skillText) ||
+    !/before local repo inspection/i.test(skillText)
+  ) {
+    issues.push(
+      'skills/semaphor-data-apps/SKILL.md: must require Semaphor auth/project preflight with semaphor_get_access_context before local repo inspection',
+    );
+  }
 
   const requiredReferences = [
     'onboarding.md',
