@@ -1,63 +1,139 @@
 # Semaphor Agent Plugin
 
-Build Semaphor-backed React data apps from Codex or Claude Code.
+Build data apps and answer business questions, grounded in your data.
 
-Semaphor lets your coding agent inspect governed project data, plan analytics
-views, generate React components with `react-semaphor/data-app-sdk`, validate
-the app, and publish hosted Data Apps back to Semaphor.
+The Semaphor Agent Plugin connects Codex or Claude Code to your Semaphor
+project. Your agent can inspect governed data, answer business questions, plan
+KPIs and charts, generate React data-app code, validate the result, and publish
+the finished app back to Semaphor.
 
-## What You Need
+## Quick Start
 
-- A React app.
-- A Semaphor project token from `https://semaphor.cloud/project`.
-- Codex or Claude Code.
-- `react-semaphor` in your React app. The agent can add it if it is missing.
+### 1. Install In Codex
 
-Your app can use Vite, Next.js, Remix, React Router, a monorepo, or a custom
-product shell. The plugin does not require a starter template or a specific app
-layout.
-
-## Install
-
-### Codex
-
-Add the Semaphor marketplace from GitHub, then install the Semaphor plugin from
-that marketplace:
+Add the Semaphor marketplace from GitHub, then install the plugin:
 
 ```bash
 codex plugin marketplace add semaphor-analytics/agent-plugin
 codex plugin add semaphor@semaphor-analytics
 ```
 
-You can verify the marketplace and available plugin before installing:
+### 2. Start From A Data App
+
+If you already have a React app, use that app. If you are starting fresh, use
+the Semaphor Data App Starter:
+
+```bash
+git clone https://github.com/semaphor-analytics/semaphor-data-app-starter.git my-data-app
+cd my-data-app
+npm install
+```
+
+The starter is a simple Vite + shadcn app with the basics in place so the
+agent can focus on your data app instead of initial project setup.
+
+### 3. Add Your Project Token
+
+Create or update your app's ignored local env file:
+
+```bash
+VITE_SEMAPHOR_PROJECT_TOKEN="<project-token-from-semaphor-project-page>"
+```
+
+Get the token from your Semaphor project page:
+
+```text
+https://semaphor.cloud/project
+```
+
+Do not commit real tokens.
+
+### 4. Open Your App
+
+Start Codex from the app directory and try:
+
+```text
+Sketch a data app from my project.
+```
+
+Semaphor should inspect your project data, propose a plan, and then help build
+the app once you approve the direction.
+
+## What You Need
+
+- A React app. For a new app, start with
+  [semaphor-data-app-starter](https://github.com/semaphor-analytics/semaphor-data-app-starter).
+  Existing Vite, Next.js, Remix, React Router, monorepos, and custom product
+  shells are all fine too.
+- A Semaphor project token.
+- Codex or Claude Code.
+- `react-semaphor` in your app. The agent can add it if it is missing.
+
+## Codex Commands
+
+### Install
+
+```bash
+codex plugin marketplace add semaphor-analytics/agent-plugin
+codex plugin add semaphor@semaphor-analytics
+```
+
+### Verify
 
 ```bash
 codex plugin marketplace list
 codex plugin list --marketplace semaphor-analytics
 ```
 
-Codex registers this marketplace under the name `semaphor-analytics`. Use that
-name for update and remove commands. `marketplace remove` removes the
-marketplace source; `plugin remove` removes the installed plugin:
+After installation, Semaphor MCP tools should be available to Codex as
+first-class callable tools from the plugin's `semaphor` MCP server.
+
+### Upgrade
 
 ```bash
 codex plugin marketplace upgrade semaphor-analytics
+```
+
+If Codex still shows an older plugin after upgrading the marketplace, remove
+and reinstall the plugin:
+
+```bash
 codex plugin remove semaphor@semaphor-analytics
+codex plugin add semaphor@semaphor-analytics
+```
+
+### Remove
+
+Remove only the installed plugin:
+
+```bash
+codex plugin remove semaphor@semaphor-analytics
+```
+
+Remove the marketplace source as well:
+
+```bash
 codex plugin marketplace remove semaphor-analytics
 ```
 
-After installation, Semaphor MCP tools should be available to Codex as
-first-class callable tools from the plugin's `semaphor` MCP server. If a host
-does not expose the tools, use the plugin fallback wrapper only for debugging:
+`plugin remove` removes the installed plugin. `marketplace remove` removes the
+marketplace source.
+
+### Debug MCP Tool Access
+
+Most users should not need this. Use it only when debugging from a local
+checkout of this repository and a host does not expose the Semaphor MCP tools
+as first-class callable tools:
 
 ```bash
 npm run call:mcp -- --list-tools --dir /path/to/react-app
 npm run call:mcp -- semaphor_get_access_context --dir /path/to/react-app
 ```
 
-### Claude Code
+## Claude Code
 
-Add the Semaphor marketplace from GitHub, then install the Semaphor plugin:
+Add the Semaphor marketplace from GitHub, install the plugin, and reload
+plugins:
 
 ```text
 /plugin marketplace add semaphor-analytics/agent-plugin
@@ -65,113 +141,120 @@ Add the Semaphor marketplace from GitHub, then install the Semaphor plugin:
 /reload-plugins
 ```
 
-After installation, open Claude Code in your React app repository and confirm
-the Semaphor plugin is enabled.
-
-## Repository Layout
-
-This GitHub repo is the marketplace root for both Codex and Claude Code:
-
-```text
-agent-plugin/
-  .agents/plugins/marketplace.json      # Codex marketplace catalog
-  .claude-plugin/marketplace.json       # Claude Code marketplace catalog
-  plugins/semaphor/                     # Shared installable plugin package
-```
-
-Codex and Claude Code use different marketplace file locations, but both
-marketplaces point to the same `plugins/semaphor` package.
+Then open Claude Code in your React app repository and ask it to inspect your
+Semaphor project.
 
 ## Connect To Semaphor
 
-Create or update your app's ignored local env file:
+For most React apps, put the project token in `.env.local`:
 
 ```bash
-VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
+VITE_SEMAPHOR_PROJECT_TOKEN="<project-token-from-semaphor-project-page>"
 ```
 
-For non-Vite apps, use the same token through your app's normal local
-configuration system. The plugin helper scripts also accept
-`SEMAPHOR_PROJECT_TOKEN` from shell env or local env files.
-
-Hosted Semaphor does not require a separate server URL. For local development,
-self-hosted deployments, tunnels, or dogfooding against an unreleased Semaphor
-app, add this optional host override to the same ignored local env file:
+For non-Vite apps, use your app's normal local env system. The plugin helper
+scripts can also read:
 
 ```bash
-SEMAPHOR_SERVER_URL="http://localhost:3000"
+SEMAPHOR_PROJECT_TOKEN="<project-token-from-semaphor-project-page>"
+```
+
+Hosted Semaphor does not require a separate server URL. Self-hosted or custom
+Semaphor deployments may set:
+
+```bash
+SEMAPHOR_SERVER_URL="https://your-semaphor-host"
 ```
 
 When `SEMAPHOR_SERVER_URL` is absent, the plugin uses the Semaphor host encoded
 in the project token and falls back to `https://semaphor.cloud`.
 
-Do not commit real tokens. For production, provide runtime tokens through your
-backend, Semaphor embed/token flow, or Semaphor hosted Data App runtime.
+For production apps, provide runtime tokens through your backend, Semaphor
+embed/token flow, or Semaphor hosted Data App runtime.
 
-## First Prompts
-
-Start by asking the agent to inspect your governed Semaphor data:
+## Good First Prompts
 
 ```text
-What Semaphor data can I use in this project?
+Sketch a data app from my project.
 ```
 
-For broad dashboard or app requests, ask for a plan first:
-
 ```text
-Use my Semaphor project data to plan an operations dashboard app.
+Add a revenue chart with period-over-period change.
 ```
 
-When the plan looks right, ask the agent to build:
+```text
+What's driving the trend in my top KPI?
+```
 
 ```text
-Build that app in this React repo and use Semaphor runtime queries.
+Publish this app to Semaphor.
 ```
 
 ## Common Workflows
 
-Ask a data question:
+### Answer A Business Question
 
 ```text
 Why did revenue change last month?
 ```
 
-Add a dashboard view:
+### Plan A Data App
+
+```text
+Plan an operations data app from my Semaphor project.
+```
+
+### Add A View
 
 ```text
 Add a revenue trend and segment table to this page.
 ```
 
-Add filters:
+### Add Filters
 
 ```text
 Add a region filter and make the KPI, trend, and table respond to it.
 ```
 
-Build matrix or pivot tables:
+### Build Matrix Or Pivot Tables
 
 ```text
 Show revenue by region and segment with row totals and a grand total.
 ```
 
-Create app-local governed calculations:
+### Add Governed Calculations
 
 ```text
-Add gross margin as a derived metric even though it is not modeled yet.
+Add gross margin as a derived metric.
 ```
 
-Use SQL when needed:
+### Use SQL When Needed
 
 ```text
 Use SQL to show the latest raw inventory movement rows, then add a bounded table.
 ```
 
-Save or publish to Semaphor:
+### Save Or Publish
 
 ```text
 Save this as a Semaphor Data App named "Operations App".
 Publish the latest revision to Semaphor.
 ```
+
+## What The Agent Should Do
+
+For broad app-building requests, the agent should:
+
+1. Inspect your Semaphor project metadata.
+2. Plan the app before writing code.
+3. Explain which views are backed by governed queries and which gaps need model
+   improvements.
+4. Generate React code using `react-semaphor/data-app-sdk`.
+5. Validate loading, empty, error, and data states.
+6. Save or publish the app when you approve it.
+
+The agent should not hardcode sample data when a view should execute governed
+Semaphor analytics.
 
 ## Generated Code Pattern
 
@@ -211,10 +294,10 @@ The plugin supports:
 - metrics
 - records and tables
 - filters and controls
-- SQL-backed views
 - driver and period-change analysis
 - matrix and pivot tables
 - derived fields
+- SQL-backed views when governed builders cannot express the question
 - save and publish to Semaphor
 
 ## Validate Your App
@@ -241,17 +324,19 @@ The first save or publish creates a Semaphor-hosted Data App and writes its
 identity to `semaphor.data-app.json`. Later saves and publishes update the
 same app.
 
-## Design Principles
+## Repository Layout
 
-- Work with your React app as it exists.
-- Inspect real Semaphor metadata before generating data-bearing code.
-- Use `react-semaphor/data-app-sdk` for runtime queries.
-- Plan before broad dashboard changes.
-- Include loading, error, and empty states for data-bearing views.
-- Use server-side filtering, sorting, pagination, and matrix shaping for large
-  result sets.
-- Do not hardcode sample data when the view should execute governed Semaphor
-  analytics.
+This GitHub repo is the marketplace root for both Codex and Claude Code:
+
+```text
+agent-plugin/
+  .agents/plugins/marketplace.json      # Codex marketplace catalog
+  .claude-plugin/marketplace.json       # Claude Code marketplace catalog
+  plugins/semaphor/                     # Shared installable plugin package
+```
+
+Codex and Claude Code use different marketplace file locations, but both
+marketplaces point to the same `plugins/semaphor` package.
 
 ## More Documentation
 
