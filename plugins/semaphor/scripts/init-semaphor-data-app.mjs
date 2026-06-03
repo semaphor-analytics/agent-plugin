@@ -48,7 +48,11 @@ const dashboardSource = `import {
   semaphor,
   useSemaphorQuery,
 } from "react-semaphor/data-app-sdk";
-import type { SemaphorResultColumn } from "react-semaphor/data-app-sdk";
+import type {
+  SemaphorRecordsField,
+  SemaphorResultColumn,
+  SemaphorSourceRef,
+} from "react-semaphor/data-app-sdk";
 
 const source = {
   kind: "semantic",
@@ -56,26 +60,26 @@ const source = {
   datasetName: "replace-with-dataset-name",
   datasetId: "replace-with-dataset-id",
   label: "Replace With Dataset Label",
-} as const;
+} satisfies SemaphorSourceRef;
 
 const metricField = {
   name: "replace_with_metric_field",
   role: "measure",
   aggregate: "SUM",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const dimensionField = {
   name: "replace_with_dimension_field",
   role: "dimension",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const dateField = {
   name: "replace_with_date_field",
   role: "date",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const totalMetric = semaphor.metric({
   source,

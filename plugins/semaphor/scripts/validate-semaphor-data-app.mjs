@@ -116,11 +116,14 @@ function scanSourceQuality(root, sourceFiles) {
     }
     if (content.includes("SemaphorDataAppProvider")) {
       hasProvider = true;
-      if (
-        /\bapiBaseUrl\s*=/.test(content) ||
-        /\bVITE_SEMAPHOR_API_BASE_URL\b/.test(content) ||
-        /\bSEMAPHOR_API_BASE_URL\b/.test(content)
-      ) {
+    const usesServerUrlOverride =
+      /\bVITE_SEMAPHOR_SERVER_URL\b/.test(content) ||
+      /\bSEMAPHOR_SERVER_URL\b/.test(content);
+    if (
+      (!usesServerUrlOverride && /\bapiBaseUrl\s*=/.test(content)) ||
+      /\bVITE_SEMAPHOR_API_BASE_URL\b/.test(content) ||
+      /\bSEMAPHOR_API_BASE_URL\b/.test(content)
+    ) {
         advisories.push(
           `${location}: generated apps should rely on SemaphorDataAppProvider token URL inference by default. Pass apiBaseUrl only for explicit local or self-hosted routing overrides.`,
         );

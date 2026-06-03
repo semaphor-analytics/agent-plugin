@@ -64,6 +64,26 @@ function validateCodexManifest() {
   if (manifest?.interface?.logo !== './assets/logo.png') {
     issues.push('.codex-plugin/plugin.json: interface.logo must point to ./assets/logo.png');
   }
+  const forbiddenIconFields = ['icon_small', 'icon_large', 'iconSmall', 'iconLarge'];
+  for (const fieldName of forbiddenIconFields) {
+    const value = manifest?.interface?.[fieldName];
+    if (value !== undefined) {
+      issues.push(
+        `.codex-plugin/plugin.json: interface.${fieldName} is not supported by this package; use interface.composerIcon and interface.logo under ./assets/ instead`,
+      );
+    }
+  }
+  for (const [fieldName, value] of Object.entries(manifest?.interface || {})) {
+    if (
+      typeof value === 'string' &&
+      /icon|logo/i.test(fieldName) &&
+      value.includes('..')
+    ) {
+      issues.push(
+        `.codex-plugin/plugin.json: interface.${fieldName} must not contain ".."; icon and logo assets must resolve under the plugin asset root`,
+      );
+    }
+  }
 }
 
 function validateClaudeManifest() {

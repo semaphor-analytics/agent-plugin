@@ -59,13 +59,18 @@ should still declare its own bounded limit, pagination, or server-side table
 contract.
 
 ```tsx
+import type {
+  SemaphorRecordsField,
+  SemaphorSourceRef,
+} from "react-semaphor/data-app-sdk";
+
 const source = {
   kind: "semantic",
   domainId: "domain-id-from-mcp",
   datasetName: "orders",
   datasetId: "semantic-dataset-id",
   label: "Orders",
-} as const;
+} satisfies SemaphorSourceRef;
 
 const revenue = {
   name: "revenue",
@@ -74,7 +79,7 @@ const revenue = {
   dataType: "number",
   aggregate: "SUM",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const orderDate = {
   name: "order_date",
@@ -82,7 +87,7 @@ const orderDate = {
   role: "date",
   dataType: "date",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const segment = {
   name: "segment",
@@ -90,7 +95,7 @@ const segment = {
   role: "dimension",
   dataType: "string",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 ```
 
 ## Fast Path: SQL-Backed Table
@@ -303,7 +308,7 @@ const grossMarginField = {
   dataType: "number",
   aggregate: "SUM",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const grossMarginQuery = semaphor.metric({
   id: "gross-margin",

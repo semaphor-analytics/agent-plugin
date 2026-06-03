@@ -48,6 +48,54 @@ displayed. If the product needs a true total across all filtered data rather
 than the current page/window, create a separate aggregate query for that total
 instead of summing a paginated or truncated table client-side.
 
+Do not leave table sorting or totals as validator TODOs. If the app has a
+bounded rows table, implement displayed-row sorting and displayed-row totals in
+the generated table component. If the table is server-paginated, implement
+sort controls that update the Semaphor query/order spec and reset to the first
+page, then use a separate aggregate query when all-filtered-row totals are
+needed.
+
+Minimum bounded table pattern:
+
+```tsx
+const [sortKey, setSortKey] = useState<string | null>(null);
+const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+const sortedRows = useMemo(() => {
+  const rows = [...(result.records ?? [])];
+  if (!sortKey) return rows;
+  return rows.sort((left, right) => {
+    const leftValue = left[sortKey];
+    const rightValue = right[sortKey];
+    if (typeof leftValue === "number" && typeof rightValue === "number") {
+      return sortDirection === "asc"
+        ? leftValue - rightValue
+        : rightValue - leftValue;
+    }
+    return sortDirection === "asc"
+      ? String(leftValue ?? "").localeCompare(String(rightValue ?? ""))
+      : String(rightValue ?? "").localeCompare(String(leftValue ?? ""));
+  });
+}, [result.records, sortDirection, sortKey]);
+
+const numericTotals = useMemo(() => {
+  return (result.columns ?? [])
+    .filter((column) => column.dataType === "number")
+    .map((column) => ({
+      key: column.key,
+      value: sortedRows.reduce((sum, row) => {
+        const value = row[column.key];
+        return typeof value === "number" ? sum + value : sum;
+      }, 0),
+    }));
+}, [result.columns, sortedRows]);
+```
+
+Render sortable headers as buttons and render a footer row for `numericTotals`.
+For exact totals across all filtered rows, replace displayed-row totals with a
+separate `semaphor.metric(...)` aggregate query that receives the same input
+handles.
+
 ## Large Tables
 
 Large or complete-dataset tables must be server-side tables. Do not fetch a

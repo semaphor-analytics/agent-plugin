@@ -122,6 +122,44 @@ Do not use `row[column.label]`, `row[column.name]`, display-looking hardcoded
 keys such as `row["Movement Date"]`, or `Object.entries(row)` for rendered
 tables.
 
+Tables should also include sorting and numeric totals. For bounded result
+sets, sort the displayed rows in React and show displayed-row totals for
+numeric columns. For paginated or complete-dataset tables, represent sorting
+and pagination in the Semaphor query spec and use a separate aggregate query
+when the total must cover all filtered rows.
+
+```tsx
+const [sortKey, setSortKey] = useState<string | null>(null);
+const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+const sortedRows = useMemo(() => {
+  const rows = [...(result.records ?? [])];
+  if (!sortKey) return rows;
+  return rows.sort((left, right) => {
+    const leftValue = left[sortKey];
+    const rightValue = right[sortKey];
+    if (typeof leftValue === "number" && typeof rightValue === "number") {
+      return sortDirection === "asc"
+        ? leftValue - rightValue
+        : rightValue - leftValue;
+    }
+    return sortDirection === "asc"
+      ? String(leftValue ?? "").localeCompare(String(rightValue ?? ""))
+      : String(rightValue ?? "").localeCompare(String(leftValue ?? ""));
+  });
+}, [result.records, sortDirection, sortKey]);
+
+const numericTotals = (result.columns ?? [])
+  .filter((column) => column.dataType === "number")
+  .map((column) => ({
+    key: column.key,
+    value: sortedRows.reduce((sum, row) => {
+      const value = row[column.key];
+      return typeof value === "number" ? sum + value : sum;
+    }, 0),
+  }));
+```
+
 ## SQL-Backed Table Fast Path
 
 Use this when a prompt is SQL-first.

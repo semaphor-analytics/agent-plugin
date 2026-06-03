@@ -38,6 +38,7 @@ import type {
   SemaphorRecordsQueryResult,
   SemaphorResultColumn,
   SemaphorRowsQueryResult,
+  SemaphorSourceRef,
   SemaphorSqlQueryResult,
   SemaphorMatrixQueryResult,
   SemaphorDerivedFieldDefinition,
@@ -175,7 +176,12 @@ Use these patterns before inspecting SDK type declarations.
 Metric KPI:
 
 ```tsx
-const source = { kind: "semantic", domainId: "sales", datasetName: "orders" } as const;
+const source = {
+  kind: "semantic",
+  domainId: "sales",
+  datasetName: "orders",
+} satisfies SemaphorSourceRef;
+
 const revenue = {
   name: "revenue",
   label: "Revenue",
@@ -183,7 +189,7 @@ const revenue = {
   dataType: "number",
   aggregate: "SUM",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const revenueKpi = semaphor.metric({
   id: "revenue-kpi",
@@ -204,7 +210,7 @@ const segment = {
   role: "dimension",
   dataType: "string",
   source,
-} as const;
+} satisfies SemaphorRecordsField;
 
 const revenueBySegment = semaphor.records({
   id: "revenue-by-segment",
@@ -292,6 +298,12 @@ const ordersPage = semaphor.records({
 const pageResult = useSemaphorQuery(ordersPage);
 // Render page controls from pageResult.pagination and pageResult.rowCount.
 ```
+
+For bounded client-rendered tables, include sortable headers and a numeric
+footer total for the displayed result set. For server-paginated tables, encode
+sort and page state in the Semaphor query spec, reset to page 1 when filters or
+sort change, and use a separate aggregate query when the UI needs a true total
+across all filtered rows rather than only the current page.
 
 ## Derived Fields
 
