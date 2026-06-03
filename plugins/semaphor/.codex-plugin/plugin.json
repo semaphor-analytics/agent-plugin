@@ -25,7 +25,7 @@
       "MCP"
     ],
     "defaultPrompt": [
-      "Sketch a data app from my project.",
+      "Create a data app from my project.",
       "Add a revenue chart with period-over-period change.",
       "What's driving the trend in my top KPI?"
     ]

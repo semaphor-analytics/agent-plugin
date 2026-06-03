@@ -53,7 +53,7 @@ Do not commit real tokens.
 Start Codex from the app directory and try:
 
 ```text
-Sketch a data app from my project.
+Create a data app from my project.
 ```
 
 Semaphor should inspect your project data, propose a plan, and then help build
@@ -175,7 +175,7 @@ embed/token flow, or Semaphor hosted Data App runtime.
 ## Good First Prompts
 
 ```text
-Sketch a data app from my project.
+Create a data app from my project.
 ```
 
 ```text
