@@ -30,7 +30,9 @@ React app repository root if the project token lives in that app's
 `.env.local`. If a first call reports that no project token was found, retry
 the same call with `workspaceDir`. The Semaphor bridge uses `workspaceDir` only
 to read local env files, removes it before forwarding the tool arguments to
-Semaphor, and remembers successful workspace roots for later calls.
+Semaphor, and does not cache workspace roots across projects. If the current
+workspace has no active token, use OAuth or ask for a token instead of relying
+on a previously used project.
 
 When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an
 interactive hosted session. Start with `semaphor_get_access_context`, then

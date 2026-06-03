@@ -7,11 +7,6 @@ import { fileURLToPath } from 'node:url';
 const MCP_PROTOCOL_VERSION = '2024-11-05';
 const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
 const CLIENT_REQUEST_TIMEOUT_MS = 2000;
-const WORKSPACE_CACHE_PATH = path.join(
-  process.env.HOME || process.env.USERPROFILE || '',
-  '.semaphor-agent-plugin',
-  'workspaces.json',
-);
 const WORKSPACE_HINT_SCHEMA = {
   type: 'object',
   properties: {
@@ -27,7 +22,7 @@ const FALLBACK_TOOLS = [
   {
     name: 'semaphor_get_access_context',
     description:
-      'Diagnose Semaphor project-token setup. Add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local, or pass workspaceDir when the token lives outside the current working directory.',
+      'Diagnose Semaphor project-token setup. If no token is configured, use the hosted OAuth MCP server named semaphor. For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local, or pass workspaceDir when the token lives outside the current working directory.',
   },
 ].map((tool) => ({
   ...tool,
@@ -155,7 +150,8 @@ async function forwardRequest(message) {
               type: 'text',
               text: [
                 'Semaphor project token was not found for this workspace.',
-                'Add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.',
+                'If hosted OAuth is available, use the MCP server named semaphor and call semaphor_list_projects.',
+                'For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.',
                 'If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.',
                 'For local development, add SEMAPHOR_SERVER_URL=http://localhost:3000 to the same .env.local. Hosted Semaphor defaults to https://semaphor.cloud.',
               ].join(' '),
@@ -164,7 +160,6 @@ async function forwardRequest(message) {
         },
       };
     }
-    rememberBridgeWorkspaceDirectories(toolArguments);
     const response = await postMcpJsonRpc(stripBridgeOnlyToolArguments(message), context);
     return normalizeJsonRpcResponse(message, response);
   }
@@ -330,7 +325,6 @@ async function resolveSemaphorContext({ allowMissing, includeClientRoots, toolAr
 async function readWorkspaceEnv({ includeClientRoots, toolArguments }) {
   const directories = [
     ...bridgeWorkspaceDirectories(toolArguments),
-    ...readCachedWorkspaceDirectories(),
     process.env.SEMAPHOR_WORKSPACE,
     process.env.INIT_CWD,
     process.env.PWD,
@@ -352,56 +346,6 @@ function bridgeWorkspaceDirectories(toolArguments) {
     toolArguments.repoRoot,
     toolArguments.appDir,
   ].filter((value) => typeof value === 'string' && value.trim());
-}
-
-function rememberBridgeWorkspaceDirectories(toolArguments) {
-  const directories = bridgeWorkspaceDirectories(toolArguments)
-    .map((directory) => path.resolve(directory))
-    .filter((directory) => fs.existsSync(directory));
-  if (directories.length === 0 || !WORKSPACE_CACHE_PATH) {
-    return;
-  }
-
-  const existing = readCachedWorkspaceDirectories();
-  const merged = [];
-  const seen = new Set();
-  for (const directory of [...directories, ...existing]) {
-    if (seen.has(directory) || !fs.existsSync(directory)) {
-      continue;
-    }
-    seen.add(directory);
-    merged.push(directory);
-    if (merged.length >= 10) {
-      break;
-    }
-  }
-
-  try {
-    fs.mkdirSync(path.dirname(WORKSPACE_CACHE_PATH), { recursive: true });
-    fs.writeFileSync(
-      WORKSPACE_CACHE_PATH,
-      JSON.stringify({ workspaces: merged }, null, 2),
-      'utf8',
-    );
-  } catch {
-    // Workspace caching is an ergonomics optimization only.
-  }
-}
-
-function readCachedWorkspaceDirectories() {
-  if (!WORKSPACE_CACHE_PATH || !fs.existsSync(WORKSPACE_CACHE_PATH)) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(fs.readFileSync(WORKSPACE_CACHE_PATH, 'utf8'));
-    return Array.isArray(parsed?.workspaces)
-      ? parsed.workspaces
-          .filter((value) => typeof value === 'string' && value.trim())
-          .map((directory) => path.resolve(directory))
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 function stripBridgeOnlyToolArguments(message) {

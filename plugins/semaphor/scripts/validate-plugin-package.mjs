@@ -139,6 +139,15 @@ function validateMcpConfig() {
         'scripts/semaphor-mcp-remote.mjs: launcher must be self-contained and must not shell out to npx mcp-remote',
       );
     }
+    if (
+      /readCachedWorkspaceDirectories|rememberBridgeWorkspaceDirectories|\.semaphor-agent-plugin|workspaces\.json/.test(
+        launcherText,
+      )
+    ) {
+      issues.push(
+        'scripts/semaphor-mcp-remote.mjs: do not cache or reuse workspace directories for token lookup; tokens must come from the current process env or explicit/current workspace only',
+      );
+    }
   }
 }
 

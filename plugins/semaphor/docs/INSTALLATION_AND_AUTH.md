@@ -124,9 +124,9 @@ and do not pass workspace roots to the MCP process. In that case, direct
 automatically. Agents should retry the project-token tool call with an internal
 `workspaceDir` argument set to the current React app repository root. The
 bridge uses that path only to read ignored local env files, then strips
-`workspaceDir` before forwarding the request to Semaphor. After a successful
-call, the bridge remembers the workspace path for later calls; it does not
-store token values.
+`workspaceDir` before forwarding the request to Semaphor. The bridge does not
+cache workspace paths across projects. If the current workspace has no active
+token, use the hosted OAuth path or add a token for that workspace.
 
 If a host does not expose those tools, use the fallback wrapper for debugging or
 evals:
