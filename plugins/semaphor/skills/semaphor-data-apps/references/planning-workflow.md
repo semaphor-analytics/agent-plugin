@@ -175,6 +175,22 @@ If server-paginated, name the intended `pageSize`, server sort field, filters,
 and that page controls will read `result.pagination`. Do not describe a
 million-row or complete-dataset table as client-paginated.
 
+When the planner returns `visualSpec.tableBehavior`, treat it as the UI
+implementation contract for that table. It carries:
+
+- `tableMode`: bounded, server-paginated, or server-windowed;
+- `height`: max pixel height, sticky-header requirement, and scroll behavior;
+- `pagination`: client/server mode, page size, and whether controls read
+  `result.pagination`;
+- `sorting`: server or bounded-client sorting plus the default sort field;
+- `totals`: displayed-row totals and whether all-filtered-row totals require a
+  separate aggregate query;
+- `serverSideRequired`: whether pagination/sorting/filtering must stay in the
+  Semaphor query instead of only React state.
+
+Do not ignore `visualSpec.tableBehavior` and then invent a table layout from
+scratch. Use it to build the shadcn/TanStack table component.
+
 ## Existing Apps
 
 If the user is working in an existing app, inspect the current source and

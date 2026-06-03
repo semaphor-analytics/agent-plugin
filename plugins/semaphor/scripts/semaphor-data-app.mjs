@@ -357,6 +357,32 @@ function normalizeAppBaseUrl(value) {
   return trimmed;
 }
 
+function normalizeDataAppLinks(links) {
+  if (
+    links &&
+    typeof links === 'object' &&
+    typeof links.viewerUrl === 'string' &&
+    typeof links.consoleUrl === 'string'
+  ) {
+    return {
+      viewerUrl: links.viewerUrl,
+      consoleUrl: links.consoleUrl,
+    };
+  }
+  throw new Error(
+    'Semaphor Data Apps API response is missing canonical links.viewerUrl and links.consoleUrl.',
+  );
+}
+
+function resolveDataAppUrls(links) {
+  const normalizedLinks = normalizeDataAppLinks(links);
+  return {
+    links: normalizedLinks,
+    url: normalizedLinks.viewerUrl,
+    consoleUrl: normalizedLinks.consoleUrl,
+  };
+}
+
 async function requestJson(options, pathname, init = {}, requestOptions = {}) {
   requireToken(options);
   const response = await fetch(apiUrl(options, pathname), {
@@ -808,13 +834,19 @@ async function loadDataApp(options) {
     '--data-app-id or semaphor.dataAppId in the manifest',
   );
   const result = await loadRemoteDataApp(resolvedOptions, dataAppId);
+  const projectId = result.dataApp?.projectId || resolvedOptions.projectId;
   const sourceRevision = pickRemoteSourceRevision(result.dataApp);
   writeLocalDataAppState(root, resolvedOptions, {
-    projectId: result.dataApp?.projectId || resolvedOptions.projectId,
+    projectId,
     dataAppId,
     sourceRevision,
   });
-  return result;
+  return {
+    dataAppId,
+    projectId,
+    ...resolveDataAppUrls(result.links),
+    result,
+  };
 }
 
 async function saveDraft(options, context = {}) {
@@ -846,8 +878,10 @@ async function saveDraft(options, context = {}) {
     });
     return {
       dataAppId: resolvedOptions.dataAppId,
+      projectId: resolvedOptions.projectId,
       draftId: result.draft?.id,
       sourceRevision: payload.sourceRevision,
+      ...resolveDataAppUrls(result.links),
       result,
     };
   }
@@ -877,8 +911,10 @@ async function saveDraft(options, context = {}) {
   });
   return {
     dataAppId,
+    projectId,
     draftId: result.draft?.id,
     sourceRevision: payload.sourceRevision,
+    ...resolveDataAppUrls(result.links),
     result,
   };
 }
@@ -1318,6 +1354,8 @@ async function publish(options) {
     publishStarted = false;
     return {
       dataAppId,
+      projectId,
+      ...resolveDataAppUrls(completed.links),
       draftId,
       sourceRevision: saved.sourceRevision,
       publishSession: start.publishSession,

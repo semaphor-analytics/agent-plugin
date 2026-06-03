@@ -5,9 +5,18 @@ customer's governed Semaphor project before generating data-bearing React code.
 
 ## Primary Path
 
-The agent host should expose the plugin MCP server named `semaphor` as
-first-class callable tools. Use those tools directly. Do not inspect plugin
-implementation files, start the MCP bridge manually, or write JSON-RPC glue.
+The agent host should expose Semaphor MCP servers as first-class callable
+tools. Use those tools directly. Do not inspect plugin implementation files,
+start the MCP bridge manually, or write JSON-RPC glue.
+
+There are two server names:
+
+- `semaphor`: hosted OAuth MCP. Use this for first-run login and project
+  discovery when no project token is configured.
+- `semaphor-project`: project-token MCP bridge. Use this when the target app
+  already has `VITE_SEMAPHOR_PROJECT_TOKEN` or `SEMAPHOR_PROJECT_TOKEN`, when
+  working against local/self-hosted Semaphor, or when save/publish validation
+  needs the project-token scope.
 
 Start with one of:
 
@@ -15,13 +24,21 @@ Start with one of:
 - `semaphor_get_analysis_context` for project scope, recommended path,
   semantic-domain count, fallback connection count, and next discovery tool.
 
-When using Codex or another host that launches plugin MCP servers from the
-plugin install directory, pass `workspaceDir` as the current React app
-repository root if the project token lives in that app's `.env.local`. If a
-first call reports that no project token was found, retry the same call with
-`workspaceDir`. The Semaphor bridge uses `workspaceDir` only to read local env
-files, removes it before forwarding the tool arguments to Semaphor, and
-remembers successful workspace roots for later calls.
+When using `semaphor-project` in Codex or another host that launches plugin MCP
+servers from the plugin install directory, pass `workspaceDir` as the current
+React app repository root if the project token lives in that app's
+`.env.local`. If a first call reports that no project token was found, retry
+the same call with `workspaceDir`. The Semaphor bridge uses `workspaceDir` only
+to read local env files, removes it before forwarding the tool arguments to
+Semaphor, and remembers successful workspace roots for later calls.
+
+When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an
+interactive hosted session. Start with `semaphor_get_access_context`, then
+`semaphor_list_projects`, then pass the chosen `projectId` to project-scoped
+tools. If the local React app needs to run SDK queries in the browser and no
+project token is configured, call `semaphor_get_data_app_runtime_token` for the
+chosen project and write the returned token to the app's ignored `.env.local`
+as `VITE_SEMAPHOR_PROJECT_TOKEN`. Do not print the token.
 
 Then follow the returned recommendation:
 
@@ -34,6 +51,8 @@ Then follow the returned recommendation:
      edits.
   5. `semaphor_analyze` for governed BI analysis, or `semaphor_matrix` for
      pivot, hierarchy, subtotal, and grand-total table shapes.
+  6. `semaphor_get_data_app_runtime_token` only when OAuth mode needs a local
+     browser runtime token for the target React app.
 - Physical/no-domain path:
   1. list connections and required database/schema/table levels
   2. use `semaphor_query_sql_advanced` only when semantic analysis cannot
@@ -67,6 +86,11 @@ MCP results are authoring evidence, not static app content. Durable
 data-bearing React views should translate the grounded source, fields, filters,
 comparison, and matrix shape into public `react-semaphor/data-app-sdk` query
 specs and `useSemaphorQuery`.
+
+OAuth authoring credentials are not runtime credentials. If OAuth mode needs
+local browser runtime, use `semaphor_get_data_app_runtime_token` to mint a
+scoped project token. Write only `VITE_SEMAPHOR_PROJECT_TOKEN` to an ignored
+local env file. Never write MCP OAuth access tokens to app source or env files.
 
 If MCP can answer a question but no SDK runtime path exists, explain the
 capability gap. Do not paste MCP markdown or raw result rows into generated app

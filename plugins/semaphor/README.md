@@ -15,7 +15,13 @@ https://github.com/semaphor-analytics/agent-plugin
 
 ## Quick Start
 
-1. Add a Semaphor project token to your React app's ignored local env file:
+1. Connect to Semaphor.
+
+   For the lowest-friction first run, log in with the hosted `semaphor` MCP
+   server when your agent host asks for auth.
+
+   For deterministic scoped development, add a Semaphor project token to your
+   React app's ignored local env file:
 
    ```bash
    VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
@@ -36,7 +42,8 @@ https://github.com/semaphor-analytics/agent-plugin
    If `SEMAPHOR_SERVER_URL` is absent, the plugin uses the host encoded in the
    project token and falls back to `https://semaphor.cloud`.
 
-2. Open Codex or Claude Code in your React app repository.
+2. Open Codex or Claude Code in your React app repository. If you are starting
+   fresh, use `https://github.com/semaphor-analytics/semaphor-data-app-starter`.
 
 3. Ask:
 

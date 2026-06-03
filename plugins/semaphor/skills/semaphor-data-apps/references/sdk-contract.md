@@ -89,6 +89,20 @@ type SemaphorRecordsQueryResult<TRecord extends Record<string, unknown>> =
   };
 ```
 
+Metric, records, SQL, matrix, and analysis results should be rendered from the
+documented public result surface. Do not inspect hidden `dist` declaration files
+or SDK internals to find special-case metric value properties. For KPI cards,
+prefer the first returned record and the metric column key:
+
+```tsx
+function firstMetricValue(result: SemaphorRecordsQueryResult) {
+  const valueColumn =
+    result.columns?.find((column) => column.role === "measure") ??
+    result.columns?.[0];
+  return valueColumn ? result.records[0]?.[valueColumn.key] : undefined;
+}
+```
+
 When typing reusable helper components, use public SDK result types. Do not use
 `ReturnType<typeof useSemaphorQuery>`; TypeScript collapses overloaded hook
 signatures in a way that can produce the wrong result shape.

@@ -27,6 +27,7 @@ Normal loop:
 ```text
 user request
   -> classify operation
+  -> run onboarding preflight for auth, project, and local app context
   -> inspect Semaphor MCP metadata and local React source
   -> visibly plan when the request is broad or data-bearing
   -> edit with public react-semaphor/data-app-sdk builders and hooks
@@ -135,6 +136,8 @@ as a required dashboard quality checklist, not optional inspiration.
 
 Load the narrow reference needed for the task:
 
+- First-run auth, project selection, existing app vs starter app:
+  [onboarding.md](references/onboarding.md)
 - MCP tool selection, direct tool exposure, and fallback wrapper:
   [mcp-authoring.md](references/mcp-authoring.md)
 - SDK imports, provider setup, public result types, query builders, row access:

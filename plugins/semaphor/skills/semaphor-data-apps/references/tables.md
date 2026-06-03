@@ -33,6 +33,11 @@ card query that should respond to it.
 
 ## Table Baseline
 
+If the Data App planner returns `view.visualSpec.tableBehavior`, use it as the
+table implementation contract. It tells you the table mode, max height,
+sticky-header behavior, pagination source, sorting mode, totals semantics, and
+whether server-side execution is required.
+
 Table views should:
 
 - render from `result.columns` for stable order and labels;

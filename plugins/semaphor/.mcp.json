@@ -1,6 +1,9 @@
 {
   "mcpServers": {
     "semaphor": {
+      "url": "https://semaphor.cloud/api/mcp"
+    },
+    "semaphor-project": {
       "command": "node",
       "args": [
         "scripts/semaphor-mcp-remote.mjs"

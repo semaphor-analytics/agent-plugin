@@ -16,10 +16,37 @@ https://github.com/semaphor-analytics/agent-plugin
 Then open your coding agent in the React app repository where you want to build
 or modify a Semaphor-backed Data App.
 
-## Required Credentials
+## Auth Options
 
-The plugin uses a Semaphor project token for MCP authoring, governed analysis,
-validation, save, and publish.
+The plugin supports two authoring paths:
+
+- Hosted OAuth login through the MCP server named `semaphor`.
+- Project-token authoring through the MCP server named `semaphor-project`.
+
+Use OAuth when no project token is configured and the customer wants the
+lowest-friction first run. Use project-token mode when the app already has a
+known project scope, when working against local/self-hosted Semaphor, or when
+local runtime/publish needs a deterministic project token.
+
+## OAuth Login
+
+In Codex, if the hosted `semaphor` MCP server is not already authenticated,
+log in:
+
+```bash
+codex mcp login semaphor
+```
+
+Then ask the agent to list Semaphor projects and choose which project to use.
+In OAuth mode, project-scoped tools should receive an explicit `projectId`.
+
+OAuth is an authoring credential. It does not automatically become the React
+app's runtime credential. If the local app needs to run Semaphor SDK queries in
+the browser, the agent should call `semaphor_get_data_app_runtime_token` for
+the selected project and write the minted project token to the app's ignored
+local env file as `VITE_SEMAPHOR_PROJECT_TOKEN`.
+
+## Project Token
 
 Retrieve the token from:
 
@@ -67,8 +94,14 @@ full MCP endpoint URL.
 ## MCP Tool Exposure
 
 After installation, the agent host should expose the Semaphor MCP server as
-first-class callable tools. The exact namespace is host-specific, but the
-available tools should include:
+first-class callable tools. The plugin exposes two MCP servers:
+
+```text
+semaphor          hosted OAuth MCP for login and project discovery
+semaphor-project  project-token MCP bridge for scoped/local development
+```
+
+The exact namespace is host-specific, but the available tools should include:
 
 ```text
 semaphor_get_access_context
@@ -76,23 +109,24 @@ semaphor_get_analysis_context
 semaphor_list_semantic_domains
 semaphor_list_datasets
 semaphor_get_dataset_schema
+semaphor_get_data_app_runtime_token
 semaphor_analyze
 semaphor_matrix
 semaphor_query_sql_advanced
 ```
 
-The plugin MCP server is named `semaphor`, so hosts that include the server name
-in the tool namespace should expose a Semaphor-shaped namespace instead of a
-generic bridge name.
+Hosts that include the server name in the tool namespace should expose a
+Semaphor-shaped namespace instead of a generic bridge name.
 
 Some agent hosts launch plugin MCP servers from the installed plugin directory
 and do not pass workspace roots to the MCP process. In that case, direct
-Semaphor MCP calls may not see the React app's `.env.local` automatically.
-Agents should retry the Semaphor tool call with an internal `workspaceDir`
-argument set to the current React app repository root. The bridge uses that
-path only to read ignored local env files, then strips `workspaceDir` before
-forwarding the request to Semaphor. After a successful call, the bridge
-remembers the workspace path for later calls; it does not store token values.
+`semaphor-project` MCP calls may not see the React app's `.env.local`
+automatically. Agents should retry the project-token tool call with an internal
+`workspaceDir` argument set to the current React app repository root. The
+bridge uses that path only to read ignored local env files, then strips
+`workspaceDir` before forwarding the request to Semaphor. After a successful
+call, the bridge remembers the workspace path for later calls; it does not
+store token values.
 
 If a host does not expose those tools, use the fallback wrapper for debugging or
 evals:
@@ -114,10 +148,29 @@ Keep these concerns separate:
 - **Runtime token**: used by the React app at runtime to execute governed Data
   App SDK queries.
 
-During local development, both may temporarily use the same project token. For
-a shipped customer app, do not commit a long-lived token into frontend source.
-Provide runtime auth through the customer app backend, Semaphor embed/token
-flow, or Semaphor hosted Data App runtime.
+With OAuth, the agent can mint a scoped local development runtime token:
+
+```text
+semaphor_get_data_app_runtime_token({ projectId })
+```
+
+The tool returns the token in structured MCP content so the agent can update
+`.env.local`, while the human-readable tool text redacts it. Agents must write
+only:
+
+```bash
+VITE_SEMAPHOR_PROJECT_TOKEN="<minted-runtime-token>"
+```
+
+Do not write the MCP OAuth access token into the app. If the local runtime
+token expires or becomes invalid, refresh it by calling
+`semaphor_get_data_app_runtime_token` again through OAuth and replacing the
+ignored env value.
+
+During deterministic project-token development, authoring and runtime may use
+the same project token. For a shipped customer app, do not commit a long-lived
+token into frontend source. Provide runtime auth through the customer app
+backend, Semaphor embed/token flow, or Semaphor hosted Data App runtime.
 
 Generated app code should normally pass only a token:
 
@@ -137,13 +190,20 @@ self-hosted or local routing that intentionally differs from the token's
 
 1. Install or enable the Semaphor plugin in Codex, Claude Code, or the target
    agent host.
-2. Retrieve the project token from `https://semaphor.cloud/project`.
-3. Add the token to the target app's ignored local env/config file.
-4. Open the agent host in the target React repo.
-5. Ask the agent what Semaphor data is available.
-6. Install `react-semaphor` in the customer app if missing.
-7. Ask the agent to plan broad dashboard changes before editing.
-8. Run the app's own typecheck/build and a browser smoke check when practical.
+2. Open the agent host in the target React repo, or start from
+   `semaphor-analytics/semaphor-data-app-starter` for a clean local app.
+3. If no project token is configured, log in with Semaphor OAuth and choose a
+   project.
+4. If OAuth is used and the local app must run SDK queries, let the agent mint
+   a scoped runtime token with `semaphor_get_data_app_runtime_token` and write
+   it to ignored `.env.local`.
+5. If a deterministic scoped setup is preferred, retrieve the project token
+   from `https://semaphor.cloud/project` and add it to the target app's ignored
+   local env/config file.
+6. Ask the agent what Semaphor data is available.
+7. Install `react-semaphor` in the customer app if missing.
+8. Ask the agent to plan broad dashboard changes before editing.
+9. Run the app's own typecheck/build and a browser smoke check when practical.
 
 ## Save And Publish Auth
 
@@ -191,6 +251,8 @@ Common setup failures:
 - stale or incorrect `SEMAPHOR_SERVER_URL` override;
 - stale or incorrect `SEMAPHOR_MCP_URL` override;
 - expired or unauthorized project token;
+- OAuth login available but the local app runtime token was not minted or was
+  not written to `.env.local`;
 - no semantic domain access;
 - missing `react-semaphor` package;
 - runtime app has no token;

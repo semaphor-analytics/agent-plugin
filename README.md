@@ -18,7 +18,7 @@ codex plugin marketplace add semaphor-analytics/agent-plugin
 codex plugin add semaphor@semaphor-analytics
 ```
 
-### 2. Start From A Data App
+### 2. Open Or Create A React App
 
 If you already have a React app, use that app. If you are starting fresh, use
 the Semaphor Data App Starter:
@@ -32,15 +32,28 @@ npm install
 The starter is a simple Vite + shadcn app with the basics in place so the
 agent can focus on your data app instead of initial project setup.
 
-### 3. Add Your Project Token
+### 3. Connect To Semaphor
 
-Create or update your app's ignored local env file:
+If you do not have a project token configured, log in with Semaphor from Codex:
+
+```bash
+codex mcp login semaphor
+```
+
+After login, ask the agent to list your projects and choose the project for
+this app. If the app needs to run locally, the agent can mint a scoped
+development runtime token for that project and write
+`VITE_SEMAPHOR_PROJECT_TOKEN` to the app's ignored `.env.local`. The OAuth
+token itself is never written into the app.
+
+If you already know the project and want a deterministic scoped setup, create
+or update your app's ignored local env file:
 
 ```bash
 VITE_SEMAPHOR_PROJECT_TOKEN="<project-token-from-semaphor-project-page>"
 ```
 
-Get the token from your Semaphor project page:
+Get project tokens from your Semaphor project page:
 
 ```text
 https://semaphor.cloud/project
@@ -65,7 +78,8 @@ the app once you approve the direction.
   [semaphor-data-app-starter](https://github.com/semaphor-analytics/semaphor-data-app-starter).
   Existing Vite, Next.js, Remix, React Router, monorepos, and custom product
   shells are all fine too.
-- A Semaphor project token.
+- Semaphor login, or a Semaphor project token for deterministic scoped
+  development.
 - Codex or Claude Code.
 - `react-semaphor` in your app. The agent can add it if it is missing.
 
@@ -86,7 +100,10 @@ codex plugin list --marketplace semaphor-analytics
 ```
 
 After installation, Semaphor MCP tools should be available to Codex as
-first-class callable tools from the plugin's `semaphor` MCP server.
+first-class callable tools. The plugin exposes:
+
+- `semaphor`: hosted OAuth MCP for login and project discovery.
+- `semaphor-project`: project-token MCP bridge for scoped/local development.
 
 ### Upgrade
 
@@ -146,7 +163,19 @@ Semaphor project.
 
 ## Connect To Semaphor
 
-For most React apps, put the project token in `.env.local`:
+The lowest-friction first run is Semaphor login:
+
+```bash
+codex mcp login semaphor
+```
+
+Then ask the agent:
+
+```text
+What Semaphor projects can I use?
+```
+
+For deterministic scoped app development, put a project token in `.env.local`:
 
 ```bash
 VITE_SEMAPHOR_PROJECT_TOKEN="<project-token-from-semaphor-project-page>"
@@ -171,6 +200,16 @@ in the project token and falls back to `https://semaphor.cloud`.
 
 For production apps, provide runtime tokens through your backend, Semaphor
 embed/token flow, or Semaphor hosted Data App runtime.
+
+When using OAuth for local development, ask the agent to mint or refresh the
+local runtime token instead of manually copying one:
+
+```text
+Mint a local runtime token for this project.
+```
+
+The agent should use `semaphor_get_data_app_runtime_token`, write the returned
+project token only to ignored local env, and avoid printing it.
 
 ## Good First Prompts
 

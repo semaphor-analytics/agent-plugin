@@ -23,7 +23,8 @@ The plugin is installed, but the agent cannot call semaphor_* MCP tools.
 
 Expected behavior:
 
-- the plugin MCP server is named `semaphor`;
+- the hosted OAuth MCP server is named `semaphor`;
+- the project-token MCP bridge is named `semaphor-project`;
 - the host exposes Semaphor MCP tools as first-class callable tools;
 - the agent can call `semaphor_get_access_context` or
   `semaphor_get_analysis_context` without manually starting the bridge.
@@ -56,6 +57,11 @@ Symptom:
 MCP tools are unavailable or unauthorized.
 ```
 
+If hosted OAuth is available, prefer logging in through the `semaphor` MCP
+server, selecting a project, and minting a local runtime token with
+`semaphor_get_data_app_runtime_token`. If the user needs deterministic
+project-token mode, continue with the checks below.
+
 Check:
 
 ```bash
@@ -68,8 +74,11 @@ Fix:
 VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 ```
 
-For non-Vite workflows, use `SEMAPHOR_PROJECT_TOKEN` instead. Do not commit
-local env files containing real tokens into source control.
+For OAuth mode, the agent should write the token returned by
+`semaphor_get_data_app_runtime_token` to `VITE_SEMAPHOR_PROJECT_TOKEN` in the
+target app's ignored `.env.local`. For non-Vite deterministic project-token
+workflows, use `SEMAPHOR_PROJECT_TOKEN` instead. Do not commit local env files
+containing real tokens into source control.
 
 Owner layer: local setup/auth docs unless the MCP error is unclear.
 
@@ -124,7 +133,9 @@ Check:
 
 Fix:
 
-- generate or provide a fresh project token for MCP authoring,
+- if OAuth is available, call `semaphor_get_data_app_runtime_token` for the
+  selected project and replace the expired local runtime token,
+- otherwise generate or provide a fresh project token for MCP authoring,
 - use a scoped runtime token for React execution,
 - do not use frontend source as a token store.
 

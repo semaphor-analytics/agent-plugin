@@ -104,19 +104,26 @@ function validateClaudeManifest() {
 
 function validateMcpConfig() {
   const config = readJson('.mcp.json');
-  const server = config?.mcpServers?.semaphor;
+  const oauthServer = config?.mcpServers?.semaphor;
+  if (!oauthServer) {
+    issues.push('.mcp.json: missing mcpServers.semaphor hosted OAuth server');
+  } else if (oauthServer.url !== 'https://semaphor.cloud/api/mcp') {
+    issues.push('.mcp.json: mcpServers.semaphor must point to hosted Semaphor OAuth MCP');
+  }
+
+  const server = config?.mcpServers?.['semaphor-project'];
   if (!server) {
-    issues.push('.mcp.json: missing mcpServers.semaphor');
+    issues.push('.mcp.json: missing mcpServers.semaphor-project project-token bridge');
     return;
   }
   if (server.command !== 'node') {
-    issues.push('.mcp.json: semaphor server must use the packaged MCP bridge');
+    issues.push('.mcp.json: semaphor-project server must use the packaged MCP bridge');
   }
   if (
     !Array.isArray(server.args) ||
     !server.args.includes('scripts/semaphor-mcp-remote.mjs')
   ) {
-    issues.push('.mcp.json: semaphor server args must use scripts/semaphor-mcp-remote.mjs');
+    issues.push('.mcp.json: semaphor-project server args must use scripts/semaphor-mcp-remote.mjs');
   }
   if (JSON.stringify(server).includes('${SEMAPHOR_PROJECT_TOKEN}')) {
     issues.push(
@@ -151,6 +158,7 @@ function validateSkillStructure() {
   }
 
   const requiredReferences = [
+    'onboarding.md',
     'mcp-authoring.md',
     'sdk-contract.md',
     'derived-fields.md',
