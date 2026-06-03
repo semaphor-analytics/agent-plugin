@@ -38,6 +38,11 @@ Only keep SQL for the part that remains unsupported after that path.
   user SQL request, no semantic domain, field not exposed, unsupported
   latest-snapshot/windowing, unsupported join/grain, raw-row inspection, or
   validation/debugging.
+- Before using SQL for latest-snapshot work, inspect
+  `plan.sources[].dateSemantics.snapshot` and `plan.unsupportedGaps`. If the
+  planner says the latest-snapshot selector is not modeled, surface that as the
+  missing governed capability unless the user explicitly approves a bounded SQL
+  fallback.
 
 ## Public SQL Spec Shape
 

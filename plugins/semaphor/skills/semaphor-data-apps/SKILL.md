@@ -146,6 +146,9 @@ Load the narrow reference needed for the task:
 - Data-app UX baseline, loading/error/empty states, tables, totals,
   pagination, large result sets, table libraries:
   [tables.md](references/tables.md)
+- Design tokens, hierarchy rules, palette, density, chart restraint,
+  layout primitives, host design-system adaptation:
+  [design-tokens.md](references/design-tokens.md)
 - Save, draft, hosted publish, manifest identity, source snapshots, assets:
   [publish-lifecycle.md](references/publish-lifecycle.md)
 - Local package validation and Semaphor validation:
@@ -233,6 +236,31 @@ sort, or filter only in React.
 
 For full UX and table guidance, read [tables.md](references/tables.md). For
 filter composition, read [filters-and-inputs.md](references/filters-and-inputs.md).
+
+## Design Baseline
+
+Generated dashboards must respect the design contract in
+[design-tokens.md](references/design-tokens.md). It defines inviolable rules
+(visual hierarchy, color discipline, number formatting, chart restraint,
+table alignment), shadcn-aligned default token scales (HSL CSS variables for
+`--background`, `--card`, `--primary`, `--muted`, `--border`, `--chart-1..5`,
+`--radius`), and layout primitives (KPI row, filter bar, two-column split,
+detail drawer, table-heavy page, analytical detail).
+
+The defaults are shadcn-native. When the host app already uses shadcn, read
+the tokens already on `:root`/`.dark` and use shadcn primitives (`Card`,
+`Badge`, `Table`, `Tabs`, `Select`, `Sheet`, `Skeleton`) instead of authoring
+raw markup. When the host has Tailwind, MUI, Chakra, or its own theme,
+prefer those tokens over the defaults. The inviolable rules apply either way.
+
+For shape and hierarchy reference, consult the samples directory:
+
+- `samples/exec-overview.html` — KPI-led overview with two time-series and a breakdown
+- `samples/analytical-detail.html` — pivot/matrix with subtotals, grand total, supporting chart
+
+Samples are reference, not template. Read them for structural choices
+(hierarchy, density, spacing, where the eye goes first); render with the
+host app's components. Do not copy sample HTML into React output.
 
 ## Save, Publish, And Validation
 

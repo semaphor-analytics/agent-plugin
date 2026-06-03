@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<!--
+  REFERENCE, NOT TEMPLATE.
+
+  Agent: read this file to understand structural choices (hierarchy, density,
+  spacing rhythm, color restraint, where the eye goes first). Do NOT copy
+  HTML into React output. Render with the host app's shadcn components
+  (Card, CardHeader, CardTitle, CardDescription, CardContent, Tabs, Badge,
+  Separator) and the tokens in references/design-tokens.md.
+
+  Shape: KPI-led executive overview in shadcn dashboard style.
+  Demonstrates:
+    - shadcn token convention (HSL CSS vars on :root / .dark, --radius 0.5rem)
+    - KPI card pattern: small muted label, large tabular value, small delta
+    - card hierarchy with subtle 1px borders, no shadows
+    - one accent color (--primary) across the page; semantic green/red for deltas
+    - chart aesthetic: thin lines, soft area fills with --primary, muted gridlines
+    - segmented control (tabs) for time period selection
+    - tabular-nums on every numeric value
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Overview — Reference</title>
+<style>
+  :root {
+    --background:          0 0% 100%;
+    --foreground:          240 10% 3.9%;
+    --card:                0 0% 100%;
+    --card-foreground:     240 10% 3.9%;
+    --primary:             221.2 83.2% 53.3%;
+    --primary-foreground:  210 40% 98%;
+    --secondary:           240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted:               240 4.8% 95.9%;
+    --muted-foreground:    240 3.8% 46.1%;
+    --accent:              240 4.8% 95.9%;
+    --border:              240 5.9% 90%;
+    --input:               240 5.9% 90%;
+    --ring:                221.2 83.2% 53.3%;
+
+    --success:             142 71% 45%;
+    --destructive:         0 84% 60%;
+
+    --chart-1:             221.2 83.2% 53.3%;
+    --chart-2:             142 71% 45%;
+
+    --radius: 0.5rem;
+
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background:          240 10% 3.9%;
+      --foreground:          0 0% 98%;
+      --card:                240 10% 3.9%;
+      --card-foreground:     0 0% 98%;
+      --primary:             217.2 91.2% 59.8%;
+      --primary-foreground:  240 5.9% 10%;
+      --secondary:           240 3.7% 15.9%;
+      --secondary-foreground: 0 0% 98%;
+      --muted:               240 3.7% 15.9%;
+      --muted-foreground:    240 5% 64.9%;
+      --accent:              240 3.7% 15.9%;
+      --border:              240 3.7% 15.9%;
+      --input:               240 3.7% 15.9%;
+      --ring:                224 76% 48%;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 20px;
+    color: hsl(var(--foreground));
+    background: hsl(var(--background));
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 40px 64px; }
+
+  /* HEADER */
+  header.page-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 24px; margin-bottom: 32px; flex-wrap: wrap;
+  }
+  .page-title {
+    font-size: 24px; line-height: 32px; font-weight: 700;
+    letter-spacing: -0.02em; margin: 0;
+  }
+  .page-sub {
+    color: hsl(var(--muted-foreground));
+    margin: 4px 0 0; font-size: 14px;
+  }
+
+  /* TABS (segmented control) */
+  .tabs {
+    display: inline-flex; align-items: center;
+    background: hsl(var(--muted));
+    border-radius: var(--radius);
+    padding: 4px;
+    gap: 2px;
+  }
+  .tabs button {
+    appearance: none; border: 0; cursor: pointer;
+    background: transparent; color: hsl(var(--muted-foreground));
+    font: inherit; font-size: 13px; font-weight: 500;
+    padding: 6px 12px; border-radius: calc(var(--radius) - 2px);
+    line-height: 18px;
+  }
+  .tabs button.active {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  }
+
+  /* CARDS */
+  .card {
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+  }
+  .card-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; padding: 20px 24px 8px;
+  }
+  .card-title {
+    font-size: 14px; font-weight: 500; margin: 0;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.005em;
+  }
+  .card-desc {
+    font-size: 12px; color: hsl(var(--muted-foreground));
+    margin: 4px 0 0;
+  }
+  .card-body { padding: 8px 24px 24px; }
+
+  /* KPI ROW */
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-bottom: 16px;
+  }
+  .kpi { padding: 20px 24px; }
+  .kpi-label {
+    font-size: 13px; font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    margin: 0; letter-spacing: -0.005em;
+  }
+  .kpi-value {
+    font-size: 30px; line-height: 36px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin: 8px 0 0;
+  }
+  .kpi-delta {
+    margin: 6px 0 0; font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--muted-foreground));
+  }
+  .kpi-delta .chip {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-weight: 500; margin-right: 6px;
+  }
+  .pos { color: hsl(var(--success)); }
+  .pos .chip { background: hsl(var(--success) / 0.10); color: hsl(var(--success)); }
+  .neg { color: hsl(var(--destructive)); }
+  .neg .chip { background: hsl(var(--destructive) / 0.10); color: hsl(var(--destructive)); }
+
+  /* CHART GRID */
+  .chart-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin-bottom: 16px;
+  }
+  .chart { width: 100%; height: 220px; display: block; margin-top: 8px; }
+  .axis-tick  { font-size: 10px; fill: hsl(var(--muted-foreground)); }
+  .axis-label { font-size: 10px; fill: hsl(var(--muted-foreground));
+                font-variant-numeric: tabular-nums; }
+  .grid-line  { stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 2 4; }
+  .series-line { fill: none; stroke: hsl(var(--primary)); stroke-width: 2;
+                 stroke-linejoin: round; stroke-linecap: round; }
+  .series-area { fill: hsl(var(--primary)); opacity: 0.08; }
+
+  /* BREAKDOWN */
+  .breakdown-grid {
+    display: grid; grid-template-columns: 180px 1fr auto auto;
+    column-gap: 16px; row-gap: 14px; align-items: center;
+    font-variant-numeric: tabular-nums;
+    margin-top: 12px;
+  }
+  .breakdown-grid .col-label {
+    color: hsl(var(--foreground)); font-weight: 500; font-size: 14px;
+  }
+  .bar-track {
+    background: hsl(var(--muted)); border-radius: 4px;
+    height: 8px; overflow: hidden;
+  }
+  .bar-fill { background: hsl(var(--primary)); height: 100%; border-radius: 4px; }
+  .val { color: hsl(var(--foreground)); font-size: 13px; min-width: 80px; text-align: right; }
+  .delta-cell { font-size: 12px; min-width: 64px; text-align: right; font-weight: 500; }
+
+  .footnote {
+    margin-top: 32px; font-size: 12px; color: hsl(var(--muted-foreground));
+  }
+  .footnote code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    background: hsl(var(--muted));
+    padding: 1px 5px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="page-head">
+    <div>
+      <h1 class="page-title">Overview</h1>
+      <p class="page-sub">Quarterly performance across the global business.</p>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Time period">
+      <button>7d</button>
+      <button>30d</button>
+      <button class="active">90d</button>
+      <button>YTD</button>
+    </div>
+  </header>
+
+  <!-- KPI ROW -->
+  <div class="kpi-row">
+    <div class="card kpi">
+      <p class="kpi-label">Total revenue</p>
+      <p class="kpi-value">$48,237,914</p>
+      <p class="kpi-delta pos"><span class="chip">+12.4%</span>from last quarter</p>
+    </div>
+    <div class="card kpi">
+      <p class="kpi-label">Active customers</p>
+      <p class="kpi-value">14,820</p>
+      <p class="kpi-delta pos"><span class="chip">+6.1%</span>+852 net new</p>
+    </div>
+    <div class="card kpi">
+      <p class="kpi-label">Net revenue retention</p>
+      <p class="kpi-value">112%</p>
+      <p class="kpi-delta pos"><span class="chip">+2.0 pts</span>vs 110%</p>
+    </div>
+    <div class="card kpi">
+      <p class="kpi-label">Gross margin</p>
+      <p class="kpi-value">71.4%</p>
+      <p class="kpi-delta neg"><span class="chip">−0.8 pts</span>vs 72.2%</p>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3 class="card-title">Weekly revenue</h3>
+          <p class="card-desc">Last 12 weeks, USD thousands</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <svg class="chart" viewBox="0 0 600 220" preserveAspectRatio="none" role="img"
+             aria-label="Weekly revenue trending upward over 12 weeks">
+          <line class="grid-line" x1="44" y1="30"  x2="590" y2="30"  />
+          <line class="grid-line" x1="44" y1="75"  x2="590" y2="75"  />
+          <line class="grid-line" x1="44" y1="120" x2="590" y2="120" />
+          <line class="grid-line" x1="44" y1="165" x2="590" y2="165" />
+          <text class="axis-label" x="40" y="34"  text-anchor="end">4,000</text>
+          <text class="axis-label" x="40" y="79"  text-anchor="end">3,000</text>
+          <text class="axis-label" x="40" y="124" text-anchor="end">2,000</text>
+          <text class="axis-label" x="40" y="169" text-anchor="end">1,000</text>
+          <path class="series-area"
+                d="M 44,150 L 90,138 L 136,144 L 182,128 L 228,120 L 274,108
+                   L 320,102 L 366,92 L 412,86 L 458,74 L 504,62 L 550,54
+                   L 590,50 L 590,180 L 44,180 Z" />
+          <path class="series-line"
+                d="M 44,150 L 90,138 L 136,144 L 182,128 L 228,120 L 274,108
+                   L 320,102 L 366,92 L 412,86 L 458,74 L 504,62 L 550,54 L 590,50" />
+          <text class="axis-tick" x="44"  y="200">W14</text>
+          <text class="axis-tick" x="182" y="200">W17</text>
+          <text class="axis-tick" x="320" y="200">W20</text>
+          <text class="axis-tick" x="458" y="200">W23</text>
+          <text class="axis-tick" x="586" y="200" text-anchor="end">W26</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3 class="card-title">Net revenue retention</h3>
+          <p class="card-desc">Cohort blended, %</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <svg class="chart" viewBox="0 0 600 220" preserveAspectRatio="none" role="img"
+             aria-label="Net revenue retention trending upward above 105 percent">
+          <line class="grid-line" x1="44" y1="30"  x2="590" y2="30"  />
+          <line class="grid-line" x1="44" y1="75"  x2="590" y2="75"  />
+          <line class="grid-line" x1="44" y1="120" x2="590" y2="120" />
+          <line class="grid-line" x1="44" y1="165" x2="590" y2="165" />
+          <text class="axis-label" x="40" y="34"  text-anchor="end">120</text>
+          <text class="axis-label" x="40" y="79"  text-anchor="end">115</text>
+          <text class="axis-label" x="40" y="124" text-anchor="end">110</text>
+          <text class="axis-label" x="40" y="169" text-anchor="end">105</text>
+          <path class="series-area"
+                d="M 44,130 L 90,124 L 136,118 L 182,122 L 228,110 L 274,104
+                   L 320,108 L 366,98 L 412,92 L 458,96 L 504,86 L 550,82
+                   L 590,78 L 590,180 L 44,180 Z" />
+          <path class="series-line"
+                d="M 44,130 L 90,124 L 136,118 L 182,122 L 228,110 L 274,104
+                   L 320,108 L 366,98 L 412,92 L 458,96 L 504,86 L 550,82 L 590,78" />
+          <text class="axis-tick" x="44"  y="200">W14</text>
+          <text class="axis-tick" x="182" y="200">W17</text>
+          <text class="axis-tick" x="320" y="200">W20</text>
+          <text class="axis-tick" x="458" y="200">W23</text>
+          <text class="axis-tick" x="586" y="200" text-anchor="end">W26</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- BREAKDOWN -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h3 class="card-title">Revenue by segment</h3>
+        <p class="card-desc">Q2 2026 contribution and YoY change.</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="breakdown-grid">
+        <span class="col-label">Enterprise</span>
+        <div class="bar-track"><div class="bar-fill" style="width: 92%;"></div></div>
+        <span class="val">$22.1M</span>
+        <span class="delta-cell pos">+14.2%</span>
+
+        <span class="col-label">Mid-market</span>
+        <div class="bar-track"><div class="bar-fill" style="width: 64%;"></div></div>
+        <span class="val">$15.3M</span>
+        <span class="delta-cell pos">+9.8%</span>
+
+        <span class="col-label">SMB</span>
+        <div class="bar-track"><div class="bar-fill" style="width: 36%;"></div></div>
+        <span class="val">$8.6M</span>
+        <span class="delta-cell pos">+4.1%</span>
+
+        <span class="col-label">Self-serve</span>
+        <div class="bar-track"><div class="bar-fill" style="width: 9%;"></div></div>
+        <span class="val">$2.2M</span>
+        <span class="delta-cell neg">−2.7%</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="footnote">
+    Reference dashboard. Numbers are illustrative. Generated dashboards must
+    bind their data to <code>useSemaphorQuery</code> per <code>references/sdk-contract.md</code>.
+  </p>
+
+</div>
+</body>
+</html>

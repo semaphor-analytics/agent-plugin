@@ -25,9 +25,10 @@
       "MCP"
     ],
     "defaultPrompt": [
-      "Plan a Semaphor data app from this project.",
-      "Add a Semaphor-backed analytics view to this React repo.",
-      "Validate this Semaphor data app."
+      "Plan a data app from my data.",
+      "Add a KPI with top contributors.",
+      "Answer a question about my business.",
+      "Publish this app."
     ]
   },
   "mcpServers": "./.mcp.json"

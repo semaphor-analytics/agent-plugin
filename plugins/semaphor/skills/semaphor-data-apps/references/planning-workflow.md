@@ -37,6 +37,26 @@ If `sourceCoverage` is partial, summarize what is included and what is left
 out, then either build the included plan with that caveat or ask whether the
 user wants to revise the source selection.
 
+Use `plan.sources` modeled semantics before reaching for raw SQL:
+
+- `source.datasetShape` tells whether the dataset behaves like event data,
+  a daily/latest snapshot, a dimension, a bridge, entity state, or unknown.
+- `source.dateSemantics.primaryDateField` is the planner-approved date field.
+  If `primaryDateFieldSource` is `ambiguous`, `missing`, or
+  `authored_missing`, do not guess a trend date in React or SQL; surface the
+  unsupported gap or ask for modeling help.
+- `source.dateSemantics.defaultTimeGrain` and `defaultTimeWindow` are advisory
+  defaults for trend and date filter choices. Prefer them over hardcoded month
+  windows when the planner provides them.
+- `source.dateSemantics.snapshot` explains whether latest-snapshot behavior is
+  modeled. If the selector is unsupported, mark the view unsupported or use a
+  planner-returned fallback; do not build KPI, breakdown, or table SDK specs
+  over all snapshot rows, and do not write SQL only because latest snapshot is
+  convenient to express in SQL.
+- `source.modeledMeasureCount` and `source.tableOnlyNumericFieldCount` explain
+  why some numeric fields are available for detail tables but not safe as KPIs,
+  trends, or breakdown measures.
+
 Use `plan.inputs` as filter guidance. For a select or multi-select input,
 `input.fieldRef` is the filter field, `input.optionQuery` describes the
 `semaphor.inputOptions(...)` query to populate choices, and
