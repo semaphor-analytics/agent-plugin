@@ -56,6 +56,15 @@ changes, produce a visible plan before editing. If the user already clearly
 asked to build, continue after the visible plan unless the plan exposes
 unsupported, risky, or ambiguous work.
 
+For broad new Data App requests, use `semaphor_plan_data_app` as the planning
+source of truth before codegen. For substantial existing-app edits, use
+`semaphor_plan_data_app_change` with the current app state before codegen.
+Present the returned plan/change plan to the user, then generate React from
+the returned `sources`, `inputs`, `views`, `operations`, `sdkSpec`, and
+unsupported gaps. Do not replace this with an improvised prose plan or jump
+straight to SQL unless the planner returns a justified SQL fallback or the
+user explicitly requests SQL.
+
 For planning details, read [planning-workflow.md](references/planning-workflow.md).
 
 ## Hard Rules

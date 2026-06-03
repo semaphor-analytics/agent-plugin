@@ -91,7 +91,8 @@ Semaphor MCP calls may not see the React app's `.env.local` automatically.
 Agents should retry the Semaphor tool call with an internal `workspaceDir`
 argument set to the current React app repository root. The bridge uses that
 path only to read ignored local env files, then strips `workspaceDir` before
-forwarding the request to Semaphor.
+forwarding the request to Semaphor. After a successful call, the bridge
+remembers the workspace path for later calls; it does not store token values.
 
 If a host does not expose those tools, use the fallback wrapper for debugging or
 evals:
@@ -101,9 +102,9 @@ npm run call:mcp -- --list-tools --dir /path/to/react-app
 npm run call:mcp -- semaphor_get_analysis_context --dir /path/to/react-app
 ```
 
-The wrapper handles env loading, the packaged local MCP bridge, token
-redaction, timeout, and clean JSON output. It does not download bridge code at
-runtime. It is not the preferred customer authoring loop; direct MCP tools are.
+The wrapper handles env loading, the packaged MCP bridge, token redaction,
+timeout, and clean JSON output. It does not download bridge code at runtime.
+It is not the preferred customer authoring loop; direct MCP tools are.
 
 ## Authoring Token Versus Runtime Token
 

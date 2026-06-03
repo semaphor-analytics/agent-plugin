@@ -90,7 +90,7 @@ function validateMcpConfig() {
     return;
   }
   if (server.command !== 'node') {
-    issues.push('.mcp.json: semaphor server must use the local MCP launcher');
+    issues.push('.mcp.json: semaphor server must use the packaged MCP bridge');
   }
   if (
     !Array.isArray(server.args) ||

@@ -153,8 +153,11 @@ Expected agent behavior:
 
 - inspect Semaphor data before editing,
 - inspect local React app structure,
-- produce a visible grounded plan before editing if the request is broad,
+- call `semaphor_plan_data_app` and produce a visible grounded plan before
+  editing if the request is broad,
 - generate only after acceptance or an explicit build request,
+- generate from the returned `sources`, `inputs`, `views`, `sdkSpec`,
+  unsupported gaps, and assumptions instead of improvising query specs,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
   builders plus `useSemaphorQuery`,
 - give each data-bearing card its own query by default unless the user asks for
@@ -190,6 +193,9 @@ Expected agent behavior:
 
 - inspect Semaphor metadata and identify the source fields needed for the
   calculation,
+- for substantial existing-app analytical edits, call
+  `semaphor_plan_data_app_change` and preserve existing views/filters unless
+  the user asks to replace them,
 - use `semaphor.derivedField(...)` for the app-local calculated field,
 - attach the derived field to the query through `derivedFields`,
 - use `semaphor.metric`, `semaphor.records`, or another semantic SDK query

@@ -4,6 +4,22 @@ Planning and editing are separate. If the user asks to plan, do not change
 files. For broad Data App requests, large-table requests, or existing-app
 changes, produce a visible plan before editing.
 
+Use Semaphor planner tools as the source of truth for broad analytical work:
+
+- New app or broad dashboard/app request:
+  call `semaphor_plan_data_app` with `domainId`, `goal`, and any known
+  `datasetName`/`datasetNames` or `preferences`.
+- Substantial existing-app analytical edit:
+  call `semaphor_plan_data_app_change` with `goal`, structured
+  `operationIntent`, and current app state such as `currentPlan`,
+  `existingViewIds`, and known inputs.
+
+Do not replace planner output with an agent-invented plan. Present the returned
+plan or change plan, then build from its `sources`, `inputs`, `views`,
+`operations`, `sdkSpec`, assumptions, and unsupported gaps. If the planner
+blocks or asks for a domain/operation/current state, ask the user or inspect
+the app instead of guessing.
+
 The plan should reduce churn by deciding the analytical shape before codegen:
 which views are server-backed, which are derived from existing query results,
 which are presentation-only, and which cannot be supported by the current data
@@ -98,13 +114,18 @@ million-row or complete-dataset table as client-paginated.
 
 If the user is working in an existing app, inspect the current source and
 manifest first. Preserve existing views unless the user asks to replace them.
-Present a change plan with:
+For substantial analytical edits, call `semaphor_plan_data_app_change` and
+present the returned change operations:
 
 - keep;
 - modify;
 - add;
 - remove;
 - validation steps.
+
+V1 change planning implements additive changes and preserve-by-default
+blocking for edit/remove/mixed requests. If the planner returns `ask_user`,
+do not rewrite the app as a greenfield build.
 
 Do not silently convert an existing app into a greenfield rewrite.
 

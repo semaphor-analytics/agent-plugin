@@ -7,6 +7,22 @@ import { fileURLToPath } from 'node:url';
 const MCP_PROTOCOL_VERSION = '2024-11-05';
 const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
 const CLIENT_REQUEST_TIMEOUT_MS = 2000;
+const WORKSPACE_CACHE_PATH = path.join(
+  process.env.HOME || process.env.USERPROFILE || '',
+  '.semaphor-agent-plugin',
+  'workspaces.json',
+);
+const WORKSPACE_HINT_SCHEMA = {
+  type: 'object',
+  properties: {
+    workspaceDir: {
+      type: 'string',
+      description:
+        'Optional React app root. Use this when the Semaphor project token is stored in the target app .env.local.',
+    },
+  },
+  additionalProperties: true,
+};
 const BOOTSTRAP_TOOLS = [
   {
     name: 'semaphor_list_dashboards',
@@ -24,7 +40,7 @@ const BOOTSTRAP_TOOLS = [
   {
     name: 'semaphor_get_access_context',
     description:
-      'Inspect the current Semaphor project-token scope, organization/project identity, and enabled capabilities.',
+      'Inspect the current Semaphor project-token scope, organization/project identity, and enabled capabilities. If the token is in the target app .env.local, pass workspaceDir as the React app root.',
   },
   {
     name: 'semaphor_list_connections',
@@ -50,7 +66,8 @@ const BOOTSTRAP_TOOLS = [
   },
   {
     name: 'semaphor_list_semantic_domains',
-    description: 'List semantic domains available to the current Semaphor project token.',
+    description:
+      'List semantic domains available to the current Semaphor project token. If the token is in the target app .env.local, pass workspaceDir as the React app root.',
   },
   {
     name: 'semaphor_list_datasets',
@@ -66,7 +83,8 @@ const BOOTSTRAP_TOOLS = [
   },
   {
     name: 'semaphor_plan_dashboard',
-    description: 'Plan a dashboard from a selected dataset without persisting changes.',
+    description:
+      'Plan a dashboard from a selected dataset without persisting changes. Prefer domainId plus optional datasetName/datasetNames; pass workspaceDir when the token is in the target app .env.local.',
   },
   {
     name: 'semaphor_create_dashboard_from_plan',
@@ -102,10 +120,7 @@ const BOOTSTRAP_TOOLS = [
   },
 ].map((tool) => ({
   ...tool,
-  inputSchema: {
-    type: 'object',
-    additionalProperties: true,
-  },
+  inputSchema: WORKSPACE_HINT_SCHEMA,
 }));
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -230,6 +245,7 @@ async function forwardRequest(message) {
         },
       };
     }
+    rememberBridgeWorkspaceDirectories(toolArguments);
     const response = await postMcpJsonRpc(stripBridgeOnlyToolArguments(message), context);
     return normalizeJsonRpcResponse(message, response);
   }
@@ -356,6 +372,7 @@ async function resolveSemaphorContext({ allowMissing, includeClientRoots, toolAr
 async function readWorkspaceEnv({ includeClientRoots, toolArguments }) {
   const directories = [
     ...bridgeWorkspaceDirectories(toolArguments),
+    ...readCachedWorkspaceDirectories(),
     process.env.SEMAPHOR_WORKSPACE,
     process.env.INIT_CWD,
     process.env.PWD,
@@ -377,6 +394,56 @@ function bridgeWorkspaceDirectories(toolArguments) {
     toolArguments.repoRoot,
     toolArguments.appDir,
   ].filter((value) => typeof value === 'string' && value.trim());
+}
+
+function rememberBridgeWorkspaceDirectories(toolArguments) {
+  const directories = bridgeWorkspaceDirectories(toolArguments)
+    .map((directory) => path.resolve(directory))
+    .filter((directory) => fs.existsSync(directory));
+  if (directories.length === 0 || !WORKSPACE_CACHE_PATH) {
+    return;
+  }
+
+  const existing = readCachedWorkspaceDirectories();
+  const merged = [];
+  const seen = new Set();
+  for (const directory of [...directories, ...existing]) {
+    if (seen.has(directory) || !fs.existsSync(directory)) {
+      continue;
+    }
+    seen.add(directory);
+    merged.push(directory);
+    if (merged.length >= 10) {
+      break;
+    }
+  }
+
+  try {
+    fs.mkdirSync(path.dirname(WORKSPACE_CACHE_PATH), { recursive: true });
+    fs.writeFileSync(
+      WORKSPACE_CACHE_PATH,
+      JSON.stringify({ workspaces: merged }, null, 2),
+      'utf8',
+    );
+  } catch {
+    // Workspace caching is an ergonomics optimization only.
+  }
+}
+
+function readCachedWorkspaceDirectories() {
+  if (!WORKSPACE_CACHE_PATH || !fs.existsSync(WORKSPACE_CACHE_PATH)) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(WORKSPACE_CACHE_PATH, 'utf8'));
+    return Array.isArray(parsed?.workspaces)
+      ? parsed.workspaces
+          .filter((value) => typeof value === 'string' && value.trim())
+          .map((directory) => path.resolve(directory))
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function stripBridgeOnlyToolArguments(message) {

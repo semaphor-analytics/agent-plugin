@@ -16,12 +16,12 @@ Start with one of:
   semantic-domain count, fallback connection count, and next discovery tool.
 
 When using Codex or another host that launches plugin MCP servers from the
-plugin install directory, direct MCP calls may not automatically see the React
-app's `.env.local`. If the first Semaphor tool call reports that no project
-token was found, retry the same call with `workspaceDir` set to the current
-React app repository root. The Semaphor bridge uses `workspaceDir` only to read
-local env files and removes it before forwarding the tool arguments to
-Semaphor.
+plugin install directory, pass `workspaceDir` as the current React app
+repository root if the project token lives in that app's `.env.local`. If a
+first call reports that no project token was found, retry the same call with
+`workspaceDir`. The Semaphor bridge uses `workspaceDir` only to read local env
+files, removes it before forwarding the tool arguments to Semaphor, and
+remembers successful workspace roots for later calls.
 
 Then follow the returned recommendation:
 
@@ -29,7 +29,10 @@ Then follow the returned recommendation:
   1. `semaphor_list_semantic_domains`
   2. `semaphor_list_datasets`
   3. `semaphor_get_dataset_schema`
-  4. `semaphor_analyze` for governed BI analysis, or `semaphor_matrix` for
+  4. `semaphor_plan_data_app` for broad new app/dashboard planning, or
+     `semaphor_plan_data_app_change` for substantial existing-app analytical
+     edits.
+  5. `semaphor_analyze` for governed BI analysis, or `semaphor_matrix` for
      pivot, hierarchy, subtotal, and grand-total table shapes.
 - Physical/no-domain path:
   1. list connections and required database/schema/table levels
@@ -37,6 +40,12 @@ Then follow the returned recommendation:
      express the question or no semantic coverage exists.
 
 ## Tool Selection
+
+Use `semaphor_plan_data_app` before broad new Semaphor-backed React app builds.
+Use `semaphor_plan_data_app_change` before substantial analytical edits to an
+existing app. These tools return plan/change artifacts for codegen; consume
+their `sdkSpec`, `inputs`, `views`, `operations`, and unsupported gaps instead
+of improvising query specs from prose.
 
 Use `semaphor_analyze` for ordinary governed BI questions: metrics,
 dimension breakdowns, top-N, trends, filters, latest-available windows,
