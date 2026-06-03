@@ -22,7 +22,7 @@ const FALLBACK_TOOLS = [
   {
     name: 'semaphor_get_access_context',
     description:
-      'Diagnose Semaphor project-token setup. If no token is configured, use the hosted OAuth MCP server named semaphor. For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local, or pass workspaceDir when the token lives outside the current working directory.',
+      'Diagnose Semaphor project-token setup. If no token is configured, this is an auth-blocking state for data-bearing app work: use the hosted OAuth MCP server named semaphor, ask the user to run codex mcp login semaphor, or add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local. Do not scaffold placeholder analytics when auth is unavailable.',
   },
 ].map((tool) => ({
   ...tool,
@@ -150,7 +150,10 @@ async function forwardRequest(message) {
               type: 'text',
               text: [
                 'Semaphor project token was not found for this workspace.',
-                'If hosted OAuth is available, use the MCP server named semaphor and call semaphor_list_projects.',
+                'This is an auth-blocking state for Semaphor data-bearing work.',
+                'Do not continue by creating a placeholder dashboard shell, static mock analytics, or generic query integration point.',
+                'If hosted OAuth tools are exposed, use the MCP server named semaphor and call semaphor_list_projects.',
+                'If hosted OAuth tools are not exposed or the semaphor MCP is not logged in, ask the user to run codex mcp login semaphor and restart/open a fresh agent session.',
                 'For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.',
                 'If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.',
                 'For local development, add SEMAPHOR_SERVER_URL=http://localhost:3000 to the same .env.local. Hosted Semaphor defaults to https://semaphor.cloud.',
@@ -375,9 +378,13 @@ async function listClientRootDirectories() {
   try {
     const response = await requestClient('roots/list', {});
     const roots = Array.isArray(response?.roots) ? response.roots : [];
-    return roots
+    const directories = roots
       .map((root) => fileUriToPath(root?.uri))
       .filter(Boolean);
+    if (directories.length !== 1) {
+      return [];
+    }
+    return directories;
   } catch {
     return [];
   }

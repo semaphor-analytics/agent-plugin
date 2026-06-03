@@ -44,6 +44,23 @@ If the local browser runtime needs a project token, call
 `semaphor_get_data_app_runtime_token` after the project is chosen and write only
 `VITE_SEMAPHOR_PROJECT_TOKEN` to an ignored local env file.
 
+Auth unavailable is a blocking state for data-bearing work. If
+`semaphor_get_access_context` reports that no project token was found and the
+host does not expose hosted OAuth Semaphor tools such as
+`semaphor_list_projects`, stop and ask the user to authenticate or provide a
+project token. Do not continue by building a placeholder dashboard shell,
+static mock analytics, generic integration points, or token-missing UI. The
+correct next action is one of:
+
+- Hosted OAuth: ask the user to run `codex mcp login semaphor`, then restart or
+  open a fresh agent session.
+- Project-token mode: ask the user to add `VITE_SEMAPHOR_PROJECT_TOKEN` to the
+  target React app's ignored `.env.local`, then retry with `workspaceDir` set
+  to that app root.
+- Local Semaphor development: ask the user to add both
+  `VITE_SEMAPHOR_PROJECT_TOKEN` and `SEMAPHOR_SERVER_URL=http://localhost:3000`
+  to the target app's ignored `.env.local`.
+
 ## Operation Types
 
 Classify the turn before editing:
@@ -89,6 +106,10 @@ as a required dashboard quality checklist, not optional inspiration.
   build, plan, answer, save, and publish workflows. Do not inspect React files,
   SDK internals, helper scripts, or package metadata until auth and project
   context are known, unless the user explicitly asks only about local setup.
+- If auth/project preflight cannot resolve a Semaphor project and hosted OAuth
+  tools are not callable in the session, stop. Do not scaffold fallback
+  dashboards, static shells, fake query files, or "ready once token exists"
+  placeholders for a data-bearing request.
 - Use Semaphor MCP to discover real projects, domains, datasets, fields,
   relationships, SQL connections, and permissioned capabilities before
   generating data-bearing code.

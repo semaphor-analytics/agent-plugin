@@ -148,6 +148,14 @@ function validateMcpConfig() {
         'scripts/semaphor-mcp-remote.mjs: do not cache or reuse workspace directories for token lookup; tokens must come from the current process env or explicit/current workspace only',
       );
     }
+    if (
+      /roots\/list/.test(launcherText) &&
+      !/directories\.length !== 1/.test(launcherText)
+    ) {
+      issues.push(
+        'scripts/semaphor-mcp-remote.mjs: client roots must be ignored unless exactly one root is reported; multi-root sessions must require explicit workspaceDir',
+      );
+    }
   }
 }
 

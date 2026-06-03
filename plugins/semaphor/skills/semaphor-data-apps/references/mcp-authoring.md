@@ -35,11 +35,14 @@ When using `semaphor-project` in Codex or another host that launches plugin MCP
 servers from the plugin install directory, pass `workspaceDir` as the current
 React app repository root if the project token lives in that app's
 `.env.local`. If a first call reports that no project token was found, retry
-the same call with `workspaceDir`. The Semaphor bridge uses `workspaceDir` only
-to read local env files, removes it before forwarding the tool arguments to
-Semaphor, and does not cache workspace roots across projects. If the current
-workspace has no active token, use OAuth or ask for a token instead of relying
-on a previously used project.
+the same call with `workspaceDir`. In multi-root Codex sessions, do not let the
+agent infer a project token from another open root; pass `workspaceDir`
+explicitly for project-token mode or use OAuth. The Semaphor bridge uses
+`workspaceDir` only to read local env files, removes it before forwarding the
+tool arguments to Semaphor, does not cache workspace roots across projects, and
+ignores ambiguous multi-root client root lists. If the current workspace has no
+active token, use OAuth or ask for a token instead of relying on a previously
+used project.
 
 When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an
 interactive hosted session. Start with `semaphor_get_access_context`, then
@@ -48,6 +51,22 @@ tools. If the local React app needs to run SDK queries in the browser and no
 project token is configured, call `semaphor_get_data_app_runtime_token` for the
 chosen project and write the returned token to the app's ignored `.env.local`
 as `VITE_SEMAPHOR_PROJECT_TOKEN`. Do not print the token.
+
+If only the `semaphor-project` diagnostic tool is visible and it reports that
+no project token exists, treat the run as blocked on authentication unless the
+host also exposes hosted OAuth tools. Do not continue by scaffolding a generic
+dashboard shell, mock analytics, or placeholder query registry. A Semaphor
+data app build needs a resolved governed project before planning, metadata
+inspection, codegen, validation, save, or publish. Tell the user exactly what
+to do next:
+
+```bash
+codex mcp login semaphor
+```
+
+Then ask them to restart/open a fresh agent session, or ask them to add
+`VITE_SEMAPHOR_PROJECT_TOKEN` to the target app's ignored `.env.local` and
+retry with `workspaceDir`.
 
 Then follow the returned recommendation:
 
