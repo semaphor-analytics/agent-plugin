@@ -70,8 +70,8 @@ For planning details, read [planning-workflow.md](references/planning-workflow.m
 For any operation that creates or changes visible UI (`create_app`, `add_view`,
 `modify_view`, `add_input`, `modify_input`, `change_layout`, `change_style`,
 or a UI-bearing `fix_error`), read
-[design-tokens.md](references/design-tokens.md) before editing. Treat it as a
-required design checklist, not optional inspiration.
+[shadcn-dashboard.md](references/shadcn-dashboard.md) before editing. Treat it
+as a required dashboard quality checklist, not optional inspiration.
 
 ## Hard Rules
 
@@ -152,9 +152,9 @@ Load the narrow reference needed for the task:
 - Data-app UX baseline, loading/error/empty states, tables, totals,
   pagination, large result sets, table libraries:
   [tables.md](references/tables.md)
-- Required design checklist, hierarchy rules, palette, density, chart
-  restraint, layout primitives, host design-system adaptation:
-  [design-tokens.md](references/design-tokens.md)
+- Required shadcn dashboard checklist, component choices, layout, charts,
+  tables, states, and host design-system adaptation:
+  [shadcn-dashboard.md](references/shadcn-dashboard.md)
 - Save, draft, hosted publish, manifest identity, source snapshots, assets:
   [publish-lifecycle.md](references/publish-lifecycle.md)
 - Local package validation and Semaphor validation:
@@ -299,23 +299,18 @@ filter composition, read [filters-and-inputs.md](references/filters-and-inputs.m
 
 ## Design Baseline
 
-Generated dashboards must respect the design contract in
-[design-tokens.md](references/design-tokens.md). It defines inviolable rules
-(visual hierarchy, color discipline, number formatting, chart restraint,
-table alignment), shadcn-aligned default token scales (HSL CSS variables for
-`--background`, `--card`, `--primary`, `--muted`, `--border`, `--chart-1..5`,
-`--radius`), and a build checklist for KPI cards, charts, filters, tables,
-empty states, and responsive layout.
+Generated dashboards must follow the shadcn dashboard practices in
+[shadcn-dashboard.md](references/shadcn-dashboard.md). Use the host app's
+components and theme tokens first, then compose analytical UI with clear
+hierarchy, restrained cards, useful loading/error/empty states, readable
+charts, sortable tables, numeric alignment, and responsive layouts.
 
-The defaults are shadcn-native. When the host app already uses shadcn, use the
-host's components and theme tokens, but override component class names when a
-host primitive violates data-app rules such as oversized card radius, heavy
-shadows, weak numeric alignment, missing loading/empty/error states, or
-decorative icons competing with metrics. "Prefer host components" means use the
-host implementation and tokens; it does not mean accepting every default visual
-treatment on analytical surfaces. When the host has Tailwind, MUI, Chakra, or
-its own theme, prefer those tokens over the defaults. The inviolable rules
-apply either way.
+When the host uses shadcn, prefer its installed components instead of building
+custom markup. Override class names only when a primitive's default treatment
+hurts analytical usability, such as oversized card radius, heavy shadows, weak
+numeric alignment, missing states, or decorative icons competing with metrics.
+When the host uses another design system, preserve that system while applying
+the same dashboard usability rules.
 
 ## Save, Publish, And Validation
 

@@ -159,7 +159,7 @@ function validateSkillStructure() {
     'sql.md',
     'filters-and-inputs.md',
     'tables.md',
-    'design-tokens.md',
+    'shadcn-dashboard.md',
     'publish-lifecycle.md',
     'validation.md',
   ];
