@@ -1,15 +1,15 @@
 {
   "name": "semaphor",
   "version": "0.1.1",
-  "description": "Build Semaphor-backed React data apps with governed analytics.",
+  "description": "Build data apps and answer business questions, grounded in your data.",
   "author": {
     "name": "Semaphor"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Semaphor",
-    "shortDescription": "Build React data apps with governed Semaphor analytics.",
-    "longDescription": "Adds workflows for inspecting Semaphor project data, planning React data apps, generating components with react-semaphor/data-app-sdk builders and useSemaphorQuery, running local and governed validation, and saving or publishing apps through Semaphor-hosted Data App lifecycle APIs.",
+    "shortDescription": "Build data apps and answer business questions, grounded in your data.",
+    "longDescription": "Go from a business question to a working data app in one conversation. Semaphor explores your data, designs the right charts and KPIs, validates them against your governed context layer, and publishes the finished app for your team.",
     "developerName": "Semaphor",
     "category": "Productivity",
     "brandColor": "#2563EB",
@@ -25,10 +25,9 @@
       "MCP"
     ],
     "defaultPrompt": [
-      "Plan a data app from my data.",
-      "Add a KPI with top contributors.",
-      "Answer a question about my business.",
-      "Publish this app."
+      "Sketch a data app from my project.",
+      "Add a revenue chart with period-over-period change.",
+      "What's driving the trend in my top KPI?"
     ]
   },
   "mcpServers": "./.mcp.json"

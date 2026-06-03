@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "semaphor",
   "displayName": "Semaphor",
-  "description": "Build Semaphor-backed React data apps with governed analytics.",
+  "description": "Build data apps and answer business questions, grounded in your data.",
   "version": "0.1.1",
   "author": {
     "name": "Semaphor"
