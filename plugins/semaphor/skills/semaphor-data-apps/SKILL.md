@@ -67,6 +67,12 @@ user explicitly requests SQL.
 
 For planning details, read [planning-workflow.md](references/planning-workflow.md).
 
+For any operation that creates or changes visible UI (`create_app`, `add_view`,
+`modify_view`, `add_input`, `modify_input`, `change_layout`, `change_style`,
+or a UI-bearing `fix_error`), read
+[design-tokens.md](references/design-tokens.md) before editing. Treat it as a
+required design checklist, not optional inspiration.
+
 ## Hard Rules
 
 - Use Semaphor MCP to discover real projects, domains, datasets, fields,
@@ -146,8 +152,8 @@ Load the narrow reference needed for the task:
 - Data-app UX baseline, loading/error/empty states, tables, totals,
   pagination, large result sets, table libraries:
   [tables.md](references/tables.md)
-- Design tokens, hierarchy rules, palette, density, chart restraint,
-  layout primitives, host design-system adaptation:
+- Required design checklist, hierarchy rules, palette, density, chart
+  restraint, layout primitives, host design-system adaptation:
   [design-tokens.md](references/design-tokens.md)
 - Save, draft, hosted publish, manifest identity, source snapshots, assets:
   [publish-lifecycle.md](references/publish-lifecycle.md)
@@ -298,23 +304,18 @@ Generated dashboards must respect the design contract in
 (visual hierarchy, color discipline, number formatting, chart restraint,
 table alignment), shadcn-aligned default token scales (HSL CSS variables for
 `--background`, `--card`, `--primary`, `--muted`, `--border`, `--chart-1..5`,
-`--radius`), and layout primitives (KPI row, filter bar, two-column split,
-detail drawer, table-heavy page, analytical detail).
+`--radius`), and a build checklist for KPI cards, charts, filters, tables,
+empty states, and responsive layout.
 
-The defaults are shadcn-native. When the host app already uses shadcn, read
-the tokens already on `:root`/`.dark` and use shadcn primitives (`Card`,
-`Badge`, `Table`, `Tabs`, `Select`, `Sheet`, `Skeleton`) instead of authoring
-raw markup. When the host has Tailwind, MUI, Chakra, or its own theme,
-prefer those tokens over the defaults. The inviolable rules apply either way.
-
-For shape and hierarchy reference, consult the samples directory:
-
-- `samples/exec-overview.html` — KPI-led overview with two time-series and a breakdown
-- `samples/analytical-detail.html` — pivot/matrix with subtotals, grand total, supporting chart
-
-Samples are reference, not template. Read them for structural choices
-(hierarchy, density, spacing, where the eye goes first); render with the
-host app's components. Do not copy sample HTML into React output.
+The defaults are shadcn-native. When the host app already uses shadcn, use the
+host's components and theme tokens, but override component class names when a
+host primitive violates data-app rules such as oversized card radius, heavy
+shadows, weak numeric alignment, missing loading/empty/error states, or
+decorative icons competing with metrics. "Prefer host components" means use the
+host implementation and tokens; it does not mean accepting every default visual
+treatment on analytical surfaces. When the host has Tailwind, MUI, Chakra, or
+its own theme, prefer those tokens over the defaults. The inviolable rules
+apply either way.
 
 ## Save, Publish, And Validation
 

@@ -139,6 +139,7 @@ function validateSkillStructure() {
     'sql.md',
     'filters-and-inputs.md',
     'tables.md',
+    'design-tokens.md',
     'publish-lifecycle.md',
     'validation.md',
   ];

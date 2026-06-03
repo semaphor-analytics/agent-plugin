@@ -10,15 +10,14 @@ MUI theme, CSS variables, a brand stylesheet), prefer those tokens over the
 defaults in this file. Use the defaults only when the host has nothing to
 inherit. The inviolable rules in section 1 apply either way.
 
-For shape and hierarchy reference, also consult the samples directory at
-`samples/exec-overview.html`, `samples/ops-table.html`, and
-`samples/analytical-detail.html`. Samples are reference, not template: read
-them for structural choices, render with host components.
-
 ## Section 1: Inviolable Rules
 
 These apply to every generated Semaphor data app regardless of host design
 system, brand, or user preference.
+
+Read this section before creating or editing UI. The agent should be able to
+answer "yes" to the checklist at the end of this file before reporting a
+data-app build complete.
 
 Visual hierarchy on every page:
 
@@ -213,6 +212,19 @@ Radius scale (anchored to `--radius`, shadcn convention):
 Do not use `rounded-xl`, `rounded-2xl`, or larger on data UI. Cards and tables
 should read as precise containers, not pills.
 
+If the host app's shadcn `Card` or another primitive defaults to oversized
+radius, heavy shadow, or decorative treatment, still use the host component but
+override the data-app surface classes. Example intent:
+
+```tsx
+<Card className="rounded-lg border shadow-none">
+  ...
+</Card>
+```
+
+Prefer the host component implementation and theme tokens; do not preserve host
+defaults that conflict with the data-app visual contract.
+
 Density:
 
 - compact: KPI rows, dense tables, dashboards meant to be scanned at a glance.
@@ -315,3 +327,24 @@ When the host uses shadcn, do not redeclare `--background`, `--card`,
 Do not introduce a parallel token system inside the data app when the host
 already has one. The goal is for the generated views to look native to the
 host, not like a Semaphor-branded island.
+
+## Build Checklist
+
+Before reporting completion, verify the generated UI against this checklist:
+
+- Page hierarchy: one clear page title, useful section labels, no competing
+  hero typography inside cards.
+- KPI cards: muted label, tabular numeric value, explicit delta when available,
+  no decorative icon competing with the value.
+- Cards and panels: use host components, but keep analytical surfaces precise
+  (`rounded-lg` or tighter, 1px border, no heavy shadow/glow).
+- Charts: restrained palette, readable axes, muted gridlines, no 3D, no
+  gradients on bars or lines, legend only when needed.
+- Tables: text left-aligned, numbers right-aligned with tabular figures,
+  display labels in headers, totals for displayed numeric columns.
+- States: loading preserves layout, empty state explains what data would fill
+  the view, error state names the affected query/view without exposing secrets.
+- Filters: visible above the views they control, clear labels, obvious default
+  or clear state.
+- Responsiveness: no text overlap on mobile, cards stack predictably, tables
+  scroll or paginate intentionally.
