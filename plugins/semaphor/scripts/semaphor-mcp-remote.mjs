@@ -23,100 +23,11 @@ const WORKSPACE_HINT_SCHEMA = {
   },
   additionalProperties: true,
 };
-const BOOTSTRAP_TOOLS = [
-  {
-    name: 'semaphor_list_dashboards',
-    description: 'List dashboards available to the current Semaphor project token.',
-  },
-  {
-    name: 'semaphor_get_dashboard_details',
-    description: 'Inspect a specific Semaphor dashboard and optionally include its template.',
-  },
-  {
-    name: 'semaphor_get_dashboard_analysis_context',
-    description:
-      'Return compact card, filter, source, metric, dimension, and query context for an existing dashboard.',
-  },
+const FALLBACK_TOOLS = [
   {
     name: 'semaphor_get_access_context',
     description:
-      'Inspect the current Semaphor project-token scope, organization/project identity, and enabled capabilities. If the token is in the target app .env.local, pass workspaceDir as the React app root.',
-  },
-  {
-    name: 'semaphor_list_connections',
-    description:
-      'List physical database connections when semantic context is absent or insufficient.',
-  },
-  {
-    name: 'semaphor_list_databases',
-    description: 'List databases or catalogs for a Semaphor connection.',
-  },
-  {
-    name: 'semaphor_list_schemas',
-    description: 'List schemas for a Semaphor connection and database/catalog.',
-  },
-  {
-    name: 'semaphor_list_tables',
-    description: 'List or find physical tables for a Semaphor connection scope.',
-  },
-  {
-    name: 'semaphor_get_analysis_context',
-    description:
-      'Return a compact Semaphor analysis context for the current project, including useful domains and datasets.',
-  },
-  {
-    name: 'semaphor_list_semantic_domains',
-    description:
-      'List semantic domains available to the current Semaphor project token. If the token is in the target app .env.local, pass workspaceDir as the React app root.',
-  },
-  {
-    name: 'semaphor_list_datasets',
-    description: 'List governed datasets for a semantic domain in the current Semaphor project.',
-  },
-  {
-    name: 'semaphor_get_dataset_schema',
-    description: 'Inspect fields, measures, dimensions, dates, and relationships for a governed dataset.',
-  },
-  {
-    name: 'semaphor_get_domain_relationships',
-    description: 'Return semantic-domain relationships for governed join-aware analysis.',
-  },
-  {
-    name: 'semaphor_plan_dashboard',
-    description:
-      'Plan a dashboard from a selected dataset without persisting changes. Prefer domainId plus optional datasetName/datasetNames; pass workspaceDir when the token is in the target app .env.local.',
-  },
-  {
-    name: 'semaphor_create_dashboard_from_plan',
-    description: 'Create a private dashboard from an approved structured dashboard plan.',
-  },
-  {
-    name: 'semaphor_plan_dashboard_change',
-    description: 'Plan a non-destructive refinement for an existing editable dashboard.',
-  },
-  {
-    name: 'semaphor_apply_dashboard_change',
-    description: 'Apply an approved structured non-destructive dashboard change plan.',
-  },
-  {
-    name: 'semaphor_plan_analytics_recovery',
-    description:
-      'Plan governed analytics recovery calls from typed intent and grounded schema evidence.',
-  },
-  {
-    name: 'semaphor_analyze',
-    description:
-      'Run governed semantic BI analysis through Semaphor and return typed execution results for app authoring.',
-  },
-  {
-    name: 'semaphor_matrix',
-    description:
-      'Plan or execute governed matrix/pivot-style analysis through the shared Semaphor analytics spine.',
-  },
-  {
-    name: 'semaphor_query_sql_advanced',
-    description:
-      'Run read-only SQL-first analysis through governed Semaphor execution when semantic intents are not enough.',
+      'Diagnose Semaphor project-token setup. Add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local, or pass workspaceDir when the token lives outside the current working directory.',
   },
 ].map((tool) => ({
   ...tool,
@@ -209,11 +120,19 @@ async function forwardRequest(message) {
   }
 
   if (message.method === 'tools/list') {
+    const context = await resolveSemaphorContext({
+      allowMissing: true,
+      includeClientRoots: true,
+    });
+    if (context?.token) {
+      const response = await postMcpJsonRpc(message, context);
+      return normalizeToolsListResponse(message, response);
+    }
     return {
       jsonrpc: '2.0',
       id: message.id,
       result: {
-        tools: BOOTSTRAP_TOOLS,
+        tools: FALLBACK_TOOLS,
       },
     };
   }
@@ -283,6 +202,45 @@ function normalizeJsonRpcResponse(message, response) {
   }
 
   return response;
+}
+
+function normalizeToolsListResponse(message, response) {
+  const normalized = normalizeJsonRpcResponse(message, response);
+  const tools = Array.isArray(normalized?.result?.tools)
+    ? normalized.result.tools.map(exposeBridgeWorkspaceHint)
+    : FALLBACK_TOOLS;
+  return {
+    jsonrpc: '2.0',
+    id: message.id,
+    result: {
+      ...(normalized?.result || {}),
+      tools,
+    },
+  };
+}
+
+function exposeBridgeWorkspaceHint(tool) {
+  return {
+    ...tool,
+    inputSchema: mergeWorkspaceHint(tool?.inputSchema),
+  };
+}
+
+function mergeWorkspaceHint(inputSchema) {
+  if (!inputSchema || typeof inputSchema !== 'object' || inputSchema.type !== 'object') {
+    return WORKSPACE_HINT_SCHEMA;
+  }
+  return {
+    ...inputSchema,
+    properties: {
+      ...(inputSchema.properties || {}),
+      workspaceDir: WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+    },
+    additionalProperties:
+      inputSchema.additionalProperties === undefined
+        ? true
+        : inputSchema.additionalProperties,
+  };
 }
 
 async function forwardNotification(message) {
