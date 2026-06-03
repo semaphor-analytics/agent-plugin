@@ -41,6 +41,12 @@ Every generated data app should include:
   overlap.
 - No decorative UI that competes with the data.
 
+Do not add user-facing implementation badges or proof-of-plumbing labels such
+as "Governed SDK queries", "Token configured", "MCP connected", "SQL fallback",
+or raw domain/debug chips. Those are developer observability details, not
+customer dashboard content. If the app needs development observability, hide it
+behind an explicit debug/inspect affordance or development-only panel.
+
 ## shadcn Composition Rules
 
 Use complete component composition, not styled divs that imitate shadcn:
@@ -101,7 +107,10 @@ For bounded tables, use the host table component and implement:
 - Sortable headers for user-facing tables.
 - Right-aligned numeric cells with `tabular-nums`.
 - Totals row for displayed additive numeric columns when meaningful.
+- Constrained height such as `max-h-[420px]` to `max-h-[560px]` with
+  `overflow-auto`.
 - Sticky or repeated headers when the table scrolls.
+- Horizontal scrolling for wide tables instead of squeezed unreadable columns.
 - Loading, error, and empty states.
 
 For large or server-paginated tables, prefer TanStack Table and, for virtual

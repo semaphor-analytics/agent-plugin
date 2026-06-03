@@ -20,6 +20,18 @@ plan or change plan, then build from its `sources`, `inputs`, `views`,
 blocks or asks for a domain/operation/current state, ask the user or inspect
 the app instead of guessing.
 
+Treat the accepted planner response as the codegen contract:
+
+- every buildable `plan.views[*]` should become either a visible component or
+  an explicitly documented omission;
+- every data-bearing component should use the corresponding planner-returned
+  `sdkSpec` query kind, source, fields, filters, pagination/windowing, and
+  derived-field definitions;
+- every shared filter/control should come from `plan.inputs` or a clearly
+  explained user-requested addition;
+- every substantial deviation should be shown to the user before codegen or
+  captured as a limitation after validation.
+
 Check `plan.sourceCoverage` before codegen:
 
 - `included`: the planner generated one or more SDK-ready views for this
@@ -116,12 +128,12 @@ Common mappings:
 - semantic BI answer from `semaphor_analyze` -> `semaphor.metric(...)` or
   `semaphor.analysis(...)`;
 - semantic records/table view -> `semaphor.records(...)`;
+- matrix/pivot/hierarchy view from `semaphor_plan_data_app` or
+  `semaphor_matrix` -> `semaphor.matrix(...)`;
 - SQL-first answer validated with `semaphor_query_sql_advanced` ->
   `semaphor.sql(...)`;
 - filter option list -> `semaphor.inputOptions(...)` plus
   `semaphor.filter(...)` and `useSemaphorInputs(...)`.
-- pivot, hierarchy, subtotal, and grand-total table view ->
-  `semaphor_matrix` during authoring and `semaphor.matrix(...)` at runtime.
 
 ## Governed-First Planning Gate
 

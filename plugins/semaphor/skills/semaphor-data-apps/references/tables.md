@@ -40,6 +40,11 @@ Table views should:
 - support user sorting;
 - show an empty state when no rows are returned;
 - format numeric, currency, percentage, and date values for human scanning;
+- constrain table height inside dashboard cards, usually with `max-h-[420px]`
+  to `max-h-[560px]` and `overflow-auto`;
+- use sticky headers when the table scrolls;
+- allow horizontal scrolling for wide tables instead of shrinking columns until
+  labels and values are unreadable;
 - preserve raw values only when the user needs exact IDs, codes, or
   machine-readable output.
 
@@ -96,6 +101,56 @@ For exact totals across all filtered rows, replace displayed-row totals with a
 separate `semaphor.metric(...)` aggregate query that receives the same input
 handles.
 
+Minimum shadcn table shell:
+
+```tsx
+<Card className="rounded-lg border shadow-none">
+  <CardHeader className="gap-1">
+    <CardTitle className="text-base">Open Opportunities</CardTitle>
+    <CardDescription>Sorted by expected revenue</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="max-h-[520px] overflow-auto rounded-md border">
+      <Table>
+        <TableHeader className="sticky top-0 z-10 bg-background">
+          <TableRow>
+            {result.columns.map((column) => (
+              <TableHead key={column.key}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleSort(column.key)}
+                >
+                  {column.label}
+                </Button>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedRows.map((row, index) => (
+            <TableRow key={String(row.id ?? index)}>
+              {result.columns.map((column) => (
+                <TableCell
+                  key={column.key}
+                  className={column.dataType === "number" ? "text-right tabular-nums" : undefined}
+                >
+                  {formatCellValue(row[column.key], column)}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  </CardContent>
+</Card>
+```
+
+Keep this as a pattern, not a required exact component. Use the target app's
+existing card, table, button, and formatting helpers when present.
+
 ## Large Tables
 
 Large or complete-dataset tables must be server-side tables. Do not fetch a
@@ -119,6 +174,33 @@ Semaphor query/order contract so the server owns the sorted result.
 If a needed table behavior cannot be expressed yet, call that out as a
 `react-semaphor/data-app-sdk` or Semaphor execution gap and build a bounded
 table instead of pretending the frontend has the full dataset.
+
+Minimum server-paginated state pattern:
+
+```tsx
+const [page, setPage] = useState(1);
+const [pageSize, setPageSize] = useState(25);
+const [sort, setSort] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+
+const query = semaphor.records({
+  source,
+  fields,
+  filters,
+  pagination: { page, pageSize },
+  orderBy: sort ? [{ field: sort.key, direction: sort.direction }] : undefined,
+});
+
+const result = useSemaphorQuery(query, { inputs });
+
+// Render rows from result.records.
+// Render page controls from result.pagination and result.rowCount.
+// Reset page to 1 when filters, pageSize, or sort changes.
+```
+
+If the SDK query contract in the installed app uses a different sort/order
+field name, follow the installed public SDK contract. The important behavior is
+that large-table sort, filter, and pagination are represented in the Semaphor
+query, not applied only after fetching a large result set.
 
 ## Table Libraries
 

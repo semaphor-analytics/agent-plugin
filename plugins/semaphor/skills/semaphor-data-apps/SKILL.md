@@ -294,6 +294,12 @@ empty state, and include totals for displayed numeric columns. Large tables
 must be server-side tables; do not fetch a million rows and then paginate,
 sort, or filter only in React.
 
+Do not add user-facing implementation badges such as "Governed SDK queries",
+"Token configured", "MCP connected", "SQL fallback", or domain/debug chips
+unless the user explicitly asks for a developer/debug view. Show business
+labels, filter state, data freshness, query errors, and unsupported modeling
+gaps when they help the user understand the app.
+
 For full UX and table guidance, read [tables.md](references/tables.md). For
 filter composition, read [filters-and-inputs.md](references/filters-and-inputs.md).
 
