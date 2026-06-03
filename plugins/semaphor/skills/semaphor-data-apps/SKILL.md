@@ -180,6 +180,60 @@ mutable draft when available, compare the saved source snapshot with the local
 workspace, and ask before writing saved files into the repo. Treat saved local
 paths as hints only.
 
+## Code Organization Defaults
+
+Follow the target app's existing folder and naming conventions first. If the
+app has a clear route/component/query organization, extend that convention
+instead of imposing a new scaffold.
+
+For generated apps with more than two data-bearing views, avoid putting all
+queries, inputs, card rendering, formatting, and layout in one giant `App.tsx`.
+Use an inspectable structure where each planned view has an obvious file and
+Semaphor specs are easy to audit. A good default when the host app has no
+strong convention:
+
+```text
+src/
+  App.tsx
+  semaphor/
+    queries.ts
+    inputs.ts
+  components/
+    layout/
+      AppShell.tsx
+      FilterBar.tsx
+    cards/
+      KeyMetricsCard.tsx
+      TopContributorsCard.tsx
+      TrendCard.tsx
+      DetailTableCard.tsx
+    states/
+      LoadingState.tsx
+      EmptyState.tsx
+      ErrorState.tsx
+  utils/
+    formatting.ts
+    table.ts
+```
+
+Use this structure as a default, not a mandate:
+
+- `App.tsx` composes providers, app shell, shared filters, and card layout.
+- `src/semaphor/queries.ts` contains `semaphor.metric`, `semaphor.records`,
+  `semaphor.matrix`, `semaphor.analysis`, `semaphor.derivedField`, and
+  justified `semaphor.sql` specs.
+- `src/semaphor/inputs.ts` contains shared filter/control/input definitions.
+- `components/cards/*` should map closely to `plan.views[*]`: one file per
+  card/insight when the app has multiple data-bearing views.
+- Card components execute their own view-owned query with `useSemaphorQuery`
+  and render loading, empty, error, and ready states.
+- Shared formatting, table sorting/totals helpers, and row-access helpers live
+  outside `App.tsx`.
+
+For tiny one-view apps, a compact structure is fine, but keep Semaphor query
+specs and row-access helpers readable enough that a future edit can identify
+which query backs which visual.
+
 ## SDK Fast Path
 
 Use the public SDK contract as the codegen source of truth:

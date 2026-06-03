@@ -68,6 +68,15 @@ which views are server-backed, which are derived from existing query results,
 which are presentation-only, and which cannot be supported by the current data
 model.
 
+When building from an accepted plan, keep the implementation traceable:
+
+- map each buildable `plan.views[*]` to an obvious card/insight component;
+- keep Semaphor query specs and shared inputs in small modules instead of
+  burying them inside a large `App.tsx`;
+- keep `App.tsx` focused on composition, app shell, filters, and layout;
+- preserve view-owned query ownership unless the plan explicitly declares a
+  shared-query optimization.
+
 ## Data App Planning Response
 
 For broad Data App-building requests, respond with a compact plan before
