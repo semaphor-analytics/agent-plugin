@@ -168,6 +168,131 @@ const result = useSemaphorQuery<RowType>(someQuery, { inputs: inputHandles });
 
 The `inputs` option accepts handles returned by `useSemaphorInputs`.
 
+## Copyable Query Patterns
+
+Use these patterns before inspecting SDK type declarations.
+
+Metric KPI:
+
+```tsx
+const source = { kind: "semantic", domainId: "sales", datasetName: "orders" } as const;
+const revenue = {
+  name: "revenue",
+  label: "Revenue",
+  role: "measure",
+  dataType: "number",
+  aggregate: "SUM",
+  source,
+} as const;
+
+const revenueKpi = semaphor.metric({
+  id: "revenue-kpi",
+  source,
+  metrics: [revenue],
+  primaryMetric: revenue,
+});
+
+const result = useSemaphorQuery(revenueKpi);
+```
+
+Records chart/table:
+
+```tsx
+const segment = {
+  name: "segment",
+  label: "Segment",
+  role: "dimension",
+  dataType: "string",
+  source,
+} as const;
+
+const revenueBySegment = semaphor.records({
+  id: "revenue-by-segment",
+  source,
+  fields: [segment, revenue],
+  orderBy: { field: revenue, direction: "desc" },
+  limit: 10,
+});
+
+const result = useSemaphorQuery(revenueBySegment);
+```
+
+Row access:
+
+```tsx
+function RecordsTable({ result }: { result: SemaphorRecordsQueryResult }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          {result.columns?.map((column) => (
+            <th key={column.key}>{column.label || column.name}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {result.records.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {result.columns?.map((column) => (
+              <td key={column.key}>{String(row[column.key] ?? "")}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+Use `column.key` for code access and `column.label` for display. Never read
+`row[column.label]`.
+
+Input-options-backed filter:
+
+```tsx
+const segmentFilter = semaphor.filter({
+  id: "segment",
+  label: "Segment",
+  field: segment,
+  operator: "in",
+});
+
+const segmentOptions = semaphor.inputOptions({
+  id: "segment-options",
+  source,
+  field: segment,
+  limit: 100,
+});
+
+function SegmentFilter() {
+  const [segmentHandle] = useSemaphorInputs([segmentFilter]);
+  const optionsResult = useSemaphorQuery(segmentOptions);
+  const revenueResult = useSemaphorQuery(revenueBySegment, {
+    inputs: [segmentHandle],
+  });
+
+  // Render choices from optionsResult.options and write selected values with
+  // segmentHandle.setValue(nextValue).
+}
+```
+
+Server-paginated table:
+
+```tsx
+const page = 1;
+const pageSize = 100;
+const ordersPage = semaphor.records({
+  id: "orders-page",
+  source,
+  fields: [segment, revenue],
+  pagination: { page, pageSize },
+  orderBy: { field: revenue, direction: "desc" },
+});
+
+const pageResult = useSemaphorQuery(ordersPage);
+// Render page controls from pageResult.pagination and pageResult.rowCount.
+```
+
 ## Derived Fields
 
 Use `semaphor.derivedField(...)` when a view needs a calculated field that is

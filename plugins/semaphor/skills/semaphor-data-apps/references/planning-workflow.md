@@ -20,6 +20,29 @@ plan or change plan, then build from its `sources`, `inputs`, `views`,
 blocks or asks for a domain/operation/current state, ask the user or inspect
 the app instead of guessing.
 
+Check `plan.sourceCoverage` before codegen:
+
+- `included`: the planner generated one or more SDK-ready views for this
+  source. Build those views from the matching `viewIds`.
+- `excluded`: the source was visible/considered but no view was generated for
+  it. Tell the user before building if the source looks relevant to their
+  stated goal.
+- `unsupported`: the source is visible but lacks modeled measures, dates,
+  relationships, or SDK capability needed for governed views.
+- `not_found`: the caller requested a dataset name/id that was not visible in
+  the selected domain.
+
+For broad multi-source requests, do not silently build only the first source.
+If `sourceCoverage` is partial, summarize what is included and what is left
+out, then either build the included plan with that caveat or ask whether the
+user wants to revise the source selection.
+
+Use `plan.inputs` as filter guidance. For a select or multi-select input,
+`input.fieldRef` is the filter field, `input.optionQuery` describes the
+`semaphor.inputOptions(...)` query to populate choices, and
+`input.appliesToViewIds` says which views should receive that handle. Do not
+invent separate option queries when the planner supplies one.
+
 The plan should reduce churn by deciding the analytical shape before codegen:
 which views are server-backed, which are derived from existing query results,
 which are presentation-only, and which cannot be supported by the current data
@@ -34,6 +57,7 @@ Include:
 
 - app title and purpose;
 - selected Semaphor sources and why they were chosen;
+- source coverage: included, excluded, unsupported, and not found sources;
 - planned filters and which views they affect;
 - planned views with visual type, query kind, source fields, and whether each
   view is server-backed, derived, presentation-only, or unsupported;
