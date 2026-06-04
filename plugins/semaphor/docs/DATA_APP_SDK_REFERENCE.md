@@ -317,6 +317,37 @@ control, call `handle.setValue(nextValue)` from UI events, and pass the same
 handles into `useSemaphorQuery(query, { inputs })`. Do not pass raw input specs
 to `useSemaphorQuery` after binding them.
 
+Server-side option lists use explicit label and value fields:
+
+```tsx
+const regionOptions = semaphor.inputOptions({
+  id: "region-options",
+  source,
+  inputId: "region",
+  labelField: regionField,
+  valueField: regionField,
+  dependencies: { mode: "auto" },
+  limit: 100,
+});
+
+const optionsResult = useSemaphorQuery(regionOptions, {
+  inputs: [regionHandle],
+});
+```
+
+`labelField` is what the user sees. `valueField` is the stable submitted value.
+Do not use the older `field`-only option query shape.
+
+For cascading filters, clear stale child selections only from authoritative
+option results. Pass the full query result to the helper so loading/idle
+`options: []` does not clear valid defaults before the server responds:
+
+```tsx
+useClearInvalidSemaphorInputValue(regionHandle, optionsResult);
+```
+
+Do not pass `optionsResult.options` to this helper.
+
 ## Large Tables
 
 For bounded detail views, a server `limit` plus displayed-row totals is enough.

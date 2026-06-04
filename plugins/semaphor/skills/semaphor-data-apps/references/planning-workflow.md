@@ -75,6 +75,17 @@ Use `plan.inputs` as filter guidance. For a select or multi-select input,
 `input.appliesToViewIds` says which views should receive that handle. Do not
 invent separate option queries when the planner supplies one.
 
+Relationship-aware filters are executable planner output, not suggestions to
+recreate manually. Preserve `input.relationshipHint`,
+`input.relationshipsUsed`, `input.optionQuery.population`, and
+`input.optionQuery.dependencies` when translating planned inputs into
+`semaphor.filter(...)` and `semaphor.inputOptions(...)`. A related population
+means the option list should be narrowed through the base fact/source on the
+server. A missing or unsupported relationship should remain an unsupported gap
+or modeling fix; do not replace it with a client-side join, client-side filter,
+or raw SQL join unless the planner returns an explicit SQL fallback or the user
+asks for SQL.
+
 The plan should reduce churn by deciding the analytical shape before codegen:
 which views are server-backed, which are derived from existing query results,
 which are presentation-only, and which cannot be supported by the current data

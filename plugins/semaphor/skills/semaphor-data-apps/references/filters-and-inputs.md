@@ -95,6 +95,48 @@ per card rather than applied to everything.
 Do not force a global "apply to all queries" filter or assume every card
 inherits a control. Thread the handle only into the cards that should respond.
 
+## Planner-Emitted Relationship Filters
+
+When `semaphor_plan_data_app` returns planned inputs, use them directly. A
+planned input may include:
+
+- `relationshipHint`: relationship ids the runtime should use to disambiguate
+  role-playing or alternate paths;
+- `relationshipsUsed`: evidence to show or inspect why the filter is valid;
+- `optionQuery.population`: a related population that constrains options
+  through a base fact/source;
+- `optionQuery.dependencies`: dependency behavior for cascading option lists.
+
+Example shape:
+
+```tsx
+const campaignFilter = semaphor.filter({
+  id: "filter_campaign_id",
+  label: "Campaign",
+  field: campaignIdFromPlanner,
+  operator: "in",
+  relationshipHint: { relationshipIds: ["orders_campaigns"] },
+});
+
+const campaignOptions = semaphor.inputOptions({
+  id: "filter_campaign_id_options",
+  inputId: "filter_campaign_id",
+  source: campaignSourceFromPlanner,
+  labelField: campaignNameFromPlanner,
+  valueField: campaignIdFromPlanner,
+  population: {
+    kind: "related_population",
+    baseSource: ordersSourceFromPlanner,
+    relationshipHint: { relationshipIds: ["orders_campaigns"] },
+  },
+  limit: 100,
+});
+```
+
+Pass the bound `campaignFilter` handle only to planned views whose ids appear
+in `input.appliesToViewIds`. Do not implement relationship-aware filtering by
+joining data in React or filtering a fetched table client-side.
+
 ## SQL Params
 
 Use `semaphor.sqlParam` for SQL template parameters such as limits, thresholds,

@@ -121,6 +121,11 @@ as a required dashboard quality checklist, not optional inspiration.
   database credentials.
 - Generated runtime analytics code must use public
   `react-semaphor/data-app-sdk` builders and `useSemaphorQuery`.
+- When the Data App planner returns inputs, preserve the planner-emitted
+  `fieldRef`, `optionQuery`, `population`, `relationshipHint`,
+  `relationshipsUsed`, and `appliesToViewIds`. Use those bindings for
+  server-side filters/cascading option lists; do not recreate the relationship
+  with client-side joins, client-side filtering, or raw SQL.
 - For data-bearing dashboards, use the governed path before SQL: discover
   semantic domains/datasets/schema, validate with `semaphor_analyze` or
   `semaphor_matrix`, then productize with `semaphor.metric`,

@@ -280,13 +280,19 @@ const segmentFilter = semaphor.filter({
 const segmentOptions = semaphor.inputOptions({
   id: "segment-options",
   source,
-  field: segment,
+  inputId: "segment",
+  labelField: segment,
+  valueField: segment,
+  dependencies: { mode: "auto" },
   limit: 100,
 });
 
 function SegmentFilter() {
   const [segmentHandle] = useSemaphorInputs([segmentFilter]);
-  const optionsResult = useSemaphorQuery(segmentOptions);
+  const optionsResult = useSemaphorQuery(segmentOptions, {
+    inputs: [segmentHandle],
+  });
+  useClearInvalidSemaphorInputValue(segmentHandle, optionsResult);
   const revenueResult = useSemaphorQuery(revenueBySegment, {
     inputs: [segmentHandle],
   });
@@ -295,6 +301,13 @@ function SegmentFilter() {
   // segmentHandle.setValue(nextValue).
 }
 ```
+
+`inputOptions` must use explicit `inputId`, `labelField`, and `valueField`.
+Use `labelField` for the human-readable dropdown text and `valueField` for the
+stable value sent back as the filter value. Do not use the older one-field
+shape. When clearing invalid selections for cascading filters, pass the full
+`optionsResult` to `useClearInvalidSemaphorInputValue`; do not pass
+`optionsResult.options`, because idle/loading query data is also an empty array.
 
 Server-paginated table:
 
