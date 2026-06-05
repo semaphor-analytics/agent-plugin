@@ -9,13 +9,22 @@ the finished app back to Semaphor.
 
 ## Quick Start
 
-### 1. Install In Codex
+### 1. Install
 
-Add the Semaphor marketplace from GitHub, then install the plugin:
+Add the Semaphor marketplace from GitHub, then install the plugin.
+
+Codex:
 
 ```bash
 codex plugin marketplace add semaphor-analytics/agent-plugin
 codex plugin add semaphor@semaphor-analytics
+```
+
+Claude Code:
+
+```bash
+claude plugin marketplace add semaphor-analytics/agent-plugin
+claude plugin install semaphor@semaphor-analytics
 ```
 
 ### 2. Open Or Create A React App
@@ -34,11 +43,16 @@ agent can focus on your data app instead of initial project setup.
 
 ### 3. Connect To Semaphor
 
-If you do not have a project token configured, log in with Semaphor from Codex:
+If you do not have a project token configured, log in with Semaphor.
+
+From Codex:
 
 ```bash
 codex mcp login semaphor
 ```
+
+From Claude Code, run the `/mcp` slash command in your session and complete the
+OAuth flow for the `semaphor` server.
 
 After login, ask the agent to list your projects and choose the project for
 this app. If the app needs to run locally, the agent can mint a scoped
@@ -63,7 +77,7 @@ Do not commit real tokens.
 
 ### 4. Open Your App
 
-Start Codex from the app directory and try:
+Start your coding agent from the app directory (`codex` or `claude`) and try:
 
 ```text
 Create a data app from my project.
@@ -147,27 +161,95 @@ npm run call:mcp -- --list-tools --dir /path/to/react-app
 npm run call:mcp -- semaphor_get_access_context --dir /path/to/react-app
 ```
 
-## Claude Code
+## Claude Code Commands
 
-Add the Semaphor marketplace from GitHub, install the plugin, and reload
-plugins:
+### Install
+
+```bash
+claude plugin marketplace add semaphor-analytics/agent-plugin
+claude plugin install semaphor@semaphor-analytics
+```
+
+Or, from inside a Claude Code session:
 
 ```text
 /plugin marketplace add semaphor-analytics/agent-plugin
 /plugin install semaphor@semaphor-analytics
-/reload-plugins
 ```
 
-Then open Claude Code in your React app repository and ask it to inspect your
-Semaphor project.
+Restart Claude Code (or run `/reload-plugins`) so the new plugin and its MCP
+servers are picked up.
+
+### Verify
+
+```bash
+claude plugin marketplace list
+claude plugin list
+```
+
+After installation, Semaphor MCP tools should be available to Claude Code as
+first-class callable tools. The plugin exposes:
+
+- `semaphor`: hosted OAuth MCP for login and project discovery.
+- `semaphor-project`: project-token MCP bridge for scoped/local development.
+
+If a tool call asks for OAuth on first use, complete the login through the
+`/mcp` slash command in your Claude Code session, then re-run the request.
+
+### Upgrade
+
+```bash
+claude plugin marketplace update semaphor-analytics
+```
+
+If Claude Code still shows an older plugin after updating the marketplace,
+remove and reinstall the plugin:
+
+```bash
+claude plugin uninstall semaphor@semaphor-analytics
+claude plugin install semaphor@semaphor-analytics
+```
+
+### Remove
+
+Remove only the installed plugin:
+
+```bash
+claude plugin uninstall semaphor@semaphor-analytics
+```
+
+Remove the marketplace source as well:
+
+```bash
+claude plugin marketplace remove semaphor-analytics
+```
+
+`plugin uninstall` removes the installed plugin. `marketplace remove` removes
+the marketplace source.
+
+### Debug MCP Tool Access
+
+Most users should not need this. Use it only when debugging from a local
+checkout of this repository and a host does not expose the Semaphor MCP tools
+as first-class callable tools:
+
+```bash
+npm run call:mcp -- --list-tools --dir /path/to/react-app
+npm run call:mcp -- semaphor_get_access_context --dir /path/to/react-app
+```
 
 ## Connect To Semaphor
 
-The lowest-friction first run is Semaphor login:
+The lowest-friction first run is Semaphor login.
+
+From Codex:
 
 ```bash
 codex mcp login semaphor
 ```
+
+From Claude Code, run the `/mcp` slash command in your session and complete the
+OAuth flow for the `semaphor` server.
 
 Then ask the agent:
 
