@@ -17,7 +17,8 @@ relationship-aware filters, cascading option lists, joined projections,
 cross-source filters, planner prompts, generated React source guidance, or MCP
 tool workflow guidance, read:
 
-- [Relationship-Aware Filters, Cascading Inputs, And Joined Views](/Users/rohit/code/semaphor/semaphor-app/docs/system-architecture/data-apps/RELATIONSHIP_AWARE_FILTERS_AND_JOINS_PLAN.md)
+- Relationship-Aware Filters, Cascading Inputs, And Joined Views:
+  `semaphor-app/docs/system-architecture/data-apps/RELATIONSHIP_AWARE_FILTERS_AND_JOINS_PLAN.md`
 
 That Semaphor App plan is the source of truth for scope, assumptions, accepted
 decisions, non-goals, phase gates, progress checklist, and reviewer

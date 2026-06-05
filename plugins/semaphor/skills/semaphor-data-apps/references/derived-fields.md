@@ -34,7 +34,7 @@ const revenueQuery = semaphor.metric({
   id: "extended-price-by-region",
   source,
   derivedFields: [extendedPrice],
-  metrics: [
+  measures: [
     {
       name: "extended_price",
       label: "Extended Price",

@@ -200,8 +200,8 @@ const totalRevenueQuery = semaphor.metric({
   id: "total-revenue",
   label: "Total Revenue",
   source,
-  metrics: [revenue],
-  primaryMetric: revenue,
+  measures: [revenue],
+  primaryMeasure: revenue,
 });
 
 export const semaphorApp = defineSemaphorDataApp({
@@ -313,8 +313,8 @@ const grossMarginField = {
 const grossMarginQuery = semaphor.metric({
   id: "gross-margin",
   source,
-  metrics: [grossMarginField],
-  primaryMetric: grossMarginField,
+  measures: [grossMarginField],
+  primaryMeasure: grossMarginField,
   derivedFields: [grossMargin],
 });
 
@@ -567,8 +567,8 @@ const regionFilter = semaphor.filter({
 const filteredRevenueQuery = semaphor.metric({
   id: "filtered-revenue",
   source,
-  metrics: [revenue],
-  primaryMetric: revenue,
+  measures: [revenue],
+  primaryMeasure: revenue,
   inputs: [regionFilter],
 });
 
@@ -614,8 +614,8 @@ const revenueDriversQuery = semaphor.analysis({
   id: "revenue-driver-insight",
   label: "Revenue Drivers",
   source,
-  metrics: [revenue],
-  primaryMetric: revenue,
+  measures: [revenue],
+  primaryMeasure: revenue,
   dateField: orderDate,
   timeGrain: "month",
   timeWindow: {

@@ -92,6 +92,23 @@ unsupported gaps. Do not replace this with an improvised prose plan or jump
 straight to SQL unless the planner returns a justified SQL fallback or the
 user explicitly requests SQL.
 
+When MCP tool discovery is needed, expose the specific Semaphor tools you need
+instead of inspecting plugin files or manually speaking MCP. The normal first
+calls for data-app work are:
+
+- `semaphor_get_access_context`
+- `semaphor_list_semantic_domains`
+- `semaphor_list_datasets`
+- `semaphor_get_dataset_schema`
+- `semaphor_get_domain_relationships`
+- `semaphor_plan_data_app`
+- `semaphor_plan_data_app_change`
+
+If these first-class tools are not exposed in the host session, say that the
+host did not expose Semaphor MCP tools and ask the user to reinstall/reload the
+plugin or authenticate. The fallback wrapper is for plugin debugging and evals;
+ordinary app authoring should not inspect plugin internals to find it.
+
 For planning details, read [planning-workflow.md](references/planning-workflow.md).
 
 For any operation that creates or changes visible UI (`create_app`, `add_view`,
@@ -213,10 +230,15 @@ After Semaphor auth and project context are resolved, inspect the target repo:
 5. Detect likely framework from dependencies and files.
 6. Locate sensible component, route, or page insertion points.
 
-Use this plugin's helpers when useful:
+Keep source discovery narrow. Prefer `package.json`, lockfiles, `src/`, app
+route/component folders, and existing docs. Avoid broad repo scans that dump
+`node_modules`, build output, or generated artifacts into context. Do not
+search `node_modules/react-semaphor` for SDK implementation details during
+ordinary authoring; use this skill's public SDK references first.
+
+Use this plugin's helper when useful:
 
 ```bash
-node scripts/detect-react-app.mjs --dir <app>
 node scripts/init-semaphor-data-app.mjs --dir <app>
 ```
 

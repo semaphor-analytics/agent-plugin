@@ -344,8 +344,8 @@ Fix:
 ```tsx
 const revenueQuery = semaphor.metric({
   source,
-  metrics: [revenue],
-  primaryMetric: revenue,
+  measures: [revenue],
+  primaryMeasure: revenue,
 });
 
 const result = useSemaphorQuery(revenueQuery);

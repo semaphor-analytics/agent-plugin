@@ -63,7 +63,7 @@ const region = semaphor.filter({
 
 const revenueQuery = semaphor.metric({
   source,
-  metrics: [revenue],
+  measures: [revenue],
   inputs: [region],
 });
 
@@ -94,6 +94,33 @@ per card rather than applied to everything.
 
 Do not force a global "apply to all queries" filter or assume every card
 inherits a control. Thread the handle only into the cards that should respond.
+
+When one visible input must filter different fields per query, bind the same
+handle through `semaphor.bindInput(...)` instead of creating duplicate visible
+controls. Common cases:
+
+- one Date Range filtering `orders.order_date` and `invoices.invoice_date`;
+- one conformed Material Family selector filtering purchase and sales facts
+  through their relationship-aware material-family refs;
+- one human-readable dimension selector whose option query comes from a
+  related dimension but whose subscribed cards are fact-backed.
+
+```tsx
+const [dateRangeHandle] = useSemaphorInputs([dateRange]);
+
+const purchaseRows = useSemaphorQuery(purchaseQuery, {
+  inputs: [semaphor.bindInput(dateRangeHandle, { field: purchaseDate })],
+});
+const salesRows = useSemaphorQuery(salesQuery, {
+  inputs: [semaphor.bindInput(dateRangeHandle, { field: saleDate })],
+});
+```
+
+If the planner returns `input.bindings[]`, each binding is a server-side
+subscription target. Preserve its `fieldRef`, `relationshipHint`,
+`relationshipsUsed`, and `appliesToViewIds` in codegen. Do not flatten this
+into one bare `field` unless all subscribed queries truly use the same
+source-bearing field.
 
 ## Planner-Emitted Relationship Filters
 
@@ -136,6 +163,11 @@ const campaignOptions = semaphor.inputOptions({
 Pass the bound `campaignFilter` handle only to planned views whose ids appear
 in `input.appliesToViewIds`. Do not implement relationship-aware filtering by
 joining data in React or filtering a fetched table client-side.
+
+If the planned input includes `bindings[]`, pass the visible input handle
+through `semaphor.bindInput(handle, binding)` for each subscribed query rather
+than passing the raw handle unchanged. This preserves source-specific fields
+and relationship hints when the same control filters multiple datasets.
 
 ## SQL Params
 

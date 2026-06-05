@@ -6,7 +6,7 @@ Codex, Claude Code, and future coding-agent hosts.
 ## Operating Rules
 
 - Before implementing or reviewing active plan-specific work, read
-  [ACTIVE_IMPLEMENTATION_CONTEXT.md](/Users/rohit/code/semaphor/agent-plugin/plugins/semaphor/ACTIVE_IMPLEMENTATION_CONTEXT.md).
+  [ACTIVE_IMPLEMENTATION_CONTEXT.md](ACTIVE_IMPLEMENTATION_CONTEXT.md).
   Treat the linked source-of-truth plan documents there as authoritative for
   scope, assumptions, constraints, and settled decisions.
 - Keep this package host-neutral. Codex and Claude Code should use the same

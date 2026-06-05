@@ -24,6 +24,7 @@ import {
   SemaphorDataAppProvider,
   defineSemaphorDataApp,
   semaphor,
+  useClearInvalidSemaphorInputValue,
   useSemaphorInputs,
   useSemaphorQuery,
 } from "react-semaphor/data-app-sdk";
@@ -208,8 +209,8 @@ const revenue = {
 const revenueKpi = semaphor.metric({
   id: "revenue-kpi",
   source,
-  metrics: [revenue],
-  primaryMetric: revenue,
+  measures: [revenue],
+  primaryMeasure: revenue,
 });
 
 const result = useSemaphorQuery(revenueKpi);
@@ -241,19 +242,22 @@ Row access:
 
 ```tsx
 function RecordsTable({ result }: { result: SemaphorRecordsQueryResult }) {
+  const records = result.records ?? [];
+  const columns = result.columns ?? [];
+
   return (
     <table>
       <thead>
         <tr>
-          {result.columns?.map((column) => (
+          {columns.map((column) => (
             <th key={column.key}>{column.label || column.name}</th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {result.records.map((row, rowIndex) => (
+        {records.map((row, rowIndex) => (
           <tr key={rowIndex}>
-            {result.columns?.map((column) => (
+            {columns.map((column) => (
               <td key={column.key}>{String(row[column.key] ?? "")}</td>
             ))}
           </tr>
@@ -266,6 +270,17 @@ function RecordsTable({ result }: { result: SemaphorRecordsQueryResult }) {
 
 Use `column.key` for code access and `column.label` for display. Never read
 `row[column.label]`.
+
+When a helper accepts a broad `SemaphorQueryResult` union, narrow before reading
+records:
+
+```tsx
+function queryRecords(result: SemaphorQueryResult) {
+  return "records" in result && Array.isArray(result.records)
+    ? result.records
+    : [];
+}
+```
 
 Input-options-backed filter:
 
@@ -332,6 +347,39 @@ sort and page state in the Semaphor query spec, reset to page 1 when filters or
 sort change, and use a separate aggregate query when the UI needs a true total
 across all filtered rows rather than only the current page.
 
+Shared visible input bound into source-specific fields:
+
+```tsx
+const dateRange = semaphor.filter({
+  id: "date_range",
+  label: "Date Range",
+  field: orderDate,
+  operator: "between",
+});
+
+function Dashboard() {
+  const [dateRangeHandle] = useSemaphorInputs([dateRange]);
+
+  const orderRows = useSemaphorQuery(ordersQuery, {
+    inputs: [semaphor.bindInput(dateRangeHandle, { field: orderDate })],
+  });
+  const invoiceRows = useSemaphorQuery(invoicesQuery, {
+    inputs: [semaphor.bindInput(dateRangeHandle, { field: invoiceDate })],
+  });
+
+  const range = Array.isArray(dateRangeHandle.value)
+    ? dateRangeHandle.value
+    : [];
+  const [start, end] = range;
+}
+```
+
+Use `semaphor.bindInput(...)` when one visible input should map to different
+query fields, such as one Date Range filtering `orders.order_date` and
+`invoices.invoice_date`, or one Material Family selector filtering multiple
+facts through source-bearing related dimension fields. Narrow `handle.value`
+with `Array.isArray(...)` before indexing date ranges or multi-select values.
+
 ## Derived Fields
 
 Use `semaphor.derivedField(...)` when a view needs a calculated field that is
@@ -358,7 +406,9 @@ const grossMarginQuery = semaphor.metric({
   id: "gross-margin-by-segment",
   source,
   derivedFields: [grossMargin],
-  metrics: [{ name: "gross_margin", role: "measure", dataType: "number", source }],
+  measures: [
+    { name: "gross_margin", role: "measure", dataType: "number", source },
+  ],
   dimensions: [segmentField],
 });
 ```

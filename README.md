@@ -314,8 +314,8 @@ Typical query pattern:
 const revenueQuery = semaphor.metric({
   id: "total-revenue",
   source,
-  metrics: [revenue],
-  primaryMetric: revenue,
+  measures: [revenue],
+  primaryMeasure: revenue,
 });
 
 function RevenueKpi() {

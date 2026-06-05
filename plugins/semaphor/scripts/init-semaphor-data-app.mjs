@@ -85,8 +85,8 @@ const totalMetric = semaphor.metric({
   source,
   id: "total",
   label: "Total",
-  metrics: [metricField],
-  primaryMetric: metricField,
+  measures: [metricField],
+  primaryMeasure: metricField,
 });
 
 const recordsQuery = semaphor.records({
