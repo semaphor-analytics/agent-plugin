@@ -16,8 +16,8 @@
     "composerIcon": "./assets/composer-icon.png",
     "logo": "./assets/logo.png",
     "websiteURL": "https://semaphor.cloud",
-    "privacyPolicyURL": "https://semaphor.cloud/privacy",
-    "termsOfServiceURL": "https://semaphor.cloud/terms",
+    "privacyPolicyURL": "https://semaphor.cloud/legal/privacy-policy",
+    "termsOfServiceURL": "https://semaphor.cloud/legal/terms-of-service",
     "capabilities": [
       "Interactive",
       "Read",
