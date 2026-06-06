@@ -48,10 +48,12 @@ https://github.com/semaphor-analytics/agent-plugin
 3. Ask:
 
    ```text
-   What Semaphor data can I use in this project?
+   Inspect my Semaphor project and propose a data app plan.
    ```
 
-4. Then ask the agent to plan, build, validate, save, or publish the app.
+4. Review the proposed domain, views, filters, table/dependency choices, and
+   files to change. Then ask the agent to build, revise, validate, save, or
+   publish the app.
 
 ## Documentation
 

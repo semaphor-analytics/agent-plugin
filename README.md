@@ -80,7 +80,7 @@ Do not commit real tokens.
 Start your coding agent from the app directory (`codex` or `claude`) and try:
 
 ```text
-Create a data app from my project.
+Inspect my Semaphor project and propose a data app plan.
 ```
 
 Semaphor should inspect your project data, propose a plan, and then help build

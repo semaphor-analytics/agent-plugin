@@ -2,7 +2,9 @@
 
 Planning and editing are separate. If the user asks to plan, do not change
 files. For broad Data App requests, large-table requests, or existing-app
-changes, produce a visible plan before editing.
+changes, produce a visible plan before editing. Treat broad app creation as a
+review-first workflow: inspect, propose, ask, then build only after the user
+accepts a plan or gives a narrow explicit implementation instruction.
 
 Use Semaphor planner tools as the source of truth for broad analytical work:
 
@@ -15,10 +17,31 @@ Use Semaphor planner tools as the source of truth for broad analytical work:
   `existingViewIds`, and known inputs.
 
 Do not replace planner output with an agent-invented plan. Present the returned
-plan or change plan, then build from its `sources`, `inputs`, `views`,
-`operations`, `sdkSpec`, assumptions, and unsupported gaps. If the planner
-blocks or asks for a domain/operation/current state, ask the user or inspect
-the app instead of guessing.
+plan or change plan, then wait for the user's decision before editing files.
+Build from its `sources`, `inputs`, `views`, `operations`, `sdkSpec`,
+assumptions, and unsupported gaps. If the planner blocks or asks for a
+domain/operation/current state, ask the user or inspect the app instead of
+guessing.
+
+## Domain And Source Choice
+
+Do not silently choose a domain for a broad app request when the user did not
+name one. After `semaphor_get_analysis_context` or
+`semaphor_list_semantic_domains`, present a short set of relevant domain/app
+options and ask which direction to use.
+
+If one domain is clearly implied by the user's words or there is only one
+usable domain, state the assumption and still ask for confirmation before
+editing:
+
+```text
+I can build this from Talent Ops. I also found Finance and Product Usage, but
+they do not match the request as closely. Should I use Talent Ops for the app
+plan?
+```
+
+If the user already named a domain/source, use it, but still present the
+planned views and wait for acceptance before codegen.
 
 Treat the accepted planner response as the codegen contract:
 
@@ -100,6 +123,22 @@ When building from an accepted plan, keep the implementation traceable:
 - preserve view-owned query ownership unless the plan explicitly declares a
   shared-query optimization.
 
+Before editing, include the intended file/component layout in the visible
+plan. If the host app has no stronger convention and the plan has more than
+two data-bearing views, use a small inspectable structure such as:
+
+```text
+src/semaphor/queries.ts
+src/semaphor/inputs.ts
+src/components/layout/FilterBar.tsx
+src/components/cards/<ViewName>Card.tsx
+src/utils/formatting.ts
+```
+
+If the implementation later needs to deviate from the accepted file layout,
+say why before making the deviation or report it as a limitation after
+validation.
+
 ## Data App Planning Response
 
 For broad Data App-building requests, respond with a compact plan before
@@ -108,6 +147,7 @@ editing files. Treat this as a required gate, not background reasoning.
 Include:
 
 - app title and purpose;
+- selected domain/source plus any reasonable alternatives considered;
 - selected Semaphor sources and why they were chosen;
 - source coverage: included, excluded, unsupported, and not found sources;
 - planned filters and which views they affect;
@@ -120,10 +160,15 @@ Include:
 - table UX expectations such as sorting and numeric totals;
 - table data-volume expectations: bounded result, server-side
   pagination/windowing, or unsupported SDK capability;
+- dependency and registry recommendations, including whether a shadcn
+  registry table, TanStack Table, TanStack Virtual, chart package, or starter
+  app is recommended and whether user approval is needed;
+- expected files/components to create or modify;
 - unsupported insights plus the semantic-model improvement needed to support
   them;
 - whether the target is a new app or an existing Data App;
-- one next step: build the plan, revise the plan, or inspect more data.
+- one next step with explicit choices: build the plan, revise the plan, choose
+  another domain/source, inspect more data, or cancel.
 
 ## MCP-To-Runtime Parity
 

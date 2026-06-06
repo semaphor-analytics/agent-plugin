@@ -155,7 +155,13 @@ Expected agent behavior:
 - inspect local React app structure,
 - call `semaphor_plan_data_app` and produce a visible grounded plan before
   editing if the request is broad,
-- generate only after acceptance or an explicit build request,
+- generate only after the user accepts the visible plan or gives a narrow
+  explicit build instruction for a previously reviewed plan,
+- when the user did not name a domain, present relevant domain/app options
+  instead of silently choosing one,
+- present the next choices as build the plan, revise the plan, choose another
+  domain/source, inspect more data, or cancel,
+- include the intended file/component layout before editing,
 - generate from the returned `sources`, `inputs`, `views`, `sdkSpec`,
   unsupported gaps, and assumptions instead of improvising query specs,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
@@ -164,14 +170,20 @@ Expected agent behavior:
   a shared-query optimization,
 - render loading, error, and empty states for each visible query result,
 - make table views sortable and include totals for displayed numeric columns,
-- keep table queries bounded, and use Semaphor server-side sorting,
-  filtering, and pagination/windowing for large-table requests instead of
-  fetching unbounded rows into React,
+- treat Semaphor data tables as server-backed BI views: keep table queries
+  bounded, and use Semaphor server-side sorting, filtering, and
+  pagination/windowing for exploratory or large-table requests instead of
+  fetching broad rows into React,
 - for large tables, state the server table plan before editing: query kind,
   fields, filters, server sort, page size, and `result.pagination` controls,
-- ask before adding table dependencies; prefer an existing app table/grid
-  library, or `@tanstack/react-table` plus `@tanstack/react-virtual` when
-  richer table state and virtualized rendering are needed,
+- use the Semaphor table registry as a reference implementation for server
+  pagination, sorting, state, formatting, and totals mechanics; install the
+  full component only when it fits the host UI and the user approves, otherwise
+  adapt the mechanics into the existing table/grid/design system,
+- ask before adding the Semaphor table registry item or table dependencies;
+  prefer an existing app table/grid library, or `@tanstack/react-table` plus
+  `@tanstack/react-virtual` when richer table state and virtualized rendering
+  are needed,
 - format numbers, dates, currencies, and percentages for scanning,
 - avoid static fixtures and invented datasets.
 
@@ -228,6 +240,10 @@ Expected agent behavior:
 - productize the view with `semaphor.matrix(...)` plus `useSemaphorQuery`,
 - define totals, subtotals, display limits, and sorting/windowing explicitly,
 - render loading, error, empty, sparse-cell, subtotal, and grand-total states,
+- use the Semaphor matrix registry as a reference implementation for payload
+  parsing, row hierarchy, pivot columns, sparse cells, subtotals, and grand
+  totals; install the full component only when it fits the host UI and the user
+  approves,
 - do not fetch unbounded detail rows and pivot them only in React.
 
 Expected validation:

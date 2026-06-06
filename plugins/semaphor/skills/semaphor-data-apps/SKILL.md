@@ -22,18 +22,25 @@ The coding agent owns local source inspection and edits. Semaphor owns auth,
 metadata, analytics grounding, permissions, governed execution, row limits,
 validation, save, and publish lifecycle.
 
-Normal loop:
+Normal loop: classify the request, resolve Semaphor auth/project context,
+inspect governed metadata and local source, visibly plan when broad, edit with
+public SDK builders/hooks, validate, then save or publish when requested.
 
-```text
-user request
-  -> classify operation
-  -> run Semaphor auth and project preflight first
-  -> inspect Semaphor MCP metadata and local React source
-  -> visibly plan when the request is broad or data-bearing
-  -> edit with public react-semaphor/data-app-sdk builders and hooks
-  -> validate locally and through Semaphor when credentials are available
-  -> save or publish through Semaphor lifecycle APIs when requested
-```
+## Workflow Gates
+
+Treat these gates as non-negotiable:
+
+1. Auth: call `semaphor_get_access_context` before local source inspection.
+2. Broad build: inspect data, present domain/source options and a visible plan,
+   then stop for user approval before editing.
+3. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
+   and preserve existing views by default.
+4. Dependencies: ask before installing registry items, TanStack, chart
+   libraries, or starter scaffolds unless already approved.
+5. SQL: use governed metric, records, analysis, matrix, and derived-field paths
+   before SQL unless the user explicitly asks for SQL.
+6. Completion: run typecheck/build, Semaphor validation, and browser smoke when
+   practical.
 
 Auth preflight is step zero for Semaphor work. Before reading package files,
 searching source, checking SDK declarations, running helper scripts, or editing
@@ -79,9 +86,19 @@ Classify the turn before editing:
 
 Planning and editing are separate. If the user asks to plan, do not change
 files. For broad dashboard/app requests, large-table requests, or existing-app
-changes, produce a visible plan before editing. If the user already clearly
-asked to build, continue after the visible plan unless the plan exposes
-unsupported, risky, or ambiguous work.
+changes, produce a visible plan before editing.
+
+Broad app creation is approval-gated. A user saying "build an app", "create a
+dashboard", or similar is permission to inspect, plan, and present options; it
+is not permission to choose a domain silently and start editing files. Stop
+after the visible plan and ask the user to choose one next step: build the
+plan, revise the plan, choose a different domain/source, inspect more data, or
+cancel.
+
+If the user already supplied a precise app plan or says to proceed with a
+specific previously presented plan, then edit. If the request is a narrow edit
+such as "add this already specified chart", proceed after confirming the local
+target and Semaphor source are unambiguous.
 
 For broad new Data App requests, use `semaphor_plan_data_app` as the planning
 source of truth before codegen. For substantial existing-app edits, use
@@ -91,6 +108,19 @@ the returned `sources`, `inputs`, `views`, `operations`, `sdkSpec`, and
 unsupported gaps. Do not replace this with an improvised prose plan or jump
 straight to SQL unless the planner returns a justified SQL fallback or the
 user explicitly requests SQL.
+
+The visible planning response must include:
+
+- the selected domain/source and any reasonable alternatives considered;
+- planned views, query kind, and whether each view is server-backed, derived,
+  presentation-only, unsupported, or SQL fallback;
+- planned filters and which views they affect;
+- table behavior and dependency recommendations, including whether a Semaphor
+  registry table or TanStack dependency would be useful;
+- files/components the agent expects to create or modify;
+- unsupported gaps and the semantic-model improvement needed;
+- a clear decision prompt: build, revise, choose another domain/source, inspect
+  more data, or cancel.
 
 When MCP tool discovery is needed, expose the specific Semaphor tools you need
 instead of inspecting plugin files or manually speaking MCP. The normal first
@@ -391,9 +421,9 @@ to the queries that should respond.
 controls, and pass the same handles to `useSemaphorQuery(query, { inputs })`.
 
 Tables should render from `result.columns`, support sorting, show a useful
-empty state, and include totals for displayed numeric columns. Large tables
-must be server-side tables; do not fetch a million rows and then paginate,
-sort, or filter only in React.
+empty state, and include totals for displayed numeric columns. Semaphor data
+tables are server-backed BI views. Do not fetch broad or complete table data
+and then paginate, sort, filter, pivot, or group it only in React.
 
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips

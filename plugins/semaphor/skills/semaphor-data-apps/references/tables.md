@@ -31,6 +31,29 @@ query specs and distinct loading/error states.
 Shared filters are input handles. Bind the input once, then pass it into every
 card query that should respond to it.
 
+## Server-Backed Table Principle
+
+Semaphor data tables are BI tables. Treat them as server-backed views even when
+the currently displayed row count is small. The app may render a bounded
+server-limited result, a server-paginated result, or a server-windowed result,
+but it should not fetch broad or complete data and then rely on React for the
+real table semantics.
+
+Server-backed means:
+
+- filters are represented as Semaphor inputs and applied by Semaphor execution;
+- pagination/windowing is represented in the Semaphor query when the table is
+  exploratory or large;
+- sorting for large or exploratory tables is represented in the Semaphor query;
+- displayed-row totals may be computed in React only for the returned page or
+  bounded window;
+- all-filtered-row totals require Semaphor-provided totals or a separate
+  aggregate query.
+
+The implementation choice is a UI strategy, not a data strategy. Use the
+customer app's design system where possible, but preserve Semaphor server-side
+query mechanics.
+
 ## Table Baseline
 
 If the Data App planner returns `view.visualSpec.tableBehavior`, use it as the
@@ -58,12 +81,12 @@ displayed. If the product needs a true total across all filtered data rather
 than the current page/window, create a separate aggregate query for that total
 instead of summing a paginated or truncated table client-side.
 
-Do not leave table sorting or totals as validator TODOs. If the app has a
-bounded rows table, implement displayed-row sorting and displayed-row totals in
-the generated table component. If the table is server-paginated, implement
-sort controls that update the Semaphor query/order spec and reset to the first
-page, then use a separate aggregate query when all-filtered-row totals are
-needed.
+Do not leave table sorting or totals as validator TODOs. For bounded
+server-limited rows, displayed-row sorting and displayed-row totals are
+acceptable only when the table is not pretending to represent the complete
+dataset. For server-paginated or exploratory tables, implement sort controls
+that update the Semaphor query/order spec and reset to the first page, then use
+a separate aggregate query when all-filtered-row totals are needed.
 
 Minimum bounded table pattern:
 
@@ -156,11 +179,11 @@ Minimum shadcn table shell:
 Keep this as a pattern, not a required exact component. Use the target app's
 existing card, table, button, and formatting helpers when present.
 
-## Large Tables
+## Exploratory And Large Tables
 
-Large or complete-dataset tables must be server-side tables. Do not fetch a
-million rows into React and then filter, sort, paginate, or virtualize only on
-the client.
+Exploratory, drill-through, large, or complete-dataset tables must keep table
+semantics on the server. Do not fetch a million rows into React and then
+filter, sort, paginate, or virtualize only on the client.
 
 Represent filtering and ordering in the Semaphor query spec, and represent
 server pages with:
@@ -207,18 +230,26 @@ field name, follow the installed public SDK contract. The important behavior is
 that large-table sort, filter, and pagination are represented in the Semaphor
 query, not applied only after fetching a large result set.
 
-## Semaphor Table Registry Component
+## Semaphor Table Registry Reference
 
 When the target app uses shadcn and the table needs server-side pagination,
 server-side sorting, bounded height, sticky headers, loading/error/empty states,
-or displayed totals, prefer Semaphor's reusable table registry item instead of
-hand-rolling those mechanics:
+or displayed totals, use Semaphor's reusable table registry item as the source
+of truth for the hard mechanics:
 
 ```bash
 npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/server-data-table
 ```
 
-Use this when:
+The registry can be used in two ways:
+
+- install the full component when the host app uses compatible shadcn/base UI
+  primitives and the user approves the dependency/source additions;
+- inspect or install the core/reference files and adapt the presentation shell
+  to the host app's existing table/grid/design system when the full component
+  does not fit.
+
+Use the registry reference when:
 
 - the planner returns `view.visualSpec.tableBehavior.serverSideRequired`;
 - the user asks for a large table, paginated table, sortable table, operational
@@ -226,13 +257,31 @@ Use this when:
 - the target app does not already have an equivalent high-quality server table
   component.
 
-Do not install the registry item blindly. First inspect the target app:
+Do not install the registry item blindly. First inspect the target app and put
+the recommendation in the visible plan:
 
 - if it already has a durable table/grid abstraction, adapt to that;
-- if it uses shadcn but lacks a server table, ask before adding the registry
-  item and its `@tanstack/react-table` dependency;
+- if it uses compatible shadcn/base UI primitives but lacks a server table, ask
+  before adding the registry item and its `@tanstack/react-table` dependency;
 - if the app does not use shadcn, preserve the host design system and use the
-  registry component only as implementation reference.
+  registry component as implementation reference rather than forcing the UI
+  stack.
+
+For broad app builds, this is an approval checkpoint. The planning response
+should say:
+
+```text
+This plan includes a server-side table. The recommended implementation is the
+Semaphor server table registry reference. It contains the server pagination,
+sorting, state, and formatting mechanics. Your app uses <design system>, so I
+can either install the full compatible registry component, adapt the mechanics
+into your existing table/grid, or build a minimal server-backed table without
+new dependencies. Which do you prefer?
+```
+
+Wait for the user's choice before running `npx shadcn@latest add ...` or
+installing table dependencies, unless the user already explicitly authorized
+dependency changes for the session.
 
 The registry item installs source under:
 
@@ -268,6 +317,21 @@ pagination, or order spec inside a component.
 Map `sort.key` back to the SDK field/order contract in app code. Do not assume
 the result key is always a valid SDK `orderBy.field` without checking the
 installed SDK contract and planner-provided field refs.
+
+When adapting the registry instead of installing it whole, preserve these
+mechanics:
+
+- map `result.columns` to visible table columns with `column.key` as the row
+  accessor and `column.label` as display text;
+- map `result.pagination` to page controls and do not synthesize complete-data
+  pagination from `records.length`;
+- reset page to 1 when filters, page size, or server sort changes;
+- express server sort through `orderBy` or the installed SDK's public sort
+  contract;
+- keep loading, refetching, error, empty, and partial states local to the
+  table;
+- compute displayed-row totals only from the returned page/window, and use a
+  separate aggregate query for all-filtered-row totals.
 
 ## Table Libraries
 

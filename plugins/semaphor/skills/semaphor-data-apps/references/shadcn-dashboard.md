@@ -100,6 +100,12 @@ scan.
 
 ## Tables
 
+Semaphor data tables are server-backed BI views. Use the host UI system for
+presentation, but keep filtering, exploratory pagination/windowing, and large
+table sorting in Semaphor query execution. Do not fetch broad result sets and
+then make them look paginated, sorted, filtered, pivoted, or grouped only in
+React.
+
 For bounded tables, use the host table component and implement:
 
 - Header labels from `result.columns[].label`.
@@ -117,12 +123,27 @@ For large or server-paginated tables, prefer TanStack Table and, for virtual
 scrolling, TanStack Virtual. Ask before adding dependencies unless the user has
 already approved installing table libraries.
 
-When the app uses shadcn and lacks an equivalent server table, prefer the
-Semaphor registry item documented in [tables.md](tables.md):
+When the app uses compatible shadcn/base UI primitives and lacks an equivalent
+server table, prefer the Semaphor registry item documented in
+[tables.md](tables.md):
 
 ```bash
 npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/server-data-table
 ```
+
+For governed matrix, pivot, or hierarchical views backed by
+`semaphor.matrix(...)`, prefer the Semaphor matrix registry item documented in
+[matrix.md](matrix.md):
+
+```bash
+npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/matrix-table
+```
+
+If the host app uses another design system, use the Semaphor registry files as
+reference implementations for payload parsing, server pagination/sorting,
+state handling, totals, sticky headers, sparse matrix cells, and hierarchy
+projection. Adapt those mechanics into the host UI instead of forcing shadcn
+or inventing the hard table mechanics from scratch.
 
 Do not fetch large result sets only to paginate, sort, or filter in React. Use
 server-side pagination, sorting, and filters when the app needs large tables.

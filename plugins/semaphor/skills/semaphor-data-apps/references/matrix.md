@@ -15,6 +15,42 @@ Do not build matrix behavior by fetching unbounded detail rows and pivoting in
 React. That bypasses Semaphor execution budgets, governed aggregation, totals,
 and server-side display limits.
 
+Matrix, pivot, and hierarchical tables are server-shaped BI views. Do not
+invent sparse-cell parsing, hierarchy projection, subtotal handling,
+grand-total placement, or pivot-column layout from scratch when Semaphor
+registry reference files are available. Use the registry as the source of
+truth for payload mechanics, then adapt the presentation to the customer app's
+design system when the full component does not fit.
+
+## Customer Language
+
+Customers may not say "matrix". Treat these as the same governed matrix-table
+family unless the requested shape is plainly a simple flat records table:
+
+- pivot table;
+- crosstab or cross-tab;
+- matrix table;
+- hierarchy table;
+- hierarchical table;
+- grouped table with subtotals;
+- row/column totals table;
+- drilldown-style table with nested row groups.
+
+Use `semaphor_matrix` during authoring/validation and productize with
+`semaphor.matrix(...)` when the requested table needs row axes, column axes,
+hierarchy, subtotals, grand totals, sparse cells, display limits, or
+server-shaped aggregation. Use `semaphor.records(...)` only for ordinary
+bounded detail rows without pivot/hierarchy semantics.
+
+Distinguish the table shapes:
+
+- hierarchical table: row hierarchy only, with no pivot columns. Use rows and
+  values, omit `columns`, and configure hierarchy/subtotals/totals as needed.
+- pivot table or crosstab: row axes plus one or more pivot column axes. Use
+  `columns` for the pivoted fields or time grains.
+- matrix table: umbrella term for either shape when the app needs governed
+  axes, totals, sparse cells, or server-shaped aggregation.
+
 ## Builder
 
 ```tsx
@@ -83,8 +119,46 @@ For every matrix view, make the plan explicit:
 `records`. Render from the matrix result shape or a local matrix projection
 component. Include loading, error, and empty states like any other query.
 
-If the target app has no matrix component yet, build a small bounded renderer
-from the returned grid shape first. Use a richer table library only after
+When the target app uses compatible shadcn/base UI primitives and does not
+already have a high-quality matrix or pivot component, prefer Semaphor's
+reusable registry item instead of hand-rolling sticky headers, sparse cell
+rendering, empty/error states, and bounded scrolling:
+
+```bash
+npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/matrix-table
+```
+
+If the host app uses another table/grid/design system, use the registry as a
+reference implementation for mechanics and adapt the visible shell. The hard
+parts to preserve are:
+
+- prefer the SDK-returned matrix `grid` projection when present;
+- derive a display grid from `matrixResult` only through the Semaphor matrix
+  payload contract, not ad hoc row/column guesses;
+- preserve row hierarchy, pivot column hierarchy, sparse cell presence,
+  subtotals, row totals, column totals, and grand totals;
+- keep row/column collapse state as presentation state only;
+- keep matrix sort/display limits represented in the Semaphor matrix query
+  where supported.
+
+The registry item installs source under:
+
+```text
+components/semaphor/matrix-table/
+  index.tsx
+  view.tsx
+```
+
+Use `SemaphorMatrixTable` when the app should execute a governed
+`semaphor.matrix(...)` query directly. Use `MatrixTableView` when rendering a
+fixture, a fake-server result, or an already loaded SDK matrix `grid` or
+`matrixResult`. Keep the matrix query spec visible in the app source through
+`queryFactory`; do not hide source, rows, columns, values, totals, filters,
+sort, or display limits inside a generic component.
+
+If the target app has no matrix component and does not use compatible shadcn,
+build a small bounded renderer from the returned grid shape first, using the
+registry mechanics as reference. Use a richer table library only after
 checking the existing app and asking before adding dependencies.
 
 ## Current Caveats
