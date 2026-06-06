@@ -172,13 +172,32 @@ the same project token. For a shipped customer app, do not commit a long-lived
 token into frontend source. Provide runtime auth through the customer app
 backend, Semaphor embed/token flow, or Semaphor hosted Data App runtime.
 
-Generated app code should normally pass only a token:
+Generated app code should normally pass only a token for execution routing and
+enable SDK DevTools only in local development:
 
 ```tsx
-<SemaphorDataAppProvider token={runtimeToken}>
+const enableDevtools =
+  import.meta.env.DEV || window.location.hostname === "localhost";
+
+<SemaphorDataAppProvider
+  token={runtimeToken}
+  debug={enableDevtools ? { exposeWindowBridge: true } : false}
+>
   {children}
+  <SemaphorDevtools
+    initialIsOpen={false}
+    buttonPosition="bottom-right"
+    panelPosition="right"
+  />
 </SemaphorDataAppProvider>
 ```
+
+Import `SemaphorDevtools` from `react-semaphor/data-app-sdk`. This root
+component gives developers the floating inspector and right dock, and lets
+coding agents read structured traces with
+`window.__SEMAPHOR_DEVTOOLS__?.snapshot()` in local dev. Use
+`panelPosition="bottom"` only when the user asks for a bottom dock. Do not enable
+`exposeWindowBridge` for production embeds or normal end-user runtime code.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` for the

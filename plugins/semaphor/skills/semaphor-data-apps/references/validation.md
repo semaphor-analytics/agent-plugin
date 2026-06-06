@@ -8,6 +8,26 @@ Before reporting completion, run the strongest available checks:
 - Semaphor MCP query checks for data-bearing analytics when credentials are
   available.
 
+Before reporting completion, inspect the generated structure and fix SDK-shape
+issues that would make Semaphor DevTools or reviewer agents misread the app:
+
+- visible filters and controls are defined with `semaphor.filter(...)`,
+  `semaphor.control(...)`, or `semaphor.sqlParam(...)`;
+- shared filter handles are created with `useSemaphorInputs(...)` in a shared
+  parent and passed to every query that should respond;
+- query-specific field differences use `semaphor.bindInput(...)`;
+- remote option lists use `semaphor.inputOptions(...)` plus
+  `useSemaphorQuery(...)`;
+- `semaphor.records(...)` is reserved for app content rows, charts, tables,
+  KPIs, or details, not hidden dropdown option derivation;
+- Semaphor DevTools shows content queries under Cards/Data traces and option
+  queries under Inputs;
+- unsupported SDK cases are explicitly reported with the workaround used.
+
+Do not call the implementation done if a records query exists only to populate
+a select, combobox, multi-select, or filter menu and the same behavior can be
+expressed with `semaphor.inputOptions(...)`.
+
 Treat the build as the authoritative app check when typecheck/build disagree.
 Some repos have a loose root `tsc --noEmit` that under-checks app sources, so a
 green typecheck plus a failing build means the build is right. Do not report

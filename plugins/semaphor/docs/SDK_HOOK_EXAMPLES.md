@@ -20,7 +20,10 @@ Wrap the app surface that uses Semaphor queries with `SemaphorDataAppProvider`.
 
 ```tsx
 import type { ReactNode } from "react";
-import { SemaphorDataAppProvider } from "react-semaphor/data-app-sdk";
+import {
+  SemaphorDataAppProvider,
+  SemaphorDevtools,
+} from "react-semaphor/data-app-sdk";
 
 export function SemaphorAnalyticsProvider({
   children,
@@ -29,9 +32,20 @@ export function SemaphorAnalyticsProvider({
   children: ReactNode;
   token: string;
 }) {
+  const enableDevtools =
+    import.meta.env.DEV || window.location.hostname === "localhost";
+
   return (
-    <SemaphorDataAppProvider token={token}>
+    <SemaphorDataAppProvider
+      token={token}
+      debug={enableDevtools ? { exposeWindowBridge: true } : false}
+    >
       {children}
+      <SemaphorDevtools
+        initialIsOpen={false}
+        buttonPosition="bottom-right"
+        panelPosition="right"
+      />
     </SemaphorDataAppProvider>
   );
 }
@@ -40,6 +54,13 @@ export function SemaphorAnalyticsProvider({
 In production, pass a scoped runtime token from the customer app backend, embed
 token flow, or hosted Semaphor runtime. Do not commit long-lived tokens into
 frontend source.
+
+The DevTools wiring above is for local development and author-preview
+debugging. It opens as a right dock by default so the app keeps vertical
+analytics space while remaining visible beside the inspector. It intentionally gives humans a floating inspector and
+gives agents `window.__SEMAPHOR_DEVTOOLS__?.snapshot()` for structured trace
+inspection. Do not enable `exposeWindowBridge` in production embeds or normal
+end-user runtime code.
 
 The SDK decodes the Semaphor API URL from the token. Generated customer code
 should not read `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or pass

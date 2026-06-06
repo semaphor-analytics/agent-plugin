@@ -138,6 +138,11 @@ as a required dashboard quality checklist, not optional inspiration.
   database credentials.
 - Generated runtime analytics code must use public
   `react-semaphor/data-app-sdk` builders and `useSemaphorQuery`.
+- Generated runtime filter option loading must use `semaphor.inputOptions(...)`
+  when choices come from Semaphor data. Do not use `semaphor.records(...)` to
+  fetch broad lookup rows and derive dropdown/select options in React unless
+  `inputOptions` cannot express the case. When that fallback is necessary,
+  state the SDK gap and the workaround before reporting completion.
 - When the Data App planner returns inputs, preserve the planner-emitted
   `fieldRef`, `optionQuery`, `population`, `relationshipHint`,
   `relationshipsUsed`, and `appliesToViewIds`. Use those bindings for
@@ -209,7 +214,7 @@ Load the narrow reference needed for the task:
 - Filters, controls, SQL params, shared/top-level filter subscriptions:
   [filters-and-inputs.md](references/filters-and-inputs.md)
 - Data-app UX baseline, loading/error/empty states, tables, totals,
-  pagination, large result sets, table libraries:
+  pagination, large result sets, Semaphor table registry item, table libraries:
   [tables.md](references/tables.md)
 - Required shadcn dashboard checklist, component choices, layout, charts,
   tables, states, and host design-system adaptation:
@@ -311,6 +316,7 @@ Use the public SDK contract as the codegen source of truth:
 ```tsx
 import {
   SemaphorDataAppProvider,
+  SemaphorDevtools,
   defineSemaphorDataApp,
   semaphor,
   useSemaphorInputs,
@@ -318,15 +324,46 @@ import {
 } from "react-semaphor/data-app-sdk";
 ```
 
-Provider setup should be token-only by default. Vite example:
+Provider setup should be token-only for execution routing, with SDK DevTools
+enabled in local development so the human and agent can inspect generated app
+behavior. Vite example:
 
 ```tsx
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
+const enableDevtools =
+  import.meta.env.DEV || window.location.hostname === "localhost";
 
-<SemaphorDataAppProvider token={runtimeToken}>
+<SemaphorDataAppProvider
+  token={runtimeToken}
+  debug={enableDevtools ? { exposeWindowBridge: true } : false}
+>
   {children}
+  <SemaphorDevtools
+    initialIsOpen={false}
+    buttonPosition="bottom-right"
+    panelPosition="right"
+  />
 </SemaphorDataAppProvider>
 ```
+
+This is the default generated-app wiring. `SemaphorDevtools` is the
+TanStack-style one-line root integration. It opens as a right dock by default
+so vertical analytics space remains available and the app stays visible beside
+the inspector; use `panelPosition="bottom"` only when the user asks for a
+bottom dock. Do not wrap every card in DevTools
+boilerplate. Stable query ids and labels are enough for the global inspector.
+Use `SemaphorViewBoundary` and `SemaphorDevtoolsInspectButton` only as
+optional enhancements inside an existing shared card shell.
+
+When debugging in a local browser, inspect structured traces through:
+
+```js
+window.__SEMAPHOR_DEVTOOLS__?.snapshot()
+```
+
+The window bridge must stay development-only. Do not enable
+`exposeWindowBridge` for production embeds, published tenant/end-user views, or
+normal customer runtime code.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` for
@@ -402,6 +439,25 @@ node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>
 Also run the target app's package typecheck/build scripts when present and
 reasonable, plus Semaphor MCP query checks for data-bearing analytics when
 credentials are available.
+
+Before saying an implementation is done, also inspect the generated app
+structure against the SDK contract:
+
+- every visible filter/control is backed by `semaphor.filter(...)`,
+  `semaphor.control(...)`, or `semaphor.sqlParam(...)`;
+- shared filters are bound once with `useSemaphorInputs(...)` and passed into
+  each subscribed `useSemaphorQuery(...)` call;
+- source-specific subscriptions use `semaphor.bindInput(...)` instead of
+  duplicate visible controls;
+- remote dropdown/search choices use `semaphor.inputOptions(...)` and appear as
+  input traces in Semaphor DevTools;
+- app content queries use `semaphor.metric`, `semaphor.records`,
+  `semaphor.analysis`, `semaphor.matrix`, or documented SQL fallbacks and
+  appear as card/data traces in Semaphor DevTools;
+- no `semaphor.records(...)` query is used only to derive filter option lists
+  in React unless an explicit SDK gap is reported to the user;
+- any unsupported analytics or SDK fallback is named plainly, including the
+  user-visible behavior and the workaround used.
 
 For lifecycle details, read [publish-lifecycle.md](references/publish-lifecycle.md).
 For validation details, read [validation.md](references/validation.md).

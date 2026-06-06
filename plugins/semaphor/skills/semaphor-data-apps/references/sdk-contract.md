@@ -22,6 +22,7 @@ Generated React should import SDK values from:
 ```tsx
 import {
   SemaphorDataAppProvider,
+  SemaphorDevtools,
   defineSemaphorDataApp,
   semaphor,
   useClearInvalidSemaphorInputValue,
@@ -121,20 +122,49 @@ signatures in a way that can produce the wrong result shape.
 
 ## Provider
 
-Provider setup should be token-only by default. Vite example:
+Provider setup should be token-only for execution routing, with SDK DevTools
+enabled in local development so humans and agents can inspect runtime traces.
+Vite example:
 
 ```tsx
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
+const enableDevtools =
+  import.meta.env.DEV || window.location.hostname === "localhost";
 
-<SemaphorDataAppProvider token={runtimeToken}>
+<SemaphorDataAppProvider
+  token={runtimeToken}
+  debug={enableDevtools ? { exposeWindowBridge: true } : false}
+>
   {children}
+  <SemaphorDevtools
+    initialIsOpen={false}
+    buttonPosition="bottom-right"
+    panelPosition="right"
+  />
 </SemaphorDataAppProvider>
 ```
 
 `SemaphorDataAppProvider` accepts `token?: string`, `apiBaseUrl?: string`, an
-optional executor override, and `children`. The provider internally reads
-Semaphor hosted runtime auth when present, so generated app code normally does
-not need to call runtime helpers itself.
+optional executor override, `debug?: boolean | object`, and `children`. The
+provider internally reads Semaphor hosted runtime auth when present, so
+generated app code normally does not need to call runtime helpers itself.
+
+DevTools defaults:
+
+- Always mount one root `<SemaphorDevtools />` in generated local/dev apps when
+  the package exports it.
+- Use the default `panelPosition="right"` dock so vertical analytics space
+  remains available and the app stays visible beside the inspector. Use
+  `panelPosition="bottom"` only when the user asks for a bottom dock.
+- Use `debug={enableDevtools ? { exposeWindowBridge: true } : false}` in
+  local/dev apps so the floating inspector appears and agents can read
+  `window.__SEMAPHOR_DEVTOOLS__?.snapshot()`.
+- Do not enable `debug` or `exposeWindowBridge` in production embeds,
+  published tenant/end-user views, or normal customer runtime code.
+- Do not wrap every card in DevTools boilerplate. `useSemaphorQuery()`
+  registrations populate the global inspector. Use `SemaphorViewBoundary` and
+  `SemaphorDevtoolsInspectButton` only when an existing shared card shell can
+  add contextual inspection once.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl` prop

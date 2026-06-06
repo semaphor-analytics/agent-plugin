@@ -289,6 +289,58 @@ Fix:
 Owner layer: customer app integration or SDK diagnostics if the idle state is
 unclear.
 
+## Data App DevTools Are Not Visible
+
+Symptom:
+
+```text
+The generated app runs, but the Semaphor DevTools bubble is missing.
+```
+
+Likely causes:
+
+- `<SemaphorDevtools />` is not mounted under `SemaphorDataAppProvider`,
+- provider `debug` is omitted or false,
+- the app is running from a non-dev host and the debug gate evaluates false,
+- the app still resolves an older `react-semaphor` package that does not export
+  `SemaphorDevtools`.
+
+Fix:
+
+```tsx
+import {
+  SemaphorDataAppProvider,
+  SemaphorDevtools,
+} from "react-semaphor/data-app-sdk";
+
+const enableDevtools =
+  import.meta.env.DEV || window.location.hostname === "localhost";
+
+<SemaphorDataAppProvider
+  token={runtimeToken}
+  debug={enableDevtools ? { exposeWindowBridge: true } : false}
+>
+  <App />
+  <SemaphorDevtools
+    initialIsOpen={false}
+    buttonPosition="bottom-right"
+    panelPosition="right"
+  />
+</SemaphorDataAppProvider>;
+```
+
+For agent/browser inspection, check:
+
+```js
+window.__SEMAPHOR_DEVTOOLS__?.snapshot()
+```
+
+If the snapshot is undefined in local dev, verify `debug` is enabled with
+`exposeWindowBridge: true` and restart the dev server after linking or
+upgrading `react-semaphor`.
+
+Owner layer: generated app provider wiring or package resolution.
+
 ## Browser Fetch Fails
 
 Symptom:

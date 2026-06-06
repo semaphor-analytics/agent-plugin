@@ -70,6 +70,7 @@ function scanSourceQuality(root, sourceFiles) {
   let hasProvider = false;
   let sqlQueryCount = 0;
   let governedQueryCount = 0;
+  const recordsQueryNames = collectRecordsQueryNames(sourceFiles);
 
   for (const filePath of sourceFiles) {
     const content = fs.readFileSync(filePath, "utf8");
@@ -114,16 +115,25 @@ function scanSourceQuality(root, sourceFiles) {
         `${location}: semaphor.records fields are typed as SemaphorFieldRef; use SemaphorRecordsField so every selected record field has a definite role.`,
       );
     }
+    const recordsOptionQuery = recordsQueryUsedForOptionDerivation(
+      content,
+      recordsQueryNames,
+    );
+    if (recordsOptionQuery) {
+      advisories.push(
+        `${location}: ${recordsOptionQuery} appears to use semaphor.records(...) as hidden filter option data. Use semaphor.inputOptions(...) for remote select/combobox choices, or document the SDK gap if records are required.`,
+      );
+    }
     if (content.includes("SemaphorDataAppProvider")) {
       hasProvider = true;
-    const usesServerUrlOverride =
-      /\bVITE_SEMAPHOR_SERVER_URL\b/.test(content) ||
-      /\bSEMAPHOR_SERVER_URL\b/.test(content);
-    if (
-      (!usesServerUrlOverride && /\bapiBaseUrl\s*=/.test(content)) ||
-      /\bVITE_SEMAPHOR_API_BASE_URL\b/.test(content) ||
-      /\bSEMAPHOR_API_BASE_URL\b/.test(content)
-    ) {
+      const usesServerUrlOverride =
+        /\bVITE_SEMAPHOR_SERVER_URL\b/.test(content) ||
+        /\bSEMAPHOR_SERVER_URL\b/.test(content);
+      if (
+        (!usesServerUrlOverride && /\bapiBaseUrl\s*=/.test(content)) ||
+        /\bVITE_SEMAPHOR_API_BASE_URL\b/.test(content) ||
+        /\bSEMAPHOR_API_BASE_URL\b/.test(content)
+      ) {
         advisories.push(
           `${location}: generated apps should rely on SemaphorDataAppProvider token URL inference by default. Pass apiBaseUrl only for explicit local or self-hosted routing overrides.`,
         );
@@ -230,8 +240,48 @@ function scanSourceQuality(root, sourceFiles) {
   return { advisories };
 }
 
+function collectRecordsQueryNames(sourceFiles) {
+  const names = new Set();
+  for (const filePath of sourceFiles) {
+    const content = fs.readFileSync(filePath, "utf8");
+    for (const match of content.matchAll(
+      /\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*semaphor\.records\s*\(/g,
+    )) {
+      names.add(match[1]);
+    }
+  }
+  return names;
+}
+
+function recordsQueryUsedForOptionDerivation(content, recordsQueryNames) {
+  if (!recordsQueryNames.size || !/\buseSemaphorQuery\s*\(/.test(content)) {
+    return undefined;
+  }
+  const optionContext =
+    /\b(?:Select|Combobox|MultiSelect|Command|Popover)\b/.test(content) ||
+    /\b[A-Za-z_$][\w$]*(?:Options|Items)\b/.test(content) ||
+    /\b(?:options|items)\s*=\s*useMemo\b/.test(content);
+  if (!optionContext) {
+    return undefined;
+  }
+  for (const name of recordsQueryNames) {
+    if (
+      new RegExp(
+        `\\buseSemaphorQuery\\s*\\(\\s*${escapeRegExp(name)}\\b`,
+      ).test(content)
+    ) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
 function countMatches(content, pattern) {
   return Array.from(content.matchAll(pattern)).length;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function runScript(root, packageManager, scriptName) {

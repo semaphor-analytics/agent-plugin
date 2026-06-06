@@ -117,6 +117,13 @@ For large or server-paginated tables, prefer TanStack Table and, for virtual
 scrolling, TanStack Virtual. Ask before adding dependencies unless the user has
 already approved installing table libraries.
 
+When the app uses shadcn and lacks an equivalent server table, prefer the
+Semaphor registry item documented in [tables.md](tables.md):
+
+```bash
+npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/server-data-table
+```
+
 Do not fetch large result sets only to paginate, sort, or filter in React. Use
 server-side pagination, sorting, and filters when the app needs large tables.
 

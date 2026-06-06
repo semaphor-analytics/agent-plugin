@@ -385,10 +385,34 @@ SDK:
 ```tsx
 import {
   SemaphorDataAppProvider,
+  SemaphorDevtools,
   semaphor,
   useSemaphorQuery,
 } from "react-semaphor/data-app-sdk";
 ```
+
+Generated local/dev apps should mount the SDK DevTools root once near the
+provider so developers and agents can inspect query traces:
+
+```tsx
+const enableDevtools =
+  import.meta.env.DEV || window.location.hostname === "localhost";
+
+<SemaphorDataAppProvider
+  token={runtimeToken}
+  debug={enableDevtools ? { exposeWindowBridge: true } : false}
+>
+  <App />
+  <SemaphorDevtools
+    initialIsOpen={false}
+    buttonPosition="bottom-right"
+    panelPosition="right"
+  />
+</SemaphorDataAppProvider>
+```
+
+The window bridge is for local/dev agent inspection only. Do not enable it for
+production embeds or normal end-user runtime code.
 
 Typical query pattern:
 

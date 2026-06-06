@@ -16,16 +16,41 @@ Generated customer code should pass the project/runtime token only. Vite
 example:
 
 ```tsx
-import { SemaphorDataAppProvider } from "react-semaphor/data-app-sdk";
+import {
+  SemaphorDataAppProvider,
+  SemaphorDevtools,
+} from "react-semaphor/data-app-sdk";
 
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
+const enableDevtools =
+  import.meta.env.DEV || window.location.hostname === "localhost";
 
 root.render(
-  <SemaphorDataAppProvider token={runtimeToken}>
+  <SemaphorDataAppProvider
+    token={runtimeToken}
+    debug={enableDevtools ? { exposeWindowBridge: true } : false}
+  >
     <App />
+    <SemaphorDevtools
+      initialIsOpen={false}
+      buttonPosition="bottom-right"
+      panelPosition="right"
+    />
   </SemaphorDataAppProvider>,
 );
 ```
+
+For generated local/dev apps, mount one root `<SemaphorDevtools />` and enable
+provider debug with `exposeWindowBridge` as shown above. The default right dock
+keeps vertical analytics space intact while the app remains visible beside the
+inspector; use `panelPosition="bottom"` only when the user asks for a bottom
+dock. This gives developers the floating
+inspector and gives coding agents a structured trace snapshot via
+`window.__SEMAPHOR_DEVTOOLS__?.snapshot()`. Do not enable the window bridge for
+production embeds, tenant/end-user views, or normal customer runtime code.
+Do not wrap every card in DevTools boilerplate; `useSemaphorQuery()` traces are
+enough for the global inspector. Add `SemaphorViewBoundary` and contextual
+inspect buttons only when the app already has a shared card shell.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` unless

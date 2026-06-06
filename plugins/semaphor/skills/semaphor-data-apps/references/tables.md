@@ -207,6 +207,68 @@ field name, follow the installed public SDK contract. The important behavior is
 that large-table sort, filter, and pagination are represented in the Semaphor
 query, not applied only after fetching a large result set.
 
+## Semaphor Table Registry Component
+
+When the target app uses shadcn and the table needs server-side pagination,
+server-side sorting, bounded height, sticky headers, loading/error/empty states,
+or displayed totals, prefer Semaphor's reusable table registry item instead of
+hand-rolling those mechanics:
+
+```bash
+npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/server-data-table
+```
+
+Use this when:
+
+- the planner returns `view.visualSpec.tableBehavior.serverSideRequired`;
+- the user asks for a large table, paginated table, sortable table, operational
+  queue, or drill-through/detail table;
+- the target app does not already have an equivalent high-quality server table
+  component.
+
+Do not install the registry item blindly. First inspect the target app:
+
+- if it already has a durable table/grid abstraction, adapt to that;
+- if it uses shadcn but lacks a server table, ask before adding the registry
+  item and its `@tanstack/react-table` dependency;
+- if the app does not use shadcn, preserve the host design system and use the
+  registry component only as implementation reference.
+
+The registry item installs source under:
+
+```text
+components/semaphor/server-data-table/
+  index.tsx
+  view.tsx
+  table-formatters.ts
+```
+
+`SemaphorServerDataTable` is a thin SDK wrapper. Keep the query spec visible in
+the app source through `queryFactory`; do not hide source, fields, filters,
+pagination, or order spec inside a component.
+
+```tsx
+<SemaphorServerDataTable
+  title="Orders"
+  queryFactory={({ page, pageSize, sort }) =>
+    semaphor.records({
+      source,
+      fields,
+      filters,
+      pagination: { page, pageSize },
+      orderBy: sort
+        ? { field: resolveSortField(sort.key), direction: sort.direction }
+        : undefined,
+    })
+  }
+  options={{ inputs }}
+/>
+```
+
+Map `sort.key` back to the SDK field/order contract in app code. Do not assume
+the result key is always a valid SDK `orderBy.field` without checking the
+installed SDK contract and planner-provided field refs.
+
 ## Table Libraries
 
 For rich table UX, inspect the target app first. Use its existing table/grid

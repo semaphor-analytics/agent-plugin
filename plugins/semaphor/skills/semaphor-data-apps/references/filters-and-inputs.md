@@ -30,6 +30,76 @@ const result = useSemaphorQuery(rowsQuery, {
 - Pass handles, not raw specs, to `useSemaphorQuery`.
 - Bind shared filters once in a parent when multiple queries should subscribe.
 
+## Option Query Contract
+
+When a visible select, combobox, multi-select, typeahead, or filter menu needs
+choices from Semaphor data, generate a `semaphor.inputOptions(...)` query and
+execute it with `useSemaphorQuery(...)`.
+
+Do not use `semaphor.records(...)` to fetch broad lookup rows and derive option
+lists in React. That hides the query's intent from Semaphor DevTools, makes
+agent review ambiguous, and pushes filter semantics into app-local code.
+
+Use `semaphor.records(...)` only when the row set itself is app content, such
+as a table, chart, KPI backing query, or detail/lookup panel that the user
+reads directly. If an option-loading case genuinely cannot be expressed with
+`inputOptions`, keep the `records` workaround narrow and report the SDK gap and
+workaround in the final response.
+
+For cascading filters, use separate option queries with explicit input
+dependencies. Example: a `state-options` query for the State select and a
+`facility-options` query for the Facility select, where the facility query
+receives the selected State input handle.
+
+```tsx
+const stateFilter = semaphor.filter({
+  id: "facility_state",
+  label: "State",
+  field: facilityState,
+  operator: "=",
+});
+
+const facilityFilter = semaphor.filter<number[]>({
+  id: "facility_id",
+  label: "Facility",
+  field: facilityId,
+  operator: "in",
+});
+
+const stateOptions = semaphor.inputOptions({
+  id: "facility-state-options",
+  inputId: "facility_state",
+  source: facilitySource,
+  labelField: facilityState,
+  valueField: facilityState,
+  limit: 100,
+});
+
+const facilityOptions = semaphor.inputOptions({
+  id: "facility-options",
+  inputId: "facility_id",
+  source: facilitySource,
+  labelField: facilityName,
+  valueField: facilityId,
+  disambiguationFields: [facilityState],
+  dependencies: { mode: "explicit", includeInputIds: ["facility_state"] },
+  limit: 200,
+});
+
+function Filters() {
+  const [stateHandle, facilityHandle] = useSemaphorInputs([
+    stateFilter,
+    facilityFilter,
+  ]);
+  const states = useSemaphorQuery(stateOptions);
+  const facilities = useSemaphorQuery(facilityOptions, {
+    inputs: [stateHandle],
+  });
+
+  // Render controls from states.options and facilities.options.
+}
+```
+
 ## Operators
 
 For filter inputs, `operator` accepts canonical SDK symbols:
