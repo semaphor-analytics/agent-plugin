@@ -24,6 +24,46 @@ const FALLBACK_TOOLS = [
     description:
       'Diagnose Semaphor project-token setup. If no token is configured, this is an auth-blocking state for data-bearing app work: use the hosted OAuth MCP server named semaphor, ask the user to run codex mcp login semaphor, or add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local. Do not scaffold placeholder analytics when auth is unavailable.',
   },
+  {
+    name: 'semaphor_get_analysis_context',
+    description:
+      'Bootstrap Semaphor analytics context for the active project. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+  },
+  {
+    name: 'semaphor_list_semantic_domains',
+    description:
+      'List semantic domains available to the active project. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+  },
+  {
+    name: 'semaphor_list_datasets',
+    description:
+      'List datasets in a semantic domain. Requires domainId. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+  },
+  {
+    name: 'semaphor_get_dataset_schema',
+    description:
+      'Return grounded semantic dataset fields. Pass domainId, datasetName, and workspaceDir when the token lives in the target React app .env.local.',
+  },
+  {
+    name: 'semaphor_get_domain_relationships',
+    description:
+      'Return semantic-domain relationships. Requires domainId. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+  },
+  {
+    name: 'semaphor_plan_data_app',
+    description:
+      'Plan a Semaphor-backed React Data App from a selected semantic domain. Requires domainId and goal. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+  },
+  {
+    name: 'semaphor_plan_data_app_change',
+    description:
+      'Plan a preserve-by-default change to an existing Semaphor-backed React Data App. Requires goal. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+  },
+  {
+    name: 'semaphor_get_data_app_runtime_token',
+    description:
+      'Mint a scoped project runtime token in authenticated sessions. If project-token auth is unavailable, use hosted OAuth first.',
+  },
 ].map((tool) => ({
   ...tool,
   inputSchema: WORKSPACE_HINT_SCHEMA,

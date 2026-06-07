@@ -44,6 +44,11 @@ ignores ambiguous multi-root client root lists. If the current workspace has no
 active token, use OAuth or ask for a token instead of relying on a previously
 used project.
 
+The project-token bridge intentionally exposes core discovery and planning
+tools even when no token is found during `tools/list`. That makes
+`workspaceDir` recovery a first-class MCP path: retry the Semaphor tool with
+`workspaceDir` rather than using `call:mcp` for normal app authoring.
+
 When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an
 interactive hosted session. Start with `semaphor_get_access_context`, then
 `semaphor_list_projects`, then pass the chosen `projectId` to project-scoped

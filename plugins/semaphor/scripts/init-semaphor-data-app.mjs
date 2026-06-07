@@ -30,14 +30,26 @@ function writeFileIfAllowed(filePath, contents, force) {
 }
 
 const providerSource = `import type { ReactNode } from "react";
-import { SemaphorDataAppProvider } from "react-semaphor/data-app-sdk";
+import {
+  SemaphorDataAppProvider,
+  SemaphorDevtools,
+} from "react-semaphor/data-app-sdk";
 
 export function SemaphorAppProvider({ children }: { children: ReactNode }) {
+  const enableDevtools =
+    import.meta.env.DEV || window.location.hostname === "localhost";
+
   return (
     <SemaphorDataAppProvider
       token={import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN}
+      debug={enableDevtools ? { exposeWindowBridge: true } : false}
     >
       {children}
+      <SemaphorDevtools
+        initialIsOpen={false}
+        buttonPosition="bottom-right"
+        panelPosition="right"
+      />
     </SemaphorDataAppProvider>
   );
 }

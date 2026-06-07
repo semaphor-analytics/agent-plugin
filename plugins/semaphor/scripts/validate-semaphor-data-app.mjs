@@ -68,6 +68,8 @@ function scanSourceQuality(root, sourceFiles) {
   const advisories = [];
   let usesDataAppSdkHooks = false;
   let hasProvider = false;
+  let hasRootDevtools = false;
+  let hasProviderDebugBridge = false;
   let sqlQueryCount = 0;
   let governedQueryCount = 0;
   let totalSemaphorSpecCount = 0;
@@ -139,6 +141,9 @@ function scanSourceQuality(root, sourceFiles) {
     }
     if (content.includes("SemaphorDataAppProvider")) {
       hasProvider = true;
+      if (/\bdebug\s*=\s*\{[^}]*exposeWindowBridge/s.test(content)) {
+        hasProviderDebugBridge = true;
+      }
       const usesServerUrlOverride =
         /\bVITE_SEMAPHOR_SERVER_URL\b/.test(content) ||
         /\bSEMAPHOR_SERVER_URL\b/.test(content);
@@ -151,6 +156,9 @@ function scanSourceQuality(root, sourceFiles) {
           `${location}: generated apps should rely on SemaphorDataAppProvider token URL inference by default. Pass apiBaseUrl only for explicit local or self-hosted routing overrides.`,
         );
       }
+    }
+    if (/<SemaphorDevtools\b/.test(content)) {
+      hasRootDevtools = true;
     }
 
     const executesSemaphorQuery = /\buseSemaphorQuery\b/.test(content);
@@ -241,6 +249,18 @@ function scanSourceQuality(root, sourceFiles) {
   if (usesDataAppSdkHooks && !hasProvider) {
     advisories.push(
       "Data App SDK queries were found, but no SemaphorDataAppProvider import/usage was found. Queries stay idle without a runtime/provider unless the app supplies one through its own wrapper.",
+    );
+  }
+
+  if (usesDataAppSdkHooks && hasProvider && !hasRootDevtools) {
+    advisories.push(
+      "Generated local/dev Data Apps should mount one root <SemaphorDevtools /> under SemaphorDataAppProvider so authors and agents can inspect query and input traces. Do not add per-card wrappers.",
+    );
+  }
+
+  if (usesDataAppSdkHooks && hasProvider && !hasProviderDebugBridge) {
+    advisories.push(
+      "Generated local/dev Data Apps should pass SemaphorDataAppProvider debug={enableDevtools ? { exposeWindowBridge: true } : false} so browser/eval agents can inspect window.__SEMAPHOR_DEVTOOLS__.snapshot(). Keep this gated to local development or author preview.",
     );
   }
 

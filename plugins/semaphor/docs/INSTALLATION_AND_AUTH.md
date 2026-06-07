@@ -128,6 +128,19 @@ bridge uses that path only to read ignored local env files, then strips
 cache workspace paths across projects. If the current workspace has no active
 token, use the hosted OAuth path or add a token for that workspace.
 
+Production-ready auth behavior:
+
+- Hosted OAuth server `semaphor` is the first-run/account-level path. Use it to
+  log in, list projects, and mint a runtime project token when the user has not
+  configured a local token yet.
+- Project-token server `semaphor-project` is the deterministic app-local path.
+  It should expose core discovery and planning tools even when the bridge
+  cannot resolve a token during `tools/list`, so the agent can retry the same
+  first-class MCP tool with `workspaceDir` instead of switching to shell
+  wrappers.
+- `call:mcp` is a diagnostic fallback for debugging and eval forensics only.
+  It is not the normal app-building path.
+
 If a host does not expose those tools, use the fallback wrapper for debugging or
 evals:
 

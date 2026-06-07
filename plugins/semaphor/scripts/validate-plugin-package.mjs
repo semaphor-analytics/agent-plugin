@@ -156,6 +156,18 @@ function validateMcpConfig() {
         'scripts/semaphor-mcp-remote.mjs: client roots must be ignored unless exactly one root is reported; multi-root sessions must require explicit workspaceDir',
       );
     }
+    for (const requiredFallbackTool of [
+      'semaphor_get_analysis_context',
+      'semaphor_list_semantic_domains',
+      'semaphor_get_dataset_schema',
+      'semaphor_plan_data_app',
+    ]) {
+      if (!launcherText.includes(`name: '${requiredFallbackTool}'`)) {
+        issues.push(
+          `scripts/semaphor-mcp-remote.mjs: no-token fallback tools/list must expose ${requiredFallbackTool} so agents can retry first-class calls with workspaceDir`,
+        );
+      }
+    }
   }
 }
 
@@ -206,6 +218,24 @@ function validateSkillStructure() {
     if (!skillText.includes(`references/${fileName}`)) {
       issues.push(`skills/semaphor-data-apps/SKILL.md: missing link to references/${fileName}`);
     }
+  }
+}
+
+function validateDataAppInitializer() {
+  const initPath = path.join(root, 'scripts/init-semaphor-data-app.mjs');
+  if (!fs.existsSync(initPath)) {
+    return;
+  }
+  const initText = fs.readFileSync(initPath, 'utf8');
+  if (!initText.includes('SemaphorDevtools')) {
+    issues.push(
+      'scripts/init-semaphor-data-app.mjs: starter provider must mount one root SemaphorDevtools for local authoring inspection',
+    );
+  }
+  if (!/exposeWindowBridge\s*:\s*true/.test(initText)) {
+    issues.push(
+      'scripts/init-semaphor-data-app.mjs: starter provider must enable exposeWindowBridge behind a local/dev debug gate',
+    );
   }
 }
 
@@ -269,6 +299,7 @@ validateCodexManifest();
 validateClaudeManifest();
 validateMcpConfig();
 validateSkillStructure();
+validateDataAppInitializer();
 scanDistributionText();
 
 if (issues.length > 0) {
