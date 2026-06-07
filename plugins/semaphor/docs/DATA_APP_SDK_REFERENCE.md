@@ -180,7 +180,10 @@ const margin = result.measures?.gross_margin;
 
 Use separate `semaphor.records(...)` queries for companion trends, sparklines,
 tables, or grouped breakdowns. Do not use `records` just to make scalar KPI
-rendering easier.
+rendering easier. A successful scalar metric query should render from
+`result.value` and `result.measures`; if those are missing while DevTools shows
+aggregate rows, treat that as a Semaphor metric-runtime issue to report or fix,
+not as permission to silently convert the KPI to records.
 
 When validating SQL through MCP during authoring, start with a tiny preview
 such as `LIMIT 5` or `LIMIT 10` unless the user explicitly asks for more rows.
@@ -462,6 +465,10 @@ Ask before adding dependencies. Prefer an existing table/grid in the customer
 app. If no suitable table library exists, `@tanstack/react-table` is a good
 choice for table state and controls; add `@tanstack/react-virtual` only when
 virtualized rendering is required.
+
+If the user or planner explicitly selects server-side tables or the Semaphor
+table registry, that is approval to implement server-side table mechanics. Do
+not downgrade to client-only pagination/sorting to avoid a registry install.
 
 ## Validation
 

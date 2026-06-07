@@ -467,6 +467,44 @@ row["Movement Date"]
 Owner layer: SDK examples/codegen if generated incorrectly; SDK contract if
 `columns[].key` is missing.
 
+## Input Relationship Cannot Be Proven
+
+Symptom:
+
+```text
+Active input "filter_facility_id" cannot be applied because Semaphor could not
+prove a modeled relationship to "some_dimension".
+```
+
+Cause:
+
+The app passed a visible input handle to a query whose source cannot be safely
+filtered through the input's source-bearing field. A valid option list from a
+dimension table does not prove every KPI, chart, or table can subscribe to that
+dimension filter.
+
+Correct repair:
+
+- inspect the planner input's `appliesToViewIds`, `bindings[]`,
+  `relationshipHint`, and `relationshipsUsed`;
+- pass the input only to listed/same-source views or through
+  `semaphor.bindInput(handle, binding)` for source-specific bindings;
+- remove the input from views where Semaphor cannot prove a relationship;
+- report the semantic-model relationship gap if the user expected that view to
+  be filterable.
+
+Incorrect repair:
+
+- do not join or filter returned rows in React;
+- do not guess relationship ids or dimension fields;
+- do not convert the filtered query to SQL just to bypass relationship proof
+  unless the user explicitly approves a governed SQL fallback and the gap is
+  reported.
+
+Owner layer: generated code if it subscribed the wrong views; Semaphor semantic
+model if the expected relationship is missing; planner if it emitted an
+unprovable binding.
+
 ## Derived Field Fails Validation
 
 Symptom:

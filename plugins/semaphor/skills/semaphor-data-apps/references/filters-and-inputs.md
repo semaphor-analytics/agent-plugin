@@ -125,6 +125,20 @@ one input spec, bind it once with `useSemaphorInputs` in a shared parent or a
 small React context, then pass that same handle array into each query that
 should respond.
 
+Do not pass a shared input to every query just because the control is visible
+at the top of the dashboard. Each subscription must be one of:
+
+- the query uses the same source-bearing field as the input;
+- the planner listed that view in `input.appliesToViewIds`;
+- the query receives a `semaphor.bindInput(...)` binding with a planner-emitted
+  `fieldRef` and `relationshipHint` that Semaphor can prove server-side.
+
+If a runtime error says an active input cannot be applied because Semaphor
+could not prove a modeled relationship, the implementation is not complete.
+Remove that query from the input subscription or change it to the planner's
+source-specific binding, then report the missing semantic relationship if the
+desired filter cannot be expressed.
+
 ```tsx
 const region = semaphor.filter({
   id: "region",
@@ -239,6 +253,13 @@ If the planned input includes `bindings[]`, pass the visible input handle
 through `semaphor.bindInput(handle, binding)` for each subscribed query rather
 than passing the raw handle unchanged. This preserves source-specific fields
 and relationship hints when the same control filters multiple datasets.
+
+For dimensions such as Facility, Customer, Region, State, or Product that come
+from a dimension table, a valid option query is not enough. Each KPI, chart, or
+table that subscribes to that input must still have a same-source field or a
+modeled relationship path to that dimension. If one fact table cannot be
+related to the dimension, leave that view unfiltered by the input and call out
+the semantic-model relationship gap instead of forcing a broken global filter.
 
 ## SQL Params
 

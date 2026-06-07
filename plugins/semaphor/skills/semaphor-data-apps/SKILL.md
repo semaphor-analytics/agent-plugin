@@ -188,6 +188,12 @@ as a required dashboard quality checklist, not optional inspiration.
   `relationshipsUsed`, and `appliesToViewIds`. Use those bindings for
   server-side filters/cascading option lists; do not recreate the relationship
   with client-side joins, client-side filtering, or raw SQL.
+- Do not make a visible input globally active by default. Pass an input handle
+  only to queries listed in planner `appliesToViewIds`, queries on the same
+  source-bearing field, or queries with an explicit modeled relationship path.
+  If Semaphor cannot prove the relationship, remove that query from the input
+  subscription and report the semantic-model gap instead of shipping a broken
+  filter.
 - For data-bearing dashboards, use the governed path before SQL: discover
   semantic domains/datasets/schema, validate with `semaphor_analyze` or
   `semaphor_matrix`, then productize with `semaphor.metric`,
@@ -402,6 +408,12 @@ empty state, and include totals for displayed numeric columns. Semaphor data
 tables are server-backed BI views. Do not fetch broad or complete table data
 and then paginate, sort, filter, pivot, or group it only in React.
 
+If the user or planner explicitly asks for a server-side table or Semaphor
+table registry implementation, treat that as approval to implement the
+server-side table mechanics. You may still ask before adding unrelated
+dependencies, but do not downgrade to a client-only table because the registry
+requires an install step.
+
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips
 unless the user explicitly asks for a developer/debug view. Show business
@@ -464,8 +476,14 @@ structure against the SDK contract:
 - planner metric views and scalar KPI cards use `semaphor.metric(...)` unless
   the visual is row-shaped or the SDK cannot express it; multiple scalar KPIs
   in one card can use one `semaphor.metric(...)` query with multiple measures;
+- metric result rendering reads scalar KPIs from `result.value` and
+  `result.measures`; do not switch a scalar KPI to `semaphor.records(...)`
+  merely because the runtime also exposes aggregate rows;
 - no `semaphor.records(...)` query is used only to derive filter option lists
   in React unless an explicit SDK gap is reported to the user;
+- every input handle is passed only to same-source queries, planner-listed
+  `appliesToViewIds`, or queries with an explicit `relationshipHint`; no query
+  is left with a runtime "could not prove a modeled relationship" failure;
 - any unsupported analytics or SDK fallback is named plainly, including the
   user-visible behavior and the workaround used.
 

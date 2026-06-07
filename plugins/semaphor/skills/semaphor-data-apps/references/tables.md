@@ -258,7 +258,8 @@ Use the registry reference when:
   component.
 
 Do not install the registry item blindly. First inspect the target app and put
-the recommendation in the visible plan:
+the recommendation in the visible plan unless the user or planner has already
+explicitly selected the server-side table/registry path:
 
 - if it already has a durable table/grid abstraction, adapt to that;
 - if it uses compatible shadcn/base UI primitives but lacks a server table, ask
@@ -267,8 +268,9 @@ the recommendation in the visible plan:
   registry component as implementation reference rather than forcing the UI
   stack.
 
-For broad app builds, this is an approval checkpoint. The planning response
-should say:
+For broad app builds, this is an approval checkpoint when the user has not
+already approved the server-side table approach. The planning response should
+say:
 
 ```text
 This plan includes a server-side table. The recommended implementation is the
@@ -281,7 +283,10 @@ new dependencies. Which do you prefer?
 
 Wait for the user's choice before running `npx shadcn@latest add ...` or
 installing table dependencies, unless the user already explicitly authorized
-dependency changes for the session.
+server-side tables, the Semaphor table registry, or dependency changes for the
+session. When the user says to use server-side tables or the registry, do not
+fall back to a client-only table to avoid the install; either install/adapt the
+registry mechanics or report the concrete incompatibility that prevents it.
 
 The registry item installs source under:
 
