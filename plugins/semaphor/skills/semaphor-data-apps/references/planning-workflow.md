@@ -23,16 +23,45 @@ assumptions, and unsupported gaps. If the planner blocks or asks for a
 domain/operation/current state, ask the user or inspect the app instead of
 guessing.
 
+## Project And Domain Selection Gate
+
+`semaphor_plan_data_app` requires a resolved project and domain. Do not call it
+with a domain selected only by the agent when the user gave a broad request
+such as "create an app" or "build a dashboard".
+
+Resolve the project first:
+
+- Project-token mode fixes the project. State that fixed project scope.
+- OAuth mode with one visible project may use that project after stating the
+  assumption.
+- OAuth mode with multiple visible projects requires a user choice before
+  domain discovery or planning unless the user named the project.
+
+Resolve the domain next:
+
+- If the user named a domain/source, use it.
+- If the selected project has one usable semantic domain, state the assumption
+  and continue to planning.
+- If the selected project has multiple usable domains and the user did not
+  name one, present a short list of domain options and ask which domain to use.
+- If the goal clearly implies a domain, present that as the recommended domain
+  and ask the user to confirm it before planning.
+
+Only after the domain is selected or confirmed should the agent call
+`semaphor_plan_data_app`. Domain confirmation and plan acceptance are separate
+checkpoints: first choose the domain, then present the planner output, then
+ask whether to build it.
+
 ## Domain And Source Choice
 
 Do not silently choose a domain for a broad app request when the user did not
-name one. After `semaphor_get_analysis_context` or
+name one. After `semaphor_get_analysis_context` and
 `semaphor_list_semantic_domains`, present a short set of relevant domain/app
-options and ask which direction to use.
+options and ask which domain to use before planning.
 
 If one domain is clearly implied by the user's words or there is only one
 usable domain, state the assumption and still ask for confirmation before
-editing:
+planning when multiple domains are visible:
 
 ```text
 I can build this from Talent Ops. I also found Finance and Product Usage, but

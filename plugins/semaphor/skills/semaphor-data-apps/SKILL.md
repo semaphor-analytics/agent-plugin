@@ -28,18 +28,22 @@ public SDK builders/hooks, validate, then save or publish when requested.
 
 ## Workflow Gates
 
-Treat these gates as non-negotiable:
-
 1. Auth: call `semaphor_get_access_context` before local source inspection.
-2. Broad build: inspect data, present domain/source options and a visible plan,
-   then stop for user approval before editing.
-3. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
+2. Project: if OAuth exposes multiple projects and the user did not name one,
+   ask the user to select the project before domain discovery or planning.
+3. Domain: if a broad build has no explicit domain and the selected project
+   has multiple usable domains, ask the user to choose one. If the goal clearly
+   implies a domain, state the recommended domain and ask for confirmation
+   before calling `semaphor_plan_data_app`.
+4. Broad build: after project/domain confirmation, present a visible plan and
+   stop for user approval before editing.
+5. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
    and preserve existing views by default.
-4. Dependencies: ask before installing registry items, TanStack, chart
+6. Dependencies: ask before installing registry items, TanStack, chart
    libraries, or starter scaffolds unless already approved.
-5. SQL: use governed metric, records, analysis, matrix, and derived-field paths
+7. SQL: use governed metric, records, analysis, matrix, and derived-field paths
    before SQL unless the user explicitly asks for SQL.
-6. Completion: run typecheck/build, Semaphor validation, and browser smoke when
+8. Completion: run typecheck/build, Semaphor validation, and browser smoke when
    practical.
 
 Auth preflight is step zero for Semaphor work. Before reading package files,
@@ -88,12 +92,13 @@ Planning and editing are separate. If the user asks to plan, do not change
 files. For broad dashboard/app requests, large-table requests, or existing-app
 changes, produce a visible plan before editing.
 
-Broad app creation is approval-gated. A user saying "build an app", "create a
-dashboard", or similar is permission to inspect, plan, and present options; it
-is not permission to choose a domain silently and start editing files. Stop
-after the visible plan and ask the user to choose one next step: build the
-plan, revise the plan, choose a different domain/source, inspect more data, or
-cancel.
+Broad app creation is selection-gated and approval-gated. A user saying
+"build an app", "create a dashboard", or similar is permission to inspect
+Semaphor access, projects, and domains; it is not permission to choose a
+project/domain silently, call the planner, or edit files. Resolve the project,
+then confirm the domain before `semaphor_plan_data_app`. After planner output,
+present the visible plan and ask whether to build, revise, choose another
+domain/source, inspect more data, or cancel.
 
 If the user already supplied a precise app plan or says to proceed with a
 specific previously presented plan, then edit. If the request is a narrow edit

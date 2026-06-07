@@ -10,7 +10,8 @@ Separate three decisions:
 ```text
 1. Who are you?          -> Semaphor auth
 2. Which data?           -> Semaphor project
-3. Where should I code?  -> existing React app or starter app
+3. Which domain?         -> semantic domain in the selected project
+4. Where should I code?  -> existing React app or starter app
 ```
 
 Do not make the user understand MCP transport. Choose the lowest-friction path
@@ -38,16 +39,26 @@ based on what is already configured.
      chosen project and write `VITE_SEMAPHOR_PROJECT_TOKEN` to the app's
      ignored `.env.local`. Do not print the token.
 
-3. Inspect the current workspace.
+3. Resolve domain context for broad app requests.
+   - Call `semaphor_get_analysis_context` and
+     `semaphor_list_semantic_domains` for the selected project.
+   - If the user named a domain/source, use it.
+   - If there is one usable domain, state the assumption and continue.
+   - If there are multiple usable domains and the user did not name one, ask
+     the user to choose the domain before planning.
+   - If the goal clearly implies one domain, recommend it but still ask for
+     confirmation before calling `semaphor_plan_data_app`.
+
+4. Inspect the current workspace.
    - If it is a React app, use it by default.
    - If it is not a React app, ask whether to start from
      `semaphor-analytics/semaphor-data-app-starter`.
 
-4. Plan before broad codegen.
+5. Plan before broad codegen.
    - Use `semaphor_plan_data_app` for broad new apps.
    - Use `semaphor_plan_data_app_change` for substantial edits.
 
-5. Build, validate, and save/publish only when requested or clearly implied.
+6. Build, validate, and save/publish only when requested or clearly implied.
 
 ## OAuth Path
 
