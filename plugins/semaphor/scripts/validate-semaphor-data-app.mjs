@@ -70,6 +70,9 @@ function scanSourceQuality(root, sourceFiles) {
   let hasProvider = false;
   let sqlQueryCount = 0;
   let governedQueryCount = 0;
+  let totalSemaphorSpecCount = 0;
+  let semaphorModuleSpecCount = 0;
+  let nonSemaphorModuleSpecCount = 0;
   const recordsQueryNames = collectRecordsQueryNames(sourceFiles);
 
   for (const filePath of sourceFiles) {
@@ -80,6 +83,16 @@ function scanSourceQuality(root, sourceFiles) {
       content,
       /\bsemaphor\.(?:metric|records|analysis|matrix)\s*\(/g,
     );
+    const semaphorSpecCount = countMatches(
+      content,
+      /\bsemaphor\.(?:metric|records|analysis|matrix|inputOptions|sql|filter|control|sqlParam)(?:<[^>()]+>)?\s*\(/g,
+    );
+    totalSemaphorSpecCount += semaphorSpecCount;
+    if (/^src[/\\]semaphor[/\\]/.test(location)) {
+      semaphorModuleSpecCount += semaphorSpecCount;
+    } else {
+      nonSemaphorModuleSpecCount += semaphorSpecCount;
+    }
 
     if (
       /useSemaphor(?:Analysis|Metric|Records|Input|Inputs|InputOptions|Query)\b/.test(
@@ -234,6 +247,18 @@ function scanSourceQuality(root, sourceFiles) {
   if (sqlQueryCount > 0 && governedQueryCount === 0) {
     advisories.push(
       "The app uses semaphor.sql(...) but no governed semaphor.metric(...), semaphor.records(...), semaphor.analysis(...), or semaphor.matrix(...) queries. For dashboards, try the governed semantic path first and keep SQL only for explicitly unsupported views with documented fallback reasons.",
+    );
+  }
+
+  if (totalSemaphorSpecCount >= 4 && semaphorModuleSpecCount === 0) {
+    advisories.push(
+      "Broad Data Apps define several Semaphor specs but no src/semaphor/* module. Move sources, field refs, shared filters, input options, and query specs into src/semaphor/* so DevTools traces and reviewers can map visuals back to query contracts.",
+    );
+  }
+
+  if (totalSemaphorSpecCount >= 4 && nonSemaphorModuleSpecCount > 2) {
+    advisories.push(
+      `Broad Data Apps should not keep ${nonSemaphorModuleSpecCount} Semaphor specs outside src/semaphor/* modules. Components should import specs and own hook wiring/rendering, not source/query definitions.`,
     );
   }
 

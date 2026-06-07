@@ -41,10 +41,11 @@ lists in React. That hides the query's intent from Semaphor DevTools, makes
 agent review ambiguous, and pushes filter semantics into app-local code.
 
 Use `semaphor.records(...)` only when the row set itself is app content, such
-as a table, chart, KPI backing query, or detail/lookup panel that the user
-reads directly. If an option-loading case genuinely cannot be expressed with
-`inputOptions`, keep the `records` workaround narrow and report the SDK gap and
-workaround in the final response.
+as a table, chart, trend, grouped breakdown, or detail/lookup panel that the
+user reads directly. Scalar KPI cards should use `semaphor.metric(...)`; if an
+option-loading or KPI case genuinely cannot be expressed with the intended SDK
+builder, keep the workaround narrow and report the SDK gap and workaround in
+the final response.
 
 For cascading filters, use separate option queries with explicit input
 dependencies. Example: a `state-options` query for the State select and a

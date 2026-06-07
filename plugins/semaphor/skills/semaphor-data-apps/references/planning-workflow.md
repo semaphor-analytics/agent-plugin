@@ -146,8 +146,9 @@ model.
 When building from an accepted plan, keep the implementation traceable:
 
 - map each buildable `plan.views[*]` to an obvious card/insight component;
-- keep Semaphor query specs and shared inputs in small modules instead of
-  burying them inside a large `App.tsx`;
+- keep Semaphor sources, field refs, shared filters, input option specs, and
+  query specs in `src/semaphor/*` modules instead of burying them inside
+  `App.tsx` or one large dashboard component;
 - keep `App.tsx` focused on composition, app shell, filters, and layout;
 - preserve view-owned query ownership unless the plan explicitly declares a
   shared-query optimization.
@@ -159,6 +160,8 @@ two data-bearing views, use a small inspectable structure such as:
 ```text
 src/semaphor/queries.ts
 src/semaphor/inputs.ts
+src/semaphor/sources.ts
+src/semaphor/fields.ts
 src/components/layout/FilterBar.tsx
 src/components/cards/<ViewName>Card.tsx
 src/utils/formatting.ts

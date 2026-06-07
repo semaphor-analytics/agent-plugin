@@ -49,8 +49,10 @@ inspector and gives coding agents a structured trace snapshot via
 `window.__SEMAPHOR_DEVTOOLS__?.snapshot()`. Do not enable the window bridge for
 production embeds, tenant/end-user views, or normal customer runtime code.
 Do not wrap every card in DevTools boilerplate; `useSemaphorQuery()` traces are
-enough for the global inspector. Add `SemaphorViewBoundary` and contextual
-inspect buttons only when the app already has a shared card shell.
+enough for the global inspector. For broad generated dashboards, use the
+TanStack-style root DevTools integration only. If traceability needs help, pass
+hook-level debug metadata/source hints instead of adding per-card DevTools
+wrapper boilerplate.
 When cheap and non-repetitive, add hook-level source hints so DevTools and evals
 can point from a query trace back to code:
 
@@ -76,6 +78,34 @@ differs from the token's `apiServiceUrl`.
 For Next.js, Remix, React Router, or custom shells, follow the app's existing
 runtime configuration convention instead of forcing Vite env names.
 
+## Code Organization For Generated Dashboards
+
+For broad or multi-view generated dashboards, keep Semaphor definitions in
+dedicated modules. This is what lets DevTools traces, reviewer feedback, and
+future edits map a visible card back to the source/query contract quickly.
+
+Use this shape unless the host app already has an equivalent convention:
+
+```text
+src/
+  App.tsx
+  semaphor/
+    sources.ts
+    fields.ts
+    inputs.ts
+    queries.ts
+  components/
+    layout/FilterBar.tsx
+    cards/<ViewName>Card.tsx
+  utils/formatting.ts
+```
+
+`src/semaphor/*` owns Semaphor sources, field refs, shared filters, input option
+queries, and query specs. Components import those specs, call
+`useSemaphorQuery(...)`, and render loading/error/empty/ready states. Do not
+move a large dashboard from `App.tsx` into one large component while leaving
+all `semaphor.*(...)` specs there.
+
 ## Public Imports
 
 ```tsx
@@ -89,6 +119,7 @@ import {
 
 import type {
   SemaphorQueryResult,
+  SemaphorMetricQueryResult,
   SemaphorRecordsField,
   SemaphorRecordsQueryResult,
   SemaphorRowsQueryResult,
@@ -105,8 +136,10 @@ shape. Use the exported result types above.
 
 ## Builder Selection
 
-- `semaphor.metric`: single-number KPIs.
-- `semaphor.records`: rows for charts and tables from semantic fields.
+- `semaphor.metric`: scalar KPIs and aggregate KPI cards, including multiple
+  independent scalar measures from the same source.
+- `semaphor.records`: row-shaped results for charts, tables, trends,
+  breakdowns, grouped values, and detail lists from semantic fields.
 - `semaphor.analysis`: governed insight, driver, spike/drop, and
   period-change views.
 - `semaphor.sql`: SQL-backed views when the user explicitly asks for SQL or
@@ -119,6 +152,35 @@ shape. Use the exported result types above.
 
 Always inspect Semaphor MCP metadata first. Do not invent source, connection,
 dataset, table, or field identifiers.
+
+Use the planner's `queryKind` as the source of truth. If a planned view is
+`queryKind: "metric"`, implement it with `semaphor.metric(...)` unless the
+requested visual is actually row-shaped or the SDK cannot express the metric.
+When you must fall back to `semaphor.records(...)` for a planned metric view,
+record the fallback plainly in the final response and eval findings.
+
+`semaphor.metric(...)` supports multiple KPIs in one query through the
+`measures` array. `primaryMeasure` controls `result.value`; all scalar values
+are available in `result.measures` keyed by measure field name:
+
+```tsx
+const kpiQuery = semaphor.metric({
+  id: "sales-kpis",
+  source: salesSource,
+  measures: [salesValue, shippedTons, grossMargin],
+  primaryMeasure: salesValue,
+});
+
+const result = useSemaphorQuery(kpiQuery, { inputs });
+
+const sales = result.value;
+const tons = result.measures?.shipped_tons;
+const margin = result.measures?.gross_margin;
+```
+
+Use separate `semaphor.records(...)` queries for companion trends, sparklines,
+tables, or grouped breakdowns. Do not use `records` just to make scalar KPI
+rendering easier.
 
 When validating SQL through MCP during authoring, start with a tiny preview
 such as `LIMIT 5` or `LIMIT 10` unless the user explicitly asks for more rows.

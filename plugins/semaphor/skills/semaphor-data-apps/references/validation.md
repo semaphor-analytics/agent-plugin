@@ -18,8 +18,12 @@ issues that would make Semaphor DevTools or reviewer agents misread the app:
 - query-specific field differences use `semaphor.bindInput(...)`;
 - remote option lists use `semaphor.inputOptions(...)` plus
   `useSemaphorQuery(...)`;
+- scalar KPI cards and planner `queryKind: "metric"` views use
+  `semaphor.metric(...)` unless the visual is row-shaped or the SDK cannot
+  express it;
 - `semaphor.records(...)` is reserved for app content rows, charts, tables,
-  KPIs, or details, not hidden dropdown option derivation;
+  trends, breakdowns, grouped KPI support, or details, not hidden dropdown
+  option derivation or scalar KPI shortcuts;
 - Semaphor DevTools shows content queries under Cards/Data traces and option
   queries under Inputs;
 - unsupported SDK cases are explicitly reported with the workaround used.

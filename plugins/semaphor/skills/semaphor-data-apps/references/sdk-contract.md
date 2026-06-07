@@ -36,6 +36,7 @@ Reusable helper components can import SDK result types as needed:
 ```tsx
 import type {
   SemaphorQueryResult,
+  SemaphorMetricQueryResult,
   SemaphorRecordsField,
   SemaphorRecordsQueryResult,
   SemaphorResultColumn,
@@ -93,23 +94,29 @@ type SemaphorRecordsQueryResult<TRecord extends Record<string, unknown>> =
 
 Metric, records, SQL, matrix, and analysis results should be rendered from the
 documented public result surface. Do not inspect hidden `dist` declaration files
-or SDK internals to find special-case metric value properties. For KPI cards,
-prefer the first returned record and the metric column key:
+or SDK internals. For scalar KPI cards, prefer `semaphor.metric(...)` and render
+from the metric result:
 
 ```tsx
-function firstMetricValue(result: SemaphorRecordsQueryResult) {
-  const valueColumn =
-    result.columns?.find((column) => column.role === "measure") ??
-    result.columns?.[0];
-  return valueColumn ? result.records[0]?.[valueColumn.key] : undefined;
+function metricValue(
+  result: SemaphorMetricQueryResult,
+  measureName?: string,
+) {
+  return measureName ? result.measures?.[measureName] : result.value;
 }
 ```
+
+Use `semaphor.records(...)` for row-shaped KPI support only when the visual
+requires rows: trend points, sparklines, grouped breakdowns, tables, detail
+lists, or a shape that cannot be expressed as scalar measures.
 
 When typing reusable helper components, use public SDK result types. Do not use
 `ReturnType<typeof useSemaphorQuery>`; TypeScript collapses overloaded hook
 signatures in a way that can produce the wrong result shape.
 
 - Use `SemaphorQueryResult` for generic query status/error helper components.
+- Use `SemaphorMetricQueryResult` for `semaphor.metric(...)` scalar KPI
+  results.
 - Use `SemaphorRecordsQueryResult` for `semaphor.records(...)` results.
 - Use `SemaphorSqlQueryResult` for `semaphor.sql(...)` results.
 - Use `SemaphorRowsQueryResult` for table helpers that accept records-backed
@@ -162,9 +169,10 @@ DevTools defaults:
 - Do not enable `debug` or `exposeWindowBridge` in production embeds,
   published tenant/end-user views, or normal customer runtime code.
 - Do not wrap every card in DevTools boilerplate. `useSemaphorQuery()`
-  registrations populate the global inspector. Use `SemaphorViewBoundary` and
-  `SemaphorDevtoolsInspectButton` only when an existing shared card shell can
-  add contextual inspection once.
+  registrations populate the global inspector. For broad generated dashboards,
+  use the TanStack-style root DevTools integration only. If traceability needs
+  help, pass hook-level debug metadata/source hints instead of adding per-card
+  DevTools wrapper boilerplate.
 - When you can add source metadata without extra component wrappers, pass a
   hook-level source hint so DevTools and evals can point back to the likely app
   file:
@@ -205,9 +213,12 @@ patterns.
 
 Builder selection:
 
-- `semaphor.metric` for single-number KPIs.
-- `semaphor.records` for rows, tables, and charts, including bounded windows
-  via `dateField` and `timeWindow`; gives `columns[].key`.
+- `semaphor.metric` for scalar KPIs and aggregate KPI cards, including multiple
+  independent scalar measures from the same source. `primaryMeasure` controls
+  `result.value`; all values are available through `result.measures`.
+- `semaphor.records` for row-shaped results, tables, charts, trends,
+  breakdowns, and detail lists, including bounded windows via `dateField` and
+  `timeWindow`; gives `columns[].key`.
 - `semaphor.analysis` for insight, driver, spike/drop, and period-change
   views; also exposes `columns` and `resultSets` for typed row access.
 - `semaphor.sql` for advanced SQL-backed runtime views when semantic queries
@@ -262,6 +273,27 @@ const revenueKpi = semaphor.metric({
 
 const result = useSemaphorQuery(revenueKpi);
 ```
+
+Multiple scalar KPIs in one card:
+
+```tsx
+const salesKpis = semaphor.metric({
+  id: "sales-kpis",
+  source,
+  measures: [revenue, orders, grossMargin],
+  primaryMeasure: revenue,
+});
+
+const result = useSemaphorQuery(salesKpis);
+const revenueValue = result.value;
+const orderCount = result.measures?.orders;
+const grossMarginValue = result.measures?.gross_margin;
+```
+
+If the planner returns `queryKind: "metric"`, implement the view with
+`semaphor.metric(...)` unless the visual is actually row-shaped or the SDK
+cannot express the required metric. Record any `records` fallback as an explicit
+SDK/product limitation.
 
 Records chart/table:
 

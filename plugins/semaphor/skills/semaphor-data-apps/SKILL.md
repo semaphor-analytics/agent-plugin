@@ -296,49 +296,14 @@ Follow the target app's existing folder and naming conventions first. If the
 app has a clear route/component/query organization, extend that convention
 instead of imposing a new scaffold.
 
-For generated apps with more than two data-bearing views, avoid putting all
-queries, inputs, card rendering, formatting, and layout in one giant `App.tsx`.
-Use an inspectable structure where each planned view has an obvious file and
-Semaphor specs are easy to audit. A good default when the host app has no
-strong convention:
-
-```text
-src/
-  App.tsx
-  semaphor/
-    queries.ts
-    inputs.ts
-  components/
-    layout/
-      AppShell.tsx
-      FilterBar.tsx
-    cards/
-      KeyMetricsCard.tsx
-      TopContributorsCard.tsx
-      TrendCard.tsx
-      DetailTableCard.tsx
-    states/
-      LoadingState.tsx
-      EmptyState.tsx
-      ErrorState.tsx
-  utils/
-    formatting.ts
-    table.ts
-```
-
-Use this structure as a default, not a mandate:
-
-- `App.tsx` composes providers, app shell, shared filters, and card layout.
-- `src/semaphor/queries.ts` contains `semaphor.metric`, `semaphor.records`,
-  `semaphor.matrix`, `semaphor.analysis`, `semaphor.derivedField`, and
-  justified `semaphor.sql` specs.
-- `src/semaphor/inputs.ts` contains shared filter/control/input definitions.
-- `components/cards/*` should map closely to `plan.views[*]`: one file per
-  card/insight when the app has multiple data-bearing views.
-- Card components execute their own view-owned query with `useSemaphorQuery`
-  and render loading, empty, error, and ready states.
-- Shared formatting, table sorting/totals helpers, and row-access helpers live
-  outside `App.tsx`.
+For generated apps with more than two data-bearing views, do not put all
+queries, inputs, card rendering, formatting, and layout in one giant `App.tsx`
+or one giant dashboard component. Unless the host app already has an equivalent
+query/spec module convention, put Semaphor sources, field refs, shared filters,
+input option specs, and query specs under `src/semaphor/*`; view/card
+components should import those specs and own hook wiring, UI state, formatting,
+and rendering. Use `references/planning-workflow.md` for the default file
+layout before broad codegen.
 
 For tiny one-view apps, a compact structure is fine, but keep Semaphor query
 specs and row-access helpers readable enough that a future edit can identify
@@ -387,8 +352,10 @@ so vertical analytics space remains available and the app stays visible beside
 the inspector; use `panelPosition="bottom"` only when the user asks for a
 bottom dock. Do not wrap every card in DevTools
 boilerplate. Stable query ids and labels are enough for the global inspector.
-Use `SemaphorViewBoundary` and `SemaphorDevtoolsInspectButton` only as
-optional enhancements inside an existing shared card shell.
+For broad generated dashboards, use the TanStack-style root DevTools
+integration only. If source traceability needs help, pass hook-level debug
+metadata/source hints to `useSemaphorQuery` instead of adding per-card DevTools
+wrapper boilerplate.
 
 When debugging in a local browser, inspect structured traces through:
 
@@ -489,6 +456,9 @@ structure against the SDK contract:
 - app content queries use `semaphor.metric`, `semaphor.records`,
   `semaphor.analysis`, `semaphor.matrix`, or documented SQL fallbacks and
   appear as card/data traces in Semaphor DevTools;
+- planner metric views and scalar KPI cards use `semaphor.metric(...)` unless
+  the visual is row-shaped or the SDK cannot express it; multiple scalar KPIs
+  in one card can use one `semaphor.metric(...)` query with multiple measures;
 - no `semaphor.records(...)` query is used only to derive filter option lists
   in React unless an explicit SDK gap is reported to the user;
 - any unsupported analytics or SDK fallback is named plainly, including the
