@@ -62,6 +62,16 @@ server, selecting a project, and minting a local runtime token with
 `semaphor_get_data_app_runtime_token`. If the user needs deterministic
 project-token mode, continue with the checks below.
 
+If an OAuth tool says the app connection requires reauthentication, ask the
+user to run:
+
+```bash
+codex mcp login semaphor
+```
+
+Then tell them to say "try again". Treat this as a recoverable setup step, not
+as a refusal.
+
 Check:
 
 ```bash

@@ -26,8 +26,11 @@ based on what is already configured.
      first-run path when no project token is already active.
    - If a project token is already active, the project-token MCP server
      `semaphor-project` can report the fixed project scope.
-   - If neither OAuth nor a project token is available, ask the user to log in
-     or add a project token from `https://semaphor.cloud/project`.
+   - If neither OAuth nor a project token is available, or if OAuth says the
+     app connection requires reauthentication, ask the user to run
+     `codex mcp login semaphor` or add a project token from
+     `https://semaphor.cloud/project`, then say "try again". Treat this as a
+     resumable setup step, not as a refusal.
 
 2. Resolve project context.
    - Project-token mode: the token fixes the active project. Do not list
@@ -65,11 +68,15 @@ based on what is already configured.
 OAuth is the least-friction login path when no project token exists.
 
 In Codex, the hosted OAuth MCP server is named `semaphor`. If the host does
-not show it as authenticated, the user may need to run:
+not show it as authenticated, or if a tool reports that the app connection
+requires reauthentication, ask the user to run:
 
 ```bash
 codex mcp login semaphor
 ```
+
+Then wait for the user to say "try again". If the host needs a fresh session
+before refreshed OAuth tools appear, say that explicitly.
 
 After OAuth login, start with:
 

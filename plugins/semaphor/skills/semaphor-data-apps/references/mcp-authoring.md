@@ -58,20 +58,21 @@ chosen project and write the returned token to the app's ignored `.env.local`
 as `VITE_SEMAPHOR_PROJECT_TOKEN`. Do not print the token.
 
 If only the `semaphor-project` diagnostic tool is visible and it reports that
-no project token exists, treat the run as blocked on authentication unless the
-host also exposes hosted OAuth tools. Do not continue by scaffolding a generic
-dashboard shell, mock analytics, or placeholder query registry. A Semaphor
-data app build needs a resolved governed project before planning, metadata
-inspection, codegen, validation, save, or publish. Tell the user exactly what
-to do next:
+no project token exists, or if hosted OAuth returns `requires
+reauthentication`, pause for a recoverable auth step. Do not frame this as
+denying the request and do not continue by scaffolding a generic dashboard
+shell, mock analytics, or placeholder query registry. A Semaphor data app build
+needs a resolved governed project before planning, metadata inspection,
+codegen, validation, save, or publish. Tell the user exactly what to do next:
 
 ```bash
 codex mcp login semaphor
 ```
 
-Then ask them to restart/open a fresh agent session, or ask them to add
-`VITE_SEMAPHOR_PROJECT_TOKEN` to the target app's ignored `.env.local` and
-retry with `workspaceDir`.
+Then ask them to say "try again". If the host does not expose refreshed OAuth
+tools until a new session starts, say that as a host limitation. For
+project-token mode, ask them to add `VITE_SEMAPHOR_PROJECT_TOKEN` to the target
+app's ignored `.env.local` and retry with `workspaceDir`.
 
 Then follow the returned recommendation:
 
