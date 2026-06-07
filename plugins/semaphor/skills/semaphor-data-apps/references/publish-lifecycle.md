@@ -12,12 +12,13 @@ npm run publish:data-app -- --dir <app> --project-id <project-id> --title "<titl
 Save/publish must go through Semaphor Data App lifecycle REST/command APIs. Do
 not use MCP lifecycle wrappers for publish.
 
-The Semaphor Data App lifecycle API returns canonical `links.viewerUrl` and
-`links.consoleUrl` when an app id is known. The plugin helper maps those to
-top-level `url` and `consoleUrl` in its JSON output for convenience. Use those
-returned URLs when reporting the published app link. Do not inspect env files
-or route definitions to reconstruct the link after the API/helper has returned
-a URL.
+The Semaphor Data App lifecycle API returns canonical `links.consoleUrl` and
+`links.sampleEmbedUrl` when an app id is known. The plugin helper maps those to
+top-level `url`, `sampleEmbedUrl`, and `consoleUrl` in its JSON output for
+convenience. `sampleEmbedUrl` contains an `<accessToken>` placeholder for the
+customer's runtime embed token. Report the sample embed URL and console URL
+after publish; do not report a viewer URL, inspect env files, or probe route
+definitions to reconstruct links.
 
 ## Tokens And Routing
 

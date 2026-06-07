@@ -83,23 +83,27 @@ draft. That matters because the saved source snapshot must include the prepared
 manifest that Semaphor publishes.
 
 When publish succeeds, the Semaphor API returns canonical links. The helper
-also exposes them as top-level `url` and `consoleUrl` for agent ergonomics:
+also exposes `url`, `sampleEmbedUrl`, and `consoleUrl` at the top level for
+agent ergonomics. `sampleEmbedUrl` intentionally contains an `<accessToken>`
+placeholder; customers should replace it with a runtime embed token generated
+by their backend.
 
 ```json
 {
   "dataAppId": "d_123",
   "links": {
-    "viewerUrl": "https://semaphor.cloud/view/data-app/d_123",
-    "consoleUrl": "https://semaphor.cloud/project/proj_123/data-apps/d_123"
+    "consoleUrl": "https://semaphor.cloud/project/proj_123/data-apps/d_123",
+    "sampleEmbedUrl": "https://semaphor.cloud/embed/<accessToken>?dataAppId=d_123"
   },
-  "url": "https://semaphor.cloud/view/data-app/d_123",
+  "url": "https://semaphor.cloud/embed/<accessToken>?dataAppId=d_123",
+  "sampleEmbedUrl": "https://semaphor.cloud/embed/<accessToken>?dataAppId=d_123",
   "consoleUrl": "https://semaphor.cloud/project/proj_123/data-apps/d_123"
 }
 ```
 
-Use `url` as the published Data App link and `consoleUrl` as the Semaphor
-console/edit link. Do not reconstruct these links by reading env files or
-probing route definitions.
+Use `sampleEmbedUrl`/`url` as the customer-facing iframe sample and
+`consoleUrl` as the Semaphor console/edit link. Do not report a viewer URL or
+reconstruct links by reading env files or probing route definitions.
 
 On the first save or publish, the helper creates the hosted Data App and writes
 the returned identity to `semaphor.data-app.json`:

@@ -361,24 +361,74 @@ function normalizeDataAppLinks(links) {
   if (
     links &&
     typeof links === 'object' &&
-    typeof links.viewerUrl === 'string' &&
     typeof links.consoleUrl === 'string'
   ) {
+    const sampleEmbedUrl =
+      typeof links.sampleEmbedUrl === 'string'
+        ? links.sampleEmbedUrl
+        : deriveSampleEmbedUrlFromLegacyLinks(links);
+    if (!sampleEmbedUrl) {
+      throw new Error(
+        'Semaphor Data Apps API response is missing links.sampleEmbedUrl.',
+      );
+    }
     return {
-      viewerUrl: links.viewerUrl,
       consoleUrl: links.consoleUrl,
+      sampleEmbedUrl,
     };
   }
   throw new Error(
-    'Semaphor Data Apps API response is missing canonical links.viewerUrl and links.consoleUrl.',
+    'Semaphor Data Apps API response is missing canonical links.consoleUrl.',
   );
+}
+
+function deriveSampleEmbedUrlFromLegacyLinks(links) {
+  const dataAppId = extractDataAppIdFromUrl(links.consoleUrl) || extractDataAppIdFromUrl(links.viewerUrl);
+  const baseUrl = extractBaseUrl(links.consoleUrl) || extractBaseUrl(links.viewerUrl);
+  if (!dataAppId || !baseUrl) {
+    return '';
+  }
+  return `${baseUrl}/embed/<accessToken>?dataAppId=${dataAppId}`;
+}
+
+function extractBaseUrl(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  try {
+    const url = new URL(value);
+    return url.origin;
+  } catch {
+    return '';
+  }
+}
+
+function extractDataAppIdFromUrl(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  try {
+    const url = new URL(value);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const dataAppsIndex = parts.indexOf('data-apps');
+    if (dataAppsIndex >= 0 && parts[dataAppsIndex + 1]) {
+      return parts[dataAppsIndex + 1];
+    }
+    const viewDataAppIndex = parts.findIndex(
+      (part, index) => part === 'view' && parts[index + 1] === 'data-app',
+    );
+    return viewDataAppIndex >= 0 ? parts[viewDataAppIndex + 2] || '' : '';
+  } catch {
+    return '';
+  }
 }
 
 function resolveDataAppUrls(links) {
   const normalizedLinks = normalizeDataAppLinks(links);
   return {
     links: normalizedLinks,
-    url: normalizedLinks.viewerUrl,
+    url: normalizedLinks.sampleEmbedUrl,
+    sampleEmbedUrl: normalizedLinks.sampleEmbedUrl,
     consoleUrl: normalizedLinks.consoleUrl,
   };
 }
