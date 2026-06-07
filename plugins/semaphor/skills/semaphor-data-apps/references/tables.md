@@ -287,6 +287,7 @@ The registry item installs source under:
 
 ```text
 components/semaphor/server-data-table/
+  core.ts
   index.tsx
   view.tsx
   table-formatters.ts
@@ -321,6 +322,8 @@ installed SDK contract and planner-provided field refs.
 When adapting the registry instead of installing it whole, preserve these
 mechanics:
 
+- use `core.ts` as the reference for SDK column mapping, pagination metadata,
+  pagination summaries, sort state, and displayed numeric totals;
 - map `result.columns` to visible table columns with `column.key` as the row
   accessor and `column.label` as display text;
 - map `result.pagination` to page controls and do not synthesize complete-data

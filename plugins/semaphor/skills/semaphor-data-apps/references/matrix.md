@@ -145,6 +145,7 @@ The registry item installs source under:
 
 ```text
 components/semaphor/matrix-table/
+  core.ts
   index.tsx
   view.tsx
 ```
@@ -157,9 +158,11 @@ fixture, a fake-server result, or an already loaded SDK matrix `grid` or
 sort, or display limits inside a generic component.
 
 If the target app has no matrix component and does not use compatible shadcn,
-build a small bounded renderer from the returned grid shape first, using the
-registry mechanics as reference. Use a richer table library only after
-checking the existing app and asking before adding dependencies.
+build a small bounded renderer from the returned grid shape first. Use
+`core.ts` as the reference for matrix result-to-grid projection, visible
+hierarchy projection, collapse state, path keys, sort state, and cell
+formatting. Use a richer table library only after checking the existing app and
+asking before adding dependencies.
 
 ## Current Caveats
 
