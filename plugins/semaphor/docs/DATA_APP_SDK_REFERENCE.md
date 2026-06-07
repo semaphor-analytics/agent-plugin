@@ -51,6 +51,22 @@ production embeds, tenant/end-user views, or normal customer runtime code.
 Do not wrap every card in DevTools boilerplate; `useSemaphorQuery()` traces are
 enough for the global inspector. Add `SemaphorViewBoundary` and contextual
 inspect buttons only when the app already has a shared card shell.
+When cheap and non-repetitive, add hook-level source hints so DevTools and evals
+can point from a query trace back to code:
+
+```tsx
+const result = useSemaphorQuery(salesTrendQuery, {
+  debug: {
+    sourceHint: {
+      file: "src/components/SalesTrendCard.tsx",
+      component: "SalesTrendCard",
+    },
+  },
+});
+```
+
+Source hints are optional. Stable query ids, labels, and small query modules
+remain the primary traceability contract.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` unless

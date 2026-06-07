@@ -165,6 +165,23 @@ DevTools defaults:
   registrations populate the global inspector. Use `SemaphorViewBoundary` and
   `SemaphorDevtoolsInspectButton` only when an existing shared card shell can
   add contextual inspection once.
+- When you can add source metadata without extra component wrappers, pass a
+  hook-level source hint so DevTools and evals can point back to the likely app
+  file:
+
+```tsx
+const result = useSemaphorQuery(salesTrendQuery, {
+  debug: {
+    sourceHint: {
+      file: "src/components/SalesTrendCard.tsx",
+      component: "SalesTrendCard",
+    },
+  },
+});
+```
+
+Source hints are optional and should not replace stable query ids, labels, or
+small query modules. Do not add noisy repeated wrappers just to provide them.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl` prop
