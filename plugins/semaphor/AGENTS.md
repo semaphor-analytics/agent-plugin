@@ -13,22 +13,20 @@ Codex, Claude Code, and future coding-agent hosts.
 - Use Semaphor MCP for authoring discovery and governed analysis.
 - Generate runtime React code with public `react-semaphor/data-app-sdk` hooks.
 - Save and publish through Semaphor Data App lifecycle APIs when requested.
-- Infer server-backed table needs from intent, not only literal wording. If the
-  plan includes an operational table, queue, drill-through/detail table,
-  exploratory table, paginated/sortable table, or complete/large result table,
-  treat it as a server-side table candidate. After inspecting the target app
-  and presenting the plan, ask to use, install, or adapt the Semaphor shadcn
-  server table registry mechanics unless the app already has an equivalent
-  server-backed table abstraction.
+- Infer server-backed table needs from user intent and the planned UX, not only
+  literal wording. Ask before installing registry items or table dependencies
+  unless the user has already approved them; adapt server-backed table mechanics
+  into the host app when the planned experience needs pagination, sorting,
+  drill-through, or large/complete result sets.
 - Do not add a host-specific analytics language. Missing analytical behavior
   belongs in Semaphor's shared MCP, SDK, validation, or execution contracts.
-- Treat the Data App SDK and shared Analytics Spine as active development
-  surfaces, not production compatibility surfaces. If the plugin guidance, SDK
-  examples, MCP tool shapes, or validation expectations need to change to match
-  a better shared contract, hard-migrate the plugin docs and examples instead
-  of preserving obsolete shapes for compatibility.
-- Do not commit tokens, local test artifacts, private run notes, screenshots,
-  generated app artifacts, or release evidence to this package.
+- Use the current public Semaphor MCP, SDK, validation, and lifecycle
+  contracts. If examples or guidance are stale, update them to the current
+  public contract instead of generating compatibility aliases or host-specific
+  workarounds.
+- Do not commit tokens, local env files, generated run artifacts, screenshots,
+  private notes, or release evidence to this package or to customer app repos.
+  Keep local evidence in ignored output directories.
 
 ## Customer App Validation
 
