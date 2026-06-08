@@ -89,13 +89,13 @@ Planning and editing are separate. If the user asks to plan, do not change
 files. For broad dashboard/app requests, large-table requests, or existing-app
 changes, produce a visible plan before editing.
 
-Broad app creation is selection-gated and approval-gated. A user saying
-"build an app", "create a dashboard", or similar is permission to inspect
-Semaphor access, projects, and domains; it is not permission to choose a
-project/domain silently, call the planner, or edit files. Resolve the project,
-then confirm the domain before `semaphor_plan_data_app`. After planner output,
-present the visible plan and ask whether to build, revise, choose another
-domain/source, inspect more data, or cancel.
+Broad app creation is selection-gated and approval-gated. It permits inspecting
+Semaphor access, projects, and domains, not silently choosing a project/domain,
+planning, or editing files. Resolve the project, then confirm the domain when
+more than one is accessible. In one-domain scoped sessions, state the assumption
+and call the planner with that id or `domainId: "auto"`. After planner output,
+present the plan and ask whether to build, revise, choose another domain/source,
+inspect more data, or cancel.
 
 If the user already supplied a precise app plan or says to proceed with a
 specific previously presented plan, then edit. If the request is a narrow edit
@@ -110,6 +110,11 @@ the returned `sources`, `inputs`, `views`, `operations`, `sdkSpec`, and
 unsupported gaps. Do not replace this with an improvised prose plan or jump
 straight to SQL unless the planner returns a justified SQL fallback or the
 user explicitly requests SQL.
+
+For broad dashboard-style app creation, prefer `preferences.maxViews` around
+15, or 20 for wide coverage. Do not treat the 8-view default as a cap or shrink
+`maxViews`; pass `responseFormat: "codegen_summary"` when supported so the
+planner returns a bounded implementation summary instead of an oversized plan.
 
 The visible planning response must include:
 

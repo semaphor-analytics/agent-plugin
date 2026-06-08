@@ -23,11 +23,21 @@ assumptions, and unsupported gaps. If the planner blocks or asks for a
 domain/operation/current state, ask the user or inspect the app instead of
 guessing.
 
+For broad dashboard-style creation, pass a view budget large enough for a
+balanced first proposal. Use `preferences.maxViews: 15` by default, or up to
+20 for wider coverage. The default 8-view single-source plan is not a hard cap.
+When supported, pass `responseFormat: "codegen_summary"` for broad dashboard
+planning. Never shrink `maxViews` just because the returned planner JSON is
+verbose; keep the artifact bounded by using the codegen summary or summarizing
+fields and bindings, not by throwing away planned visual coverage.
+
 ## Project And Domain Selection Gate
 
-`semaphor_plan_data_app` requires a resolved project and domain. Do not call it
-with a domain selected only by the agent when the user gave a broad request
-such as "create an app" or "build a dashboard".
+`semaphor_plan_data_app` requires a resolved project and semantic domain. The
+normal path is to discover domains and pass the selected `domainId`. In a
+project-token or otherwise scoped session with exactly one accessible semantic
+domain, the planning tool may accept omitted `domainId` or `domainId: "auto"`.
+If multiple domains are available, do not guess; ask the user to choose.
 
 Resolve the project first:
 

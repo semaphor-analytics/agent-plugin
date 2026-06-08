@@ -30,6 +30,10 @@ Expected agent behavior:
 - inspect local React app structure,
 - call `semaphor_plan_data_app` and produce a visible grounded plan before
   editing if the request is broad,
+- for broad dashboard creation, request a balanced planner budget, normally
+  `preferences.maxViews: 15` and up to 20 for wide coverage; do not treat the
+  8-view default as a cap or shrink the plan because the artifact is verbose,
+  and use `responseFormat: "codegen_summary"` when supported,
 - generate only after the user accepts the visible plan or gives a narrow
   explicit build instruction for a previously reviewed plan,
 - when the user did not name a domain, present relevant domain/app options
