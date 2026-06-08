@@ -117,8 +117,9 @@ The visible planning response must include:
 - planned views with visual type, query kind, source fields, and whether each
   view is server-backed, derived, presentation-only, unsupported, or SQL
   fallback. Use clear visual labels such as KPI strip, KPI card, line chart,
-  bar chart, area chart, pie/donut chart, table, matrix, filter control, or
-  detail panel so the user knows what will appear before codegen;
+  bar chart, stacked bar chart, area chart, pie/donut chart,
+  text/commentary block, table, matrix, filter control, or detail panel so the
+  user knows what will appear before codegen;
 - planned filters and which views they affect;
 - table behavior and dependency recommendations, including whether a Semaphor
   registry table or TanStack dependency would be useful;

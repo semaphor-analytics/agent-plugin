@@ -159,8 +159,8 @@ Charts should answer one question clearly.
 - Include tooltips and readable axis labels.
 - Use chart colors from the host chart theme when available.
 - Do not use pie or donut charts for many categories.
-- Bar, pie/donut, and category comparison charts should be backed by
-  grouped/aggregate Semaphor queries at the same grain as the visual. Do not
+- Bar, stacked bar, pie/donut, and category comparison charts should be backed
+  by grouped/aggregate Semaphor queries at the same grain as the visual. Do not
   fetch bounded raw rows and aggregate them only in React unless that fallback
   is explicitly reported as an SDK/modeling gap.
 - Do not render charts with static mock data when Semaphor query data is

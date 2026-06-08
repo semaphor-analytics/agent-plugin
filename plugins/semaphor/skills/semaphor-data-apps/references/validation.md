@@ -39,13 +39,15 @@ issues that would make Semaphor DevTools or reviewer agents misread the app:
   express it;
 - generated components preserve the accepted plan's visual types. A planned
   KPI strip should not silently become a table, a planned trend should not
-  silently become a scalar card, and a planned table should not silently become
-  a short client-only list;
+  silently become a scalar card, a planned stacked bar should not silently
+  become a single-series bar, and a planned table should not silently become a
+  short client-only list;
 - `semaphor.records(...)` is reserved for app content rows, charts, tables,
   trends, breakdowns, grouped KPI support, or details, not hidden dropdown
   option derivation or scalar KPI shortcuts;
-- bar, pie/donut, and categorical comparison charts are backed by grouped or
-  aggregate-shaped Semaphor queries rather than bounded raw-row detail results;
+- bar, stacked bar, pie/donut, and categorical comparison charts are backed by
+  grouped or aggregate-shaped Semaphor queries rather than bounded raw-row
+  detail results;
 - Semaphor DevTools shows content queries under Cards/Data traces and option
   queries under Inputs;
 - unsupported SDK cases are explicitly reported with the workaround used.

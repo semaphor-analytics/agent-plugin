@@ -37,10 +37,11 @@ Expected agent behavior:
 - present the next choices as build the plan, revise the plan, choose another
   domain/source, inspect more data, or cancel,
 - name the intended visual type for each buildable view in the visible plan,
-  such as KPI strip, KPI card, line chart, bar chart, area chart, pie/donut
-  chart, table, matrix, filter control, or detail panel,
-- state the grouped/aggregate query grain for bar, pie/donut, and category
-  comparison charts,
+  such as KPI strip, KPI card, line chart, bar chart, stacked bar chart,
+  area chart, pie/donut chart, text/commentary block, table, matrix, filter
+  control, or detail panel,
+- state the grouped/aggregate query grain for bar, stacked bar, pie/donut, and
+  category comparison charts,
 - state the affected views and UI placement for each visible filter, and do
   not present section- or card-scoped controls as dashboard-wide filters,
 - include the intended file/component layout before editing,

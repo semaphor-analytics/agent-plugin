@@ -152,11 +152,15 @@ from the query shape and state the choice explicitly:
 - scalar totals or a small set of current values -> KPI strip or KPI card;
 - time-series values -> line chart or area chart;
 - ranked categories or category comparison -> bar chart;
-- composition/share of whole -> donut or stacked bar only when the denominator
+- composition/share of whole -> donut or pie chart only when the denominator
   is clear;
+- two-dimension category composition -> stacked bar chart when the query grain
+  includes both the x-axis category and stack/color category;
 - row-level records, operational queues, drill-through, or large result sets ->
   table, with server-side behavior noted when needed;
 - pivoted or hierarchical comparisons -> matrix.
+- section introductions or explanatory separators -> text/commentary blocks,
+  but do not write factual findings before query results exist.
 
 Preserve the accepted visual type during implementation unless the user
 revises the plan or validation proves the visual cannot be supported. Report
@@ -207,10 +211,10 @@ Include:
 - planned views with visual type, query kind, source fields, and whether each
   view is server-backed, derived, presentation-only, unsupported, or SQL
   fallback. Use concrete labels such as KPI strip, KPI card, line chart, bar
-  chart, area chart, pie/donut chart, table, matrix, filter control, or detail
-  panel;
-- for bar, pie/donut, and category comparison charts, the grouped/aggregate
-  query grain that will back the visual;
+  chart, stacked bar chart, area chart, pie/donut chart, text/commentary block,
+  table, matrix, filter control, or detail panel;
+- for bar, stacked bar, pie/donut, and category comparison charts, the
+  grouped/aggregate query grain that will back the visual;
 - app-local derived fields, why they are needed, and whether they are row-stage
   or aggregate-stage calculations;
 - matrix/pivot views with row axes, column axes, values, totals/subtotals, and

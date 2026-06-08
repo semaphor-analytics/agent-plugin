@@ -225,9 +225,9 @@ Builder selection:
   `result.value`; all values are available through `result.measures`.
 - `semaphor.records` for row-shaped results, tables, charts, trends,
   breakdowns, and detail lists, including bounded windows via `dateField` and
-  `timeWindow`; gives `columns[].key`. For bar, pie/donut, and categorical
-  comparison charts, make the records query grouped/aggregate-shaped for the
-  chart. Do not chart a bounded raw-row detail result unless the user
+  `timeWindow`; gives `columns[].key`. For bar, stacked bar, pie/donut, and
+  categorical comparison charts, make the records query grouped/aggregate-shaped
+  for the chart. Do not chart a bounded raw-row detail result unless the user
   explicitly asked for raw rows.
 - `semaphor.analysis` for insight, driver, spike/drop, and period-change
   views; also exposes `columns` and `resultSets` for typed row access.
