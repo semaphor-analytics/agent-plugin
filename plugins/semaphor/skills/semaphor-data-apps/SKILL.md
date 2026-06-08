@@ -35,15 +35,19 @@ public SDK builders/hooks, validate, then save or publish when requested.
    has multiple usable domains, ask the user to choose one. If the goal clearly
    implies a domain, state the recommended domain and ask for confirmation
    before calling `semaphor_plan_data_app`.
-4. Broad build: after project/domain confirmation, present a visible plan and
+4. Implementation map: before the first source edit for a broad app, decide
+   the file/component layout, which filters apply to which cards/views, and
+   how SDK DevTools will be enabled. Do not start by dumping the dashboard into
+   `src/App.tsx`.
+5. Broad build: after project/domain confirmation, present a visible plan and
    stop for user approval before editing.
-5. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
+6. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
    and preserve existing views by default.
-6. Dependencies: ask before installing registry items, TanStack, chart
+7. Dependencies: ask before installing registry items, TanStack, chart
    libraries, or starter scaffolds unless already approved.
-7. SQL: use governed metric, records, analysis, matrix, and derived-field paths
+8. SQL: use governed metric, records, analysis, matrix, and derived-field paths
    before SQL unless the user explicitly asks for SQL.
-8. Completion: run typecheck/build, Semaphor validation, and browser smoke when
+9. Completion: run typecheck/build, Semaphor validation, and browser smoke when
    practical.
 
 Auth preflight is step zero for Semaphor work. Before reading package files,
@@ -292,13 +296,7 @@ route/component folders, and existing docs. Avoid broad repo scans that dump
 search `node_modules/react-semaphor` for SDK implementation details during
 ordinary authoring; use this skill's public SDK references first.
 
-Use this plugin's helper when useful:
-
-```bash
-node scripts/init-semaphor-data-app.mjs --dir <app>
-```
-
-`init:data-app` is optional scaffolding for clean starts. It is not a required
+`init:data-app` is optional scaffolding for clean starts, not a required
 customer app shape.
 
 When opening an existing Semaphor Data App, resolve the app identity, load the
@@ -312,18 +310,20 @@ Follow the target app's existing folder and naming conventions first. If the
 app has a clear route/component/query organization, extend that convention
 instead of imposing a new scaffold.
 
-For generated apps with more than two data-bearing views, do not put all
-queries, inputs, card rendering, formatting, and layout in one giant `App.tsx`
-or one giant dashboard component. Unless the host app already has an equivalent
-query/spec module convention, put Semaphor sources, field refs, shared filters,
-input option specs, and query specs under `src/semaphor/*`; view/card
-components should import those specs and own hook wiring, UI state, formatting,
-and rendering. Use `references/planning-workflow.md` for the default file
-layout before broad codegen.
+Before editing a broad generated app, write down the intended implementation
+map in the visible plan: file layout, card/view components, query ids, filter
+handles, each filter's subscribed views, and the root SDK DevTools wiring.
+Treat this as part of the implementation contract. `App.tsx` should stay a
+provider/page-shell/composition file, not a home for repeated `semaphor.*`
+specs, many `useSemaphorQuery` calls, chart/table implementations, or
+row-formatting helpers. Unless the host app has an equivalent convention, put
+Semaphor sources, field refs, shared filters, input option specs, and query
+specs under `src/semaphor/*`, and put repeated data-bearing views in separate
+card/view components. Use `references/planning-workflow.md` for the default
+file layout and filter-scope map before broad codegen.
 
-For tiny one-view apps, a compact structure is fine, but keep Semaphor query
-specs and row-access helpers readable enough that a future edit can identify
-which query backs which visual.
+For tiny one-view apps, a compact structure is fine, but keep query ownership
+obvious for future edits.
 
 ## SDK Fast Path
 

@@ -19,6 +19,14 @@ Codex, Claude Code, and future coding-agent hosts.
   unless the user has already approved them; adapt server-backed table mechanics
   into the host app when the planned experience needs pagination, sorting,
   drill-through, or large/complete result sets.
+- Before writing code for a broad Data App, decide and state the implementation
+  map: file organization, query ids, which filters apply to which cards/views,
+  which views are intentionally not affected, and how root SDK DevTools will be
+  enabled. Keep `App.tsx` as a small provider/page-shell/composition file, put
+  Semaphor source refs, field refs, inputs, and query specs in `src/semaphor/*`,
+  and put repeated data-bearing views in separate card/view components. Do not
+  generate a thousand-line `App.tsx` or simply move the same problem into one
+  giant dashboard component.
 - Do not add a host-specific analytics language. Missing analytical behavior
   belongs in Semaphor's shared MCP, SDK, validation, or execution contracts.
 - Use the current public Semaphor MCP, SDK, validation, and lifecycle

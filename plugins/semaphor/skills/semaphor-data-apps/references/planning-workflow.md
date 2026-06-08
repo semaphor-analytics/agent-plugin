@@ -90,7 +90,8 @@ Treat the accepted planner response as the codegen contract:
   `sdkSpec` query kind, source, fields, filters, pagination/windowing, and
   derived-field definitions;
 - every shared filter/control should come from `plan.inputs` or a clearly
-  explained user-requested addition;
+  explained user-requested addition, with an explicit list of subscribed
+  `viewIds` before codegen;
 - every substantial deviation should be shown to the user before codegen or
   captured as a limitation after validation.
 
@@ -137,6 +138,22 @@ Use `plan.inputs` as filter guidance. For a select or multi-select input,
 `input.appliesToViewIds` says which views should receive that handle. Do not
 invent separate option queries when the planner supplies one.
 
+Before writing code, resolve filter scope as an implementation map:
+
+- each visible filter/control id and field ref;
+- whether it is dashboard-wide, section-wide, or card-local;
+- each subscribed `plan.views[*].id` and query id that will receive the bound
+  handle;
+- any view that does not receive the filter and why, such as unrelated source,
+  missing relationship, unsupported model, or intentionally local control;
+- how affected cards will show active applied-filter state;
+- the input option query id, if choices are fetched from Semaphor.
+
+Do not infer filter scope later while wiring JSX. If the planner omits
+`appliesToViewIds`, resolve it from source identity and relationships before
+editing, or mark the ambiguity and ask instead of passing the handle into every
+query.
+
 Relationship-aware filters are executable planner output, not suggestions to
 recreate manually. Preserve `input.relationshipHint`,
 `input.relationshipsUsed`, `input.optionQuery.population`, and
@@ -182,13 +199,17 @@ When building from an accepted plan, keep the implementation traceable:
 - keep Semaphor sources, field refs, shared filters, input option specs, and
   query specs in `src/semaphor/*` modules instead of burying them inside
   `App.tsx` or one large dashboard component;
-- keep `App.tsx` focused on composition, app shell, filters, and layout;
+- keep `App.tsx` focused on the provider, app shell, layout composition, and
+  imported sections; it should not own repeated query specs, many query hooks,
+  chart/table implementations, or formatting helpers;
 - preserve view-owned query ownership unless the plan explicitly declares a
   shared-query optimization.
 
-Before editing, include the intended file/component layout in the visible
-plan. If the host app has no stronger convention and the plan has more than
-two data-bearing views, use a small inspectable structure such as:
+Before editing, include the intended file/component layout, filter-scope map,
+and DevTools setup in the visible plan. This is a required pre-codegen
+checkpoint for broad apps, not optional commentary. If the host app has no
+stronger convention and the plan has more than two data-bearing views, use a
+small inspectable structure such as:
 
 ```text
 src/semaphor/queries.ts
@@ -199,6 +220,16 @@ src/components/layout/FilterBar.tsx
 src/components/cards/<ViewName>Card.tsx
 src/utils/formatting.ts
 ```
+
+Do not replace one huge `App.tsx` with one huge `Dashboard.tsx`; repeated
+planned views should become separate card/view components, while shared query
+definitions and input specs remain in `src/semaphor/*`.
+
+DevTools setup should be planned before edits too: mount one root
+`<SemaphorDevtools />`, enable provider debug only for local/authoring
+environments, use stable explicit query ids, and pass `debug.sourceHint` or
+`sourceHints` only when useful for mapping a trace back to a generated
+component. Do not add per-card inspector wrappers for broad dashboards.
 
 If the implementation later needs to deviate from the accepted file layout,
 say why before making the deviation or report it as a limitation after
@@ -215,9 +246,9 @@ Include:
 - selected domain/source plus any reasonable alternatives considered;
 - selected Semaphor sources and why they were chosen;
 - source coverage: included, excluded, unsupported, and not found sources;
-- planned filters, which views they affect, whether each filter is placed
-  dashboard-wide, section-wide, or card-local, and how affected cards will show
-  active applied-filter state;
+- planned filters, which views/query ids they affect, which views they do not
+  affect and why, whether each filter is dashboard-wide, section-wide, or
+  card-local, and how affected cards will show active applied-filter state;
 - planned views with visual type, query kind, source fields, and whether each
   view is server-backed, derived, presentation-only, unsupported, or SQL
   fallback. Use concrete labels such as KPI strip, KPI card, line chart, bar

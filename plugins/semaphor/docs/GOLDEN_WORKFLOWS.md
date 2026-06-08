@@ -46,9 +46,15 @@ Expected agent behavior:
   control, or detail panel,
 - state the grouped/aggregate query grain for bar, stacked bar, pie/donut, and
   category comparison charts,
-- state the affected views and UI placement for each visible filter, and do
-  not present section- or card-scoped controls as dashboard-wide filters,
-- include the intended file/component layout before editing,
+- state the affected views/query ids, non-affected views with reasons, and UI
+  placement for each visible filter; do not present section- or card-scoped
+  controls as dashboard-wide filters,
+- include the intended file/component layout, filter-to-card wiring map, and
+  SDK DevTools setup before editing,
+- keep `App.tsx` as a provider/page-shell/composition file for broad apps,
+  with Semaphor specs in `src/semaphor/*` and repeated data-bearing views in
+  separate card/view components; do not dump a full dashboard into one giant
+  `App.tsx` or one giant replacement dashboard component,
 - generate from the returned `sources`, `inputs`, `views`, `sdkSpec`,
   unsupported gaps, and assumptions instead of improvising query specs,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
