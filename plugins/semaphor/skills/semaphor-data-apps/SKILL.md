@@ -446,6 +446,16 @@ numeric alignment, missing states, or decorative icons competing with metrics.
 When the host uses another design system, preserve that system while applying
 the same dashboard usability rules.
 
+Before generating dashboard UI, check whether the host app has a `samples/`,
+`src/samples/`, or `examples/` directory containing a reference dashboard
+(the Semaphor starter ships one at `src/samples/` routed under `/samples`).
+If one exists, read its layout, component composition, filter-chip placement
+on affected cards, sortable-table affordances, totals-row pattern,
+loading/error/empty handling, and density choices, and match them in the
+generated app. Reference samples use static fixtures for self-contained
+viewing; the data-loading pattern there must not be copied — production code
+uses `useSemaphorQuery` per [sdk-contract.md](references/sdk-contract.md).
+
 ## Save, Publish, And Validation
 
 Use the plugin helper for Semaphor-hosted lifecycle writes:

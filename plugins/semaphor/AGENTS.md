@@ -19,6 +19,13 @@ Codex, Claude Code, and future coding-agent hosts.
   unless the user has already approved them; adapt server-backed table mechanics
   into the host app when the planned experience needs pagination, sorting,
   drill-through, or large/complete result sets.
+- If the customer app contains a `samples/`, `src/samples/`, `examples/`, or
+  documented design-reference directory with a reference dashboard, study it
+  before generating Data App UI. Match its layout patterns, filter-chip
+  treatment on affected cards, sortable-table affordances, totals-row
+  pattern, loading/error/empty handling, and density choices. Do NOT copy its
+  data-loading pattern: reference samples use static fixtures while production
+  code uses `useSemaphorQuery` per the SDK contract.
 - Before writing code for a broad Data App, decide and state the implementation
   map: file organization, query ids, which filters apply to which cards/views,
   which views are intentionally not affected, and how root SDK DevTools will be

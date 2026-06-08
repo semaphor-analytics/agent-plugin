@@ -11,6 +11,15 @@ installed components, aliases, theme tokens, and icon library. If a component
 is missing, add it through the project's package runner and shadcn CLI after
 checking the project setup.
 
+Check for a reference dashboard. If the host app contains `samples/`,
+`src/samples/`, or `examples/` with a reference dashboard, study it before
+generating new UI and match its layout, filter-chip placement on cards,
+sortable-table affordances, totals-row pattern, loading/error/empty
+handling, and density choices. The Semaphor starter ships a reference under
+`src/samples/` routed at `/samples/overview`. Reference samples use static
+JSON fixtures only — do not copy that data-loading pattern; production code
+uses `useSemaphorQuery`.
+
 Use shadcn primitives for structure:
 
 - `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, and
