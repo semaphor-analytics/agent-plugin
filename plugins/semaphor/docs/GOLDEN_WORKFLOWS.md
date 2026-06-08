@@ -3,7 +3,7 @@
 These workflows describe how customers should use the Semaphor Agent Plugin in
 real React repositories. They are not tied to the starter scaffold.
 
-Each workflow should preserve the same spine:
+The first workflow is the canonical app-building path. Supporting workflows follow it for exploration, analysis, debugging, lifecycle, and advanced edits. Each workflow should preserve the same spine:
 
 ```text
 customer request
@@ -16,132 +16,7 @@ customer request
   -> save draft or publish through Semaphor lifecycle APIs when requested
 ```
 
-## 1. Explore Available Data
-
-Customer prompt:
-
-```text
-What Semaphor data can I use in this project?
-```
-
-Expected agent behavior:
-
-- do not edit files,
-- call Semaphor MCP discovery tools,
-- prefer semantic domains and datasets over physical tables,
-- summarize available domains, datasets, important fields, metrics, and date
-  fields,
-- call out missing metadata or unclear field roles instead of guessing.
-
-Expected validation:
-
-- no file changes,
-- answer cites concrete Semaphor domains/datasets/fields.
-
-## 2. Answer A BI Question
-
-Customer prompt:
-
-```text
-Why did inventory movement change last month?
-```
-
-Expected agent behavior:
-
-- do not edit files unless the user asks to add the result to the app,
-- inspect semantic metadata,
-- use `semaphor_analyze` for governed semantic analysis when the question fits,
-- use `semaphor_query_sql_advanced` only for SQL-first questions that cannot be
-  represented cleanly by semantic analysis,
-- explain the answer from governed execution results.
-
-Expected validation:
-
-- no app build required,
-- answer includes the dataset and fields used,
-- uncertainty is explicit when the data cannot answer the question.
-
-## 2A. Use Advanced SQL When Needed
-
-Customer prompt:
-
-```text
-Use SQL to inspect the latest raw inventory movement rows.
-```
-
-Expected agent behavior:
-
-- discover the project, domain, dataset, and connection context before writing
-  SQL,
-- use `semaphor_query_sql_advanced` because the user explicitly requested raw
-  SQL/raw rows,
-- validate with a small SQL preview such as `LIMIT 5` or `LIMIT 10` unless the
-  user explicitly asks to inspect more rows,
-- provide `analyzeFallbackReason` and `analyzeFallbackExplanation`,
-- explain that `semaphor_analyze` is still preferred for ordinary governed BI
-  questions,
-- do not request database credentials or bypass Semaphor permissions.
-
-Expected validation:
-
-- returned rows come from governed Semaphor execution,
-- if the user asks to add this as a runtime view, generated code uses
-  `semaphor.sql` with bounded SQL, `defaultParameters`, `semaphor.filter`
-  inputs, and `useSemaphorQuery` rather than static fixture rows,
-- no invented connection/table identifiers,
-- no token or credential leakage.
-
-## 3. Ask First, Then Add To App
-
-Customer prompt:
-
-```text
-Which movement types drove the biggest change? If the answer is useful, add it
-to this app.
-```
-
-Expected agent behavior:
-
-- answer the data question first,
-- wait for explicit productization if the request is ambiguous,
-- inspect local React files before editing,
-- add a component, route, or panel that fits the existing app structure,
-- use Data App SDK builders plus `useSemaphorQuery` for runtime data,
-- preserve the customer's styling and routing patterns.
-
-Expected validation:
-
-- run `node scripts/validate-semaphor-data-app.mjs --dir <app>`,
-- run the app's typecheck/build scripts when present,
-- open the app locally when practical and verify real data renders.
-
-## 3A. Productize A Driver Or Period-Change Insight
-
-Customer prompt:
-
-```text
-Why did inventory movement drop last month? Add the driver insight to this app.
-```
-
-Expected agent behavior:
-
-- inspect semantic metadata before answering,
-- use `semaphor_analyze` with period-change analysis during authoring,
-- generate a React view with `semaphor.analysis` plus `useSemaphorQuery`, not static markdown,
-  fixture data, or raw SQL output,
-- preserve the same semantic source, metric, date field, filters, time window,
-  and analysis shape used for the governed answer,
-- render loading, error, empty, summary, and detail states.
-
-Expected validation:
-
-- extracted query specs validate through `POST /api/v1/data-app/validate` when
-  available,
-- `/api/v1/data-app/execute` reaches the shared query-spec service for the
-  analysis intent,
-- local typecheck/build passes.
-
-## 4. Build From A Goal
+## 1. Build From A Goal
 
 Customer prompt:
 
@@ -206,7 +81,8 @@ Expected validation:
 - local typecheck/build passes,
 - browser smoke check shows governed Semaphor data.
 
-## 4A. Add A Derived Metric
+
+## 1A. Add A Derived Metric
 
 Customer prompt:
 
@@ -237,7 +113,8 @@ Expected validation:
 - local typecheck/build passes,
 - Semaphor validation/execution accepts the derived field when available.
 
-## 4B. Build A Matrix Or Pivot Table
+
+## 1B. Build A Matrix Or Pivot Table
 
 Customer prompt:
 
@@ -266,6 +143,137 @@ Expected validation:
 - local typecheck/build passes,
 - browser smoke check shows a server-shaped matrix result.
 
+
+## 2. Explore Available Data
+
+Customer prompt:
+
+```text
+What Semaphor data can I use in this project?
+```
+
+Expected agent behavior:
+
+- do not edit files,
+- call Semaphor MCP discovery tools,
+- prefer semantic domains and datasets over physical tables,
+- summarize available domains, datasets, important fields, metrics, and date
+  fields,
+- call out missing metadata or unclear field roles instead of guessing.
+
+Expected validation:
+
+- no file changes,
+- answer cites concrete Semaphor domains/datasets/fields.
+
+
+## 3. Answer A BI Question
+
+Customer prompt:
+
+```text
+Why did inventory movement change last month?
+```
+
+Expected agent behavior:
+
+- do not edit files unless the user asks to add the result to the app,
+- inspect semantic metadata,
+- use `semaphor_analyze` for governed semantic analysis when the question fits,
+- use `semaphor_query_sql_advanced` only for SQL-first questions that cannot be
+  represented cleanly by semantic analysis,
+- explain the answer from governed execution results.
+
+Expected validation:
+
+- no app build required,
+- answer includes the dataset and fields used,
+- uncertainty is explicit when the data cannot answer the question.
+
+
+## 3A. Use Advanced SQL When Needed
+
+Customer prompt:
+
+```text
+Use SQL to inspect the latest raw inventory movement rows.
+```
+
+Expected agent behavior:
+
+- discover the project, domain, dataset, and connection context before writing
+  SQL,
+- use `semaphor_query_sql_advanced` because the user explicitly requested raw
+  SQL/raw rows,
+- validate with a small SQL preview such as `LIMIT 5` or `LIMIT 10` unless the
+  user explicitly asks to inspect more rows,
+- provide `analyzeFallbackReason` and `analyzeFallbackExplanation`,
+- explain that `semaphor_analyze` is still preferred for ordinary governed BI
+  questions,
+- do not request database credentials or bypass Semaphor permissions.
+
+Expected validation:
+
+- returned rows come from governed Semaphor execution,
+- if the user asks to add this as a runtime view, generated code uses
+  `semaphor.sql` with bounded SQL, `defaultParameters`, `semaphor.filter`
+  inputs, and `useSemaphorQuery` rather than static fixture rows,
+- no invented connection/table identifiers,
+- no token or credential leakage.
+
+
+## 4. Ask First, Then Add To App
+
+Customer prompt:
+
+```text
+Which movement types drove the biggest change? If the answer is useful, add it
+to this app.
+```
+
+Expected agent behavior:
+
+- answer the data question first,
+- wait for explicit productization if the request is ambiguous,
+- inspect local React files before editing,
+- add a component, route, or panel that fits the existing app structure,
+- use Data App SDK builders plus `useSemaphorQuery` for runtime data,
+- preserve the customer's styling and routing patterns.
+
+Expected validation:
+
+- run `node scripts/validate-semaphor-data-app.mjs --dir <app>`,
+- run the app's typecheck/build scripts when present,
+- open the app locally when practical and verify real data renders.
+
+
+## 4A. Productize A Driver Or Period-Change Insight
+
+Customer prompt:
+
+```text
+Why did inventory movement drop last month? Add the driver insight to this app.
+```
+
+Expected agent behavior:
+
+- inspect semantic metadata before answering,
+- use `semaphor_analyze` with period-change analysis during authoring,
+- generate a React view with `semaphor.analysis` plus `useSemaphorQuery`, not static markdown,
+  fixture data, or raw SQL output,
+- preserve the same semantic source, metric, date field, filters, time window,
+  and analysis shape used for the governed answer,
+- render loading, error, empty, summary, and detail states.
+
+Expected validation:
+
+- extracted query specs validate through `POST /api/v1/data-app/validate` when
+  available,
+- `/api/v1/data-app/execute` reaches the shared query-spec service for the
+  analysis intent,
+- local typecheck/build passes.
+
+
 ## 5. Add A Filter Or Control
 
 Customer prompt:
@@ -289,6 +297,7 @@ Expected validation:
 - typecheck/build passes,
 - no hardcoded option values unless the user explicitly asked for fixed values.
 
+
 ## 6. Fix A Runtime Or Typecheck Error
 
 Customer prompt:
@@ -311,6 +320,7 @@ Expected validation:
 - rerun the failed command,
 - rerun `validate:data-app`,
 - browser smoke test when the issue was runtime-visible.
+
 
 ## 7. Prepare For Save Or Publish
 
@@ -344,6 +354,7 @@ Expected validation:
 - publish failures are classified by failing stage: auth/API, validation,
   build, upload, or complete/fail session.
 
+
 ## 8. Open Existing Semaphor Data App
 
 Customer prompt:
@@ -370,6 +381,7 @@ Expected validation:
 - source revision comparison uses `snapshotHash`, not only git commit or local
   path,
 - typecheck/build passes after restore or edits.
+
 
 ## Workflow Rules
 

@@ -27,10 +27,12 @@ based on what is already configured.
    - If a project token is already active, the project-token MCP server
      `semaphor-project` can report the fixed project scope.
    - If neither OAuth nor a project token is available, or if OAuth says the
-     app connection requires reauthentication, ask the user to run
-     `codex mcp login semaphor` or add a project token from
-     `https://semaphor.cloud/project`, then say "try again". Treat this as a
-     resumable setup step, not as a refusal.
+     app connection requires reauthentication, ask the user to use the current
+     host's MCP OAuth login flow for the `semaphor` server, or add a project
+     token from `https://semaphor.cloud/project`, then say "try again". Treat
+     this as a resumable setup step, not as a refusal. In Codex, the OAuth
+     login command is `codex mcp login semaphor`; in Claude Code or another
+     host, use that host's MCP server authentication UI or command.
 
 2. Resolve project context.
    - Project-token mode: the token fixes the active project. Do not list
@@ -67,16 +69,21 @@ based on what is already configured.
 
 OAuth is the least-friction login path when no project token exists.
 
-In Codex, the hosted OAuth MCP server is named `semaphor`. If the host does
-not show it as authenticated, or if a tool reports that the app connection
-requires reauthentication, ask the user to run:
+The hosted OAuth MCP server is named `semaphor`. If the host does not show it
+as authenticated, or if a tool reports that the app connection requires
+reauthentication, ask the user to use the current host's MCP OAuth login or
+reauthentication flow for the `semaphor` server.
+
+In Codex, that login command is:
 
 ```bash
 codex mcp login semaphor
 ```
 
-Then wait for the user to say "try again". If the host needs a fresh session
-before refreshed OAuth tools appear, say that explicitly.
+In Claude Code or another agent host, use that host's MCP server
+authentication UI or command. Then wait for the user to say "try again". If
+the host needs a fresh session before refreshed OAuth tools appear, say that
+explicitly.
 
 After OAuth login, start with:
 

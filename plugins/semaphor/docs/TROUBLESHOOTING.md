@@ -63,14 +63,18 @@ server, selecting a project, and minting a local runtime token with
 project-token mode, continue with the checks below.
 
 If an OAuth tool says the app connection requires reauthentication, ask the
-user to run:
+user to use the current host's MCP OAuth login or reauthentication flow for the
+server named `semaphor`.
+
+For Codex, that login command is:
 
 ```bash
 codex mcp login semaphor
 ```
 
-Then tell them to say "try again". Treat this as a recoverable setup step, not
-as a refusal.
+For Claude Code or another agent host, use that host's MCP server
+authentication UI or command. Then tell them to say "try again". Treat this as
+a recoverable setup step, not as a refusal.
 
 Check:
 

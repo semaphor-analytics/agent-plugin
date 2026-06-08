@@ -65,12 +65,12 @@ analytics while waiting for auth: no placeholder dashboard shell, static mock
 analytics, generic integration points, or token-missing UI. The correct next
 action is one of:
 
-- Hosted OAuth: ask the user to run `codex mcp login semaphor`, then say
-  "try again". If the host requires a fresh session before exposing refreshed
-  OAuth tools, say that explicitly as a host limitation.
+- Hosted OAuth: ask the user to use the host MCP OAuth flow for `semaphor`,
+  then say "try again". Codex example: `codex mcp login semaphor`; in Claude
+  Code or another host, use that host's MCP server auth UI or command. Mention
+  a fresh session only if the host needs one before exposing refreshed tools.
 - Project-token mode: ask the user to add `VITE_SEMAPHOR_PROJECT_TOKEN` to the
-  target React app's ignored `.env.local`, then retry with `workspaceDir` set
-  to that app root.
+  app's ignored `.env.local`, then retry with `workspaceDir` set to the app root.
 - Local Semaphor development: ask the user to add both
   `VITE_SEMAPHOR_PROJECT_TOKEN` and `SEMAPHOR_SERVER_URL=http://localhost:3000`
   to the target app's ignored `.env.local`.

@@ -63,16 +63,21 @@ reauthentication`, pause for a recoverable auth step. Do not frame this as
 denying the request and do not continue by scaffolding a generic dashboard
 shell, mock analytics, or placeholder query registry. A Semaphor data app build
 needs a resolved governed project before planning, metadata inspection,
-codegen, validation, save, or publish. Tell the user exactly what to do next:
+codegen, validation, save, or publish. Ask the user to use the current host's
+MCP OAuth login or reauthentication flow for the `semaphor` server.
+
+For Codex, that login command is:
 
 ```bash
 codex mcp login semaphor
 ```
 
-Then ask them to say "try again". If the host does not expose refreshed OAuth
-tools until a new session starts, say that as a host limitation. For
-project-token mode, ask them to add `VITE_SEMAPHOR_PROJECT_TOKEN` to the target
-app's ignored `.env.local` and retry with `workspaceDir`.
+For Claude Code or another agent host, use that host's MCP server
+authentication UI or command. Then ask them to say "try again". If the host
+does not expose refreshed OAuth tools until a new session starts, say that as a
+host limitation. For project-token mode, ask them to add
+`VITE_SEMAPHOR_PROJECT_TOKEN` to the target app's ignored `.env.local` and
+retry with `workspaceDir`.
 
 Then follow the returned recommendation:
 

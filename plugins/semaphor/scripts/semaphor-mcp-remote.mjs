@@ -22,7 +22,7 @@ const FALLBACK_TOOLS = [
   {
     name: 'semaphor_get_access_context',
     description:
-      'Diagnose Semaphor project-token setup. If no token is configured, pause data-bearing app work and ask the user to run codex mcp login semaphor or add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local, then resume when they say try again. Do not scaffold placeholder analytics when auth is unavailable.',
+      'Diagnose Semaphor auth setup. If no token is configured, pause data-bearing app work and ask the user to use the current host MCP OAuth login flow for the semaphor server, or add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local, then resume when they say try again. In Codex, the OAuth command is codex mcp login semaphor. Do not scaffold placeholder analytics when auth is unavailable.',
   },
   {
     name: 'semaphor_get_analysis_context',
@@ -194,7 +194,7 @@ async function forwardRequest(message) {
                 'Pause, preserve the task context, and ask the user to authenticate before continuing.',
                 'Do not create a placeholder dashboard shell, static mock analytics, or generic query integration point.',
                 'If hosted OAuth tools are exposed, use the MCP server named semaphor and call semaphor_list_projects.',
-                'If hosted OAuth tools are not exposed, the OAuth app connection requires reauthentication, or the semaphor MCP is not logged in, ask the user to run codex mcp login semaphor and then say try again. Mention a fresh agent session only if the host does not expose refreshed OAuth tools in the current session.',
+                'If hosted OAuth tools are not exposed, the OAuth app connection requires reauthentication, or the semaphor MCP is not logged in, ask the user to use the current host MCP OAuth login or reauthentication flow for the server named semaphor, then say try again. In Codex, the command is codex mcp login semaphor; in Claude Code or another host, use that host MCP server authentication UI or command. Mention a fresh agent session only if the host does not expose refreshed OAuth tools in the current session.',
                 'For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.',
                 'If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.',
                 'For local development, add SEMAPHOR_SERVER_URL=http://localhost:3000 to the same .env.local. Hosted Semaphor defaults to https://semaphor.cloud.',

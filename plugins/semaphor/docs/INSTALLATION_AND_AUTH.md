@@ -30,17 +30,23 @@ local runtime/publish needs a deterministic project token.
 
 ## OAuth Login
 
-In Codex, if the hosted `semaphor` MCP server is not already authenticated or
-an OAuth tool says the app connection requires reauthentication, log in:
+If the hosted `semaphor` MCP server is not already authenticated, or if an
+OAuth tool says the app connection requires reauthentication, use the current
+agent host's MCP OAuth login or reauthentication flow for the server named
+`semaphor`.
+
+For Codex, that login command is:
 
 ```bash
 codex mcp login semaphor
 ```
 
-Then tell the agent "try again". The agent should list Semaphor projects and
-ask which project to use. In OAuth mode, project-scoped tools should receive an
-explicit `projectId`. If the host does not expose refreshed OAuth tools until a
-new session starts, open a fresh agent session after login.
+For Claude Code or another agent host, use that host's MCP server
+authentication UI or command for the `semaphor` server. Then tell the agent
+"try again". The agent should list Semaphor projects and ask which project to
+use. In OAuth mode, project-scoped tools should receive an explicit
+`projectId`. If the host does not expose refreshed OAuth tools until a new
+session starts, open a fresh agent session after login.
 
 OAuth is an authoring credential. It does not automatically become the React
 app's runtime credential. If the local app needs to run Semaphor SDK queries in
