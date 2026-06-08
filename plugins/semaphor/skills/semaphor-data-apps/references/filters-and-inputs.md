@@ -159,6 +159,19 @@ Do not show a filter chip on a card merely because a filter exists elsewhere
 on the page. The chip is a contract that this card's query was executed with
 that filter handle or source-specific binding.
 
+After adding or changing a visible filter, do a filter-effect QA pass before
+reporting completion:
+
+- pick one valid non-default option;
+- confirm at least one subscribed visible query re-runs with that input in
+  DevTools or query traces;
+- confirm the card shows the active applied-filter affordance;
+- compare a visible metric/chart/table before and after when the selected data
+  should differ;
+- if values do not change because the selected option has equivalent data,
+  state that the trace proved the filter was applied rather than claiming the
+  filter is broken or unverified.
+
 Do not pass a shared input to every query just because the control is visible
 at the top of the dashboard. Each subscription must be one of:
 

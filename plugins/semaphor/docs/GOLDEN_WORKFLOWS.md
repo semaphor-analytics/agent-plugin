@@ -164,6 +164,8 @@ Expected agent behavior:
 - name the intended visual type for each buildable view in the visible plan,
   such as KPI strip, KPI card, line chart, bar chart, area chart, pie/donut
   chart, table, matrix, filter control, or detail panel,
+- state the grouped/aggregate query grain for bar, pie/donut, and category
+  comparison charts,
 - state the affected views and UI placement for each visible filter, and do
   not present section- or card-scoped controls as dashboard-wide filters,
 - include the intended file/component layout before editing,
@@ -171,8 +173,14 @@ Expected agent behavior:
   unsupported gaps, and assumptions instead of improvising query specs,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
   builders plus `useSemaphorQuery`,
+- give every runtime query spec a stable explicit `id`,
+- include local/dev `<SemaphorDevtools />` with the provider debug bridge gated
+  to authoring environments,
 - give each data-bearing card its own query by default unless the user asks for
   a shared-query optimization,
+- show active subscribed filters on affected cards with compact chips/badges
+  or muted text,
+- prefer the host app's real date-range picker/calendar control when available,
 - render loading, error, and empty states for each visible query result,
 - make table views sortable and include totals for displayed numeric columns,
 - treat Semaphor data tables as server-backed BI views: keep table queries

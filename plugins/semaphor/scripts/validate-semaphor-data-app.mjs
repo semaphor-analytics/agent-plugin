@@ -75,7 +75,13 @@ function scanSourceQuality(root, sourceFiles) {
   let totalSemaphorSpecCount = 0;
   let semaphorModuleSpecCount = 0;
   let nonSemaphorModuleSpecCount = 0;
+  let visibleFilterSpecCount = 0;
+  let hasCardFilterAffordance = false;
+  let hasNativeDateInput = false;
   const recordsQueryNames = collectRecordsQueryNames(sourceFiles);
+  const hasDatePickerStack =
+    fs.existsSync(path.join(root, "src", "components", "ui", "calendar.tsx")) ||
+    fs.existsSync(path.join(root, "components", "ui", "calendar.tsx"));
 
   for (const filePath of sourceFiles) {
     const content = fs.readFileSync(filePath, "utf8");
@@ -90,10 +96,30 @@ function scanSourceQuality(root, sourceFiles) {
       /\bsemaphor\.(?:metric|records|analysis|matrix|inputOptions|sql|filter|control|sqlParam)(?:<[^>()]+>)?\s*\(/g,
     );
     totalSemaphorSpecCount += semaphorSpecCount;
+    visibleFilterSpecCount += countMatches(
+      content,
+      /\bsemaphor\.(?:filter|control|sqlParam)(?:<[^>()]+>)?\s*\(/g,
+    );
+    if (
+      /\b(?:Filtered by|filters? applied|appliedFilters?|activeFilters?|filterChips?|Affects)\b/i.test(
+        content,
+      )
+    ) {
+      hasCardFilterAffordance = true;
+    }
+    if (/\btype\s*=\s*["']date["']/.test(content)) {
+      hasNativeDateInput = true;
+    }
     if (/^src[/\\]semaphor[/\\]/.test(location)) {
       semaphorModuleSpecCount += semaphorSpecCount;
     } else {
       nonSemaphorModuleSpecCount += semaphorSpecCount;
+    }
+
+    for (const missingId of semaphorBuilderCallsMissingId(content)) {
+      advisories.push(
+        `${location}: semaphor.${missingId.builder}(...) query specs should include a stable id so DevTools, validation, and reviewer traces can map runtime queries back to generated views.`,
+      );
     }
 
     if (
@@ -244,6 +270,18 @@ function scanSourceQuality(root, sourceFiles) {
         `${location}: Object.entries(row) renders raw result keys; prefer result.columns for labels and stable cell order.`,
       );
     }
+
+    if (
+      /\b(?:BarChart|PieChart|Bar\b|Pie\b|Donut|RadialBarChart)\b/.test(
+        content,
+      ) &&
+      /\buseSemaphorQuery\b/.test(content) &&
+      /\b(?:result\.)?records\b/.test(content)
+    ) {
+      advisories.push(
+        `${location}: category bar/pie chart appears to render directly from records. Make sure the backing Semaphor query is grouped/aggregate-shaped for the chart, not a bounded raw-row detail query.`,
+      );
+    }
   }
 
   if (usesDataAppSdkHooks && !hasProvider) {
@@ -261,6 +299,18 @@ function scanSourceQuality(root, sourceFiles) {
   if (usesDataAppSdkHooks && hasProvider && !hasProviderDebugBridge) {
     advisories.push(
       "Generated local/dev Data Apps should pass SemaphorDataAppProvider debug={enableDevtools ? { exposeWindowBridge: true } : false} so browser/eval agents can inspect window.__SEMAPHOR_DEVTOOLS__.snapshot(). Keep this gated to local development or author preview.",
+    );
+  }
+
+  if (visibleFilterSpecCount > 0 && !hasCardFilterAffordance) {
+    advisories.push(
+      "Visible filters were found, but no card-level applied-filter affordance was detected. Cards/charts should show compact active filter chips or muted text for filters actually applied to that card's query.",
+    );
+  }
+
+  if (hasNativeDateInput && hasDatePickerStack) {
+    advisories.push(
+      "Native date inputs were found even though a host date-picker/calendar component appears available. Prefer the app's real dashboard date-range control unless the user explicitly chose native date fields.",
     );
   }
 
@@ -319,6 +369,21 @@ function recordsQueryUsedForOptionDerivation(content, recordsQueryNames) {
     }
   }
   return undefined;
+}
+
+function semaphorBuilderCallsMissingId(content) {
+  const missing = [];
+  const pattern =
+    /\bsemaphor\.(metric|records|analysis|matrix|inputOptions|sql)(?:<[^>()]+>)?\s*\(\s*\{/g;
+  for (const match of content.matchAll(pattern)) {
+    const start = match.index ?? 0;
+    const end = content.indexOf("});", start);
+    const body = content.slice(start, end === -1 ? start + 1200 : end);
+    if (!/\bid\s*:/.test(body)) {
+      missing.push({ builder: match[1] });
+    }
+  }
+  return missing;
 }
 
 function countMatches(content, pattern) {

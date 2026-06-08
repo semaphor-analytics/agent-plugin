@@ -13,6 +13,12 @@ issues that would make Semaphor DevTools or reviewer agents misread the app:
 
 - visible filters and controls are defined with `semaphor.filter(...)`,
   `semaphor.control(...)`, or `semaphor.sqlParam(...)`;
+- every `semaphor.metric`, `semaphor.records`, `semaphor.analysis`,
+  `semaphor.matrix`, `semaphor.sql`, and `semaphor.inputOptions` query spec
+  has a stable explicit `id`;
+- one root `<SemaphorDevtools />` is mounted for local/dev authoring and
+  `SemaphorDataAppProvider` exposes the window bridge only behind a local/dev
+  gate;
 - shared filter handles are created with `useSemaphorInputs(...)` in a shared
   parent and passed to every query that should respond;
 - every visible filter has an explicit affected-view list in the plan or code
@@ -38,6 +44,8 @@ issues that would make Semaphor DevTools or reviewer agents misread the app:
 - `semaphor.records(...)` is reserved for app content rows, charts, tables,
   trends, breakdowns, grouped KPI support, or details, not hidden dropdown
   option derivation or scalar KPI shortcuts;
+- bar, pie/donut, and categorical comparison charts are backed by grouped or
+  aggregate-shaped Semaphor queries rather than bounded raw-row detail results;
 - Semaphor DevTools shows content queries under Cards/Data traces and option
   queries under Inputs;
 - unsupported SDK cases are explicitly reported with the workaround used.
@@ -47,6 +55,12 @@ inputs: [...] })` calls and verify that subscribed queries use same-source
 fields or modeled relationship-aware `semaphor.bindInput(...)` bindings. A
 filter with populated options but no meaningful subscribed query is not a
 working filter.
+
+For filter-effect QA, select at least one non-default option and confirm a
+subscribed query re-runs with the input applied in DevTools or trace output.
+When the data should differ, compare the visible metric/chart/table before and
+after the selection. If values happen to be equivalent for the chosen option,
+report that the trace proves application of the filter.
 
 Do not call the implementation done if a records query exists only to populate
 a select, combobox, multi-select, or filter menu and the same behavior can be

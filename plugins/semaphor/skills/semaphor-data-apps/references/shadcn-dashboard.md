@@ -159,6 +159,10 @@ Charts should answer one question clearly.
 - Include tooltips and readable axis labels.
 - Use chart colors from the host chart theme when available.
 - Do not use pie or donut charts for many categories.
+- Bar, pie/donut, and category comparison charts should be backed by
+  grouped/aggregate Semaphor queries at the same grain as the visual. Do not
+  fetch bounded raw rows and aggregate them only in React unless that fallback
+  is explicitly reported as an SDK/modeling gap.
 - Do not render charts with static mock data when Semaphor query data is
   available.
 
@@ -186,6 +190,11 @@ compact "filtered by" affordance in the card header or footer. Show only
 filters actually passed to that card's query. Prefer labels users recognize
 from the controls, such as `Date range`, `Facility`, `Material`, or `Market
 index`; avoid source/table names unless needed for disambiguation.
+
+Prefer the app's installed date-range picker, calendar, popover, or command
+combobox patterns for dashboard controls. Native `<input type="date">` is a
+fallback when the app has no date-picker primitive or when the user explicitly
+asks for native controls.
 
 ## States And Error UX
 

@@ -209,6 +209,8 @@ Include:
   fallback. Use concrete labels such as KPI strip, KPI card, line chart, bar
   chart, area chart, pie/donut chart, table, matrix, filter control, or detail
   panel;
+- for bar, pie/donut, and category comparison charts, the grouped/aggregate
+  query grain that will back the visual;
 - app-local derived fields, why they are needed, and whether they are row-stage
   or aggregate-stage calculations;
 - matrix/pivot views with row axes, column axes, values, totals/subtotals, and

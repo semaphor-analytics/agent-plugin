@@ -211,6 +211,12 @@ with `useSemaphorQuery`. Validation, save, and publish use the canonical
 `useSemaphorQuery` contract; do not generate alternate query execution
 patterns.
 
+Every runtime query spec must include a stable, human-readable `id`. This
+includes `semaphor.metric`, `semaphor.records`, `semaphor.analysis`,
+`semaphor.matrix`, `semaphor.sql`, and `semaphor.inputOptions`. Query ids are
+the bridge between the visible app, Semaphor DevTools traces, validation
+output, and reviewer comments. Do not rely on inferred ids or variable names.
+
 Builder selection:
 
 - `semaphor.metric` for scalar KPIs and aggregate KPI cards, including multiple
@@ -218,7 +224,10 @@ Builder selection:
   `result.value`; all values are available through `result.measures`.
 - `semaphor.records` for row-shaped results, tables, charts, trends,
   breakdowns, and detail lists, including bounded windows via `dateField` and
-  `timeWindow`; gives `columns[].key`.
+  `timeWindow`; gives `columns[].key`. For bar, pie/donut, and categorical
+  comparison charts, make the records query grouped/aggregate-shaped for the
+  chart. Do not chart a bounded raw-row detail result unless the user
+  explicitly asked for raw rows.
 - `semaphor.analysis` for insight, driver, spike/drop, and period-change
   views; also exposes `columns` and `resultSets` for typed row access.
 - `semaphor.sql` for advanced SQL-backed runtime views when semantic queries
