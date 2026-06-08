@@ -120,8 +120,11 @@ user explicitly requests SQL.
 The visible planning response must include:
 
 - the selected domain/source and any reasonable alternatives considered;
-- planned views, query kind, and whether each view is server-backed, derived,
-  presentation-only, unsupported, or SQL fallback;
+- planned views with visual type, query kind, source fields, and whether each
+  view is server-backed, derived, presentation-only, unsupported, or SQL
+  fallback. Use clear visual labels such as KPI strip, KPI card, line chart,
+  bar chart, area chart, pie/donut chart, table, matrix, filter control, or
+  detail panel so the user knows what will appear before codegen;
 - planned filters and which views they affect;
 - table behavior and dependency recommendations, including whether a Semaphor
   registry table or TanStack dependency would be useful;
@@ -188,6 +191,8 @@ as a required dashboard quality checklist, not optional inspiration.
   `relationshipsUsed`, and `appliesToViewIds`. Use those bindings for
   server-side filters/cascading option lists; do not recreate the relationship
   with client-side joins, client-side filtering, or raw SQL.
+- Treat visible filter scope as part of the app contract: top bar for
+  dashboard-wide filters; place or label scoped filters by affected view.
 - Do not make a visible input globally active by default. Pass an input handle
   only to queries listed in planner `appliesToViewIds`, queries on the same
   source-bearing field, or queries with an explicit modeled relationship path.
@@ -408,11 +413,14 @@ empty state, and include totals for displayed numeric columns. Semaphor data
 tables are server-backed BI views. Do not fetch broad or complete table data
 and then paginate, sort, filter, pivot, or group it only in React.
 
-If the user or planner explicitly asks for a server-side table or Semaphor
-table registry implementation, treat that as approval to implement the
-server-side table mechanics. You may still ask before adding unrelated
-dependencies, but do not downgrade to a client-only table because the registry
-requires an install step.
+Infer server-backed table needs from the planned experience, not only literal
+user wording. Operational tables, queues, drill-through/detail tables,
+exploratory tables, paginated/sortable tables, and complete or large result
+tables are server-side table candidates even if the user only says "show a
+table." After presenting the plan, ask to install, use, or adapt the Semaphor
+shadcn server table registry mechanics unless the target app already has an
+equivalent server-backed table abstraction. Do not downgrade to a client-only
+table because the registry requires an install step.
 
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips

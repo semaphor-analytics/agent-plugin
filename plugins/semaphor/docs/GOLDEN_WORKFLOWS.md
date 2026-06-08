@@ -161,6 +161,11 @@ Expected agent behavior:
   instead of silently choosing one,
 - present the next choices as build the plan, revise the plan, choose another
   domain/source, inspect more data, or cancel,
+- name the intended visual type for each buildable view in the visible plan,
+  such as KPI strip, KPI card, line chart, bar chart, area chart, pie/donut
+  chart, table, matrix, filter control, or detail panel,
+- state the affected views and UI placement for each visible filter, and do
+  not present section- or card-scoped controls as dashboard-wide filters,
 - include the intended file/component layout before editing,
 - generate from the returned `sources`, `inputs`, `views`, `sdkSpec`,
   unsupported gaps, and assumptions instead of improvising query specs,

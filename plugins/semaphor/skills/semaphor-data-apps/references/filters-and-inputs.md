@@ -125,6 +125,40 @@ one input spec, bind it once with `useSemaphorInputs` in a shared parent or a
 small React context, then pass that same handle array into each query that
 should respond.
 
+Filter placement must match filter scope. Before rendering a visible filter,
+decide and preserve its affected views:
+
+- Dashboard-level filter bar: use only for controls that affect most or all
+  visible analytical views, such as a date range with source-specific bindings
+  for sales, purchases, and processing facts.
+- Section-level filter: use for controls that affect a section, such as
+  process type for processing-run cards.
+- Card-level filter: use for controls that affect one card, such as market
+  index when only the Market exposure card subscribes.
+
+If a top-level filter intentionally affects only a subset, label or position it
+so the scope is obvious to the user. Do not create a top-level "Material",
+"Process type", "Market index", or similar selector that visually implies
+every KPI, chart, and table will change when only one or two queries actually
+receive the handle.
+
+Cards should also make active filter scope visible from the card side. For
+each data-bearing card, render a compact applied-filter affordance when one or
+more subscribed filters are active:
+
+- show small chips, badges, or muted text such as `Filtered by Date range` or
+  `Market index: Midwest Scrap`;
+- include only filters that the card's query actually receives;
+- place the affordance in the card header, card footer, or a compact line above
+  the chart/table body;
+- truncate long values with a tooltip or popover for full values;
+- omit the affordance when no subscribed filter is active, unless the app needs
+  to show always-on default context such as "Latest 12 months".
+
+Do not show a filter chip on a card merely because a filter exists elsewhere
+on the page. The chip is a contract that this card's query was executed with
+that filter handle or source-specific binding.
+
 Do not pass a shared input to every query just because the control is visible
 at the top of the dashboard. Each subscription must be one of:
 
@@ -260,6 +294,18 @@ table that subscribes to that input must still have a same-source field or a
 modeled relationship path to that dimension. If one fact table cannot be
 related to the dimension, leave that view unfiltered by the input and call out
 the semantic-model relationship gap instead of forcing a broken global filter.
+
+If the user asks for a broad filter such as material type, process type, index
+type, customer, or facility and the model supports it for only some planned
+views, generate either a scoped filter UI or a plan limitation. Examples:
+
+- Material type supported for sales and purchases but not processing inputs:
+  render it as a Sales/Purchases section filter, or say the processing-input
+  material relationship must be modeled before that card can subscribe.
+- Process type supported through processing runs only: render it with the
+  processing-run cards, not as a dashboard-wide financial filter.
+- Market index supported only by market price rows: render it inside or beside
+  Market exposure, not as a top-level control for unrelated KPIs.
 
 ## SQL Params
 

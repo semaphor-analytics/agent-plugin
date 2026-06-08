@@ -143,6 +143,25 @@ which views are server-backed, which are derived from existing query results,
 which are presentation-only, and which cannot be supported by the current data
 model.
 
+The visible plan must also decide the user-facing visual type for every
+buildable view. Do not present only "planned views" or metric/source names and
+leave the UI shape implicit. If the planner returns a visual spec, use it. If
+the planner returns only the analytical shape, infer the conventional visual
+from the query shape and state the choice explicitly:
+
+- scalar totals or a small set of current values -> KPI strip or KPI card;
+- time-series values -> line chart or area chart;
+- ranked categories or category comparison -> bar chart;
+- composition/share of whole -> donut or stacked bar only when the denominator
+  is clear;
+- row-level records, operational queues, drill-through, or large result sets ->
+  table, with server-side behavior noted when needed;
+- pivoted or hierarchical comparisons -> matrix.
+
+Preserve the accepted visual type during implementation unless the user
+revises the plan or validation proves the visual cannot be supported. Report
+any fallback as a plan deviation, not as an invisible codegen choice.
+
 When building from an accepted plan, keep the implementation traceable:
 
 - map each buildable `plan.views[*]` to an obvious card/insight component;
@@ -182,9 +201,14 @@ Include:
 - selected domain/source plus any reasonable alternatives considered;
 - selected Semaphor sources and why they were chosen;
 - source coverage: included, excluded, unsupported, and not found sources;
-- planned filters and which views they affect;
+- planned filters, which views they affect, whether each filter is placed
+  dashboard-wide, section-wide, or card-local, and how affected cards will show
+  active applied-filter state;
 - planned views with visual type, query kind, source fields, and whether each
-  view is server-backed, derived, presentation-only, or unsupported;
+  view is server-backed, derived, presentation-only, unsupported, or SQL
+  fallback. Use concrete labels such as KPI strip, KPI card, line chart, bar
+  chart, area chart, pie/donut chart, table, matrix, filter control, or detail
+  panel;
 - app-local derived fields, why they are needed, and whether they are row-stage
   or aggregate-stage calculations;
 - matrix/pivot views with row axes, column axes, values, totals/subtotals, and

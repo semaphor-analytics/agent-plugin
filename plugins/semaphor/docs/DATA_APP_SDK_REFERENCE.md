@@ -466,9 +466,13 @@ app. If no suitable table library exists, `@tanstack/react-table` is a good
 choice for table state and controls; add `@tanstack/react-virtual` only when
 virtualized rendering is required.
 
-If the user or planner explicitly selects server-side tables or the Semaphor
-table registry, that is approval to implement server-side table mechanics. Do
-not downgrade to client-only pagination/sorting to avoid a registry install.
+Infer server-backed table needs from table behavior. Operational tables,
+queues, drill-through/detail tables, exploratory tables, paginated/sortable
+tables, and complete or large result tables should use Semaphor server-side
+table mechanics even when the user did not literally say "server-side table."
+After planning, ask to use, install, or adapt the Semaphor table registry unless
+the app already has an equivalent server-backed table abstraction. Do not
+downgrade to client-only pagination/sorting to avoid a registry install.
 
 ## Validation
 

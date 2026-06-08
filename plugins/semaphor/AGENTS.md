@@ -13,6 +13,13 @@ Codex, Claude Code, and future coding-agent hosts.
 - Use Semaphor MCP for authoring discovery and governed analysis.
 - Generate runtime React code with public `react-semaphor/data-app-sdk` hooks.
 - Save and publish through Semaphor Data App lifecycle APIs when requested.
+- Infer server-backed table needs from intent, not only literal wording. If the
+  plan includes an operational table, queue, drill-through/detail table,
+  exploratory table, paginated/sortable table, or complete/large result table,
+  treat it as a server-side table candidate. After inspecting the target app
+  and presenting the plan, ask to use, install, or adapt the Semaphor shadcn
+  server table registry mechanics unless the app already has an equivalent
+  server-backed table abstraction.
 - Do not add a host-specific analytics language. Missing analytical behavior
   belongs in Semaphor's shared MCP, SDK, validation, or execution contracts.
 - Treat the Data App SDK and shared Analytics Spine as active development

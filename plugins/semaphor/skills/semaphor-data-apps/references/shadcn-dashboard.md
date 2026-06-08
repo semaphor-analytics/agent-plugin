@@ -174,8 +174,18 @@ Use shadcn controls that fit the input:
 - Numeric threshold: `Slider` plus an input when precision matters.
 
 Shared filters should show which views they affect through placement and label
-clarity. Keep option labels unique; when labels duplicate, add a meaningful
-secondary label or disambiguator.
+clarity. Use the top filter bar for dashboard-wide controls. Put section- or
+card-scoped controls near the affected views, or add compact scope text such
+as "Affects processing cards" when placement alone is not clear. Keep option
+labels unique; when labels duplicate, add a meaningful secondary label or
+disambiguator.
+
+Cards should show active subscribed filters without turning the dashboard into
+a debug panel. Use `Badge`, muted inline text, `Tooltip`, or `Popover` for a
+compact "filtered by" affordance in the card header or footer. Show only
+filters actually passed to that card's query. Prefer labels users recognize
+from the controls, such as `Date range`, `Facility`, `Material`, or `Market
+index`; avoid source/table names unless needed for disambiguation.
 
 ## States And Error UX
 
