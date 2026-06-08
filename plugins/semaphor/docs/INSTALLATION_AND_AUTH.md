@@ -1,8 +1,7 @@
 # Installation And Auth
 
-This plugin helps customers build Semaphor-backed features inside existing
-React applications. It works with Vite, Next.js, Remix, React Router,
-monorepos, and custom product shells.
+This plugin helps customers build Semaphor-backed features inside Vite React
+applications, including existing React apps and the Semaphor Data App Starter.
 
 ## Install
 
@@ -69,8 +68,8 @@ environment file. Vite example:
 VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 ```
 
-For non-Vite apps, use your app's normal local configuration convention. The
-plugin also accepts `SEMAPHOR_PROJECT_TOKEN` from shell env or local env files.
+The plugin helper scripts also accept `SEMAPHOR_PROJECT_TOKEN` from shell env
+or local env files for deterministic scoped development.
 
 Do not commit real tokens. Agents should check for expected variable names, but
 should not print, search, or log token values.
@@ -147,6 +146,7 @@ Production-ready auth behavior:
   first-class MCP tool with `workspaceDir` instead of switching to shell
   wrappers.
 - `call:mcp` is a diagnostic fallback for debugging and eval forensics only.
+  Do not use it for ordinary customer app authoring.
   It is not the normal app-building path.
 
 If a host does not expose those tools, use the fallback wrapper for debugging or
@@ -198,7 +198,8 @@ enable SDK DevTools only in local development:
 
 ```tsx
 const enableDevtools =
-  import.meta.env.DEV || window.location.hostname === "localhost";
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost");
 
 <SemaphorDataAppProvider
   token={runtimeToken}

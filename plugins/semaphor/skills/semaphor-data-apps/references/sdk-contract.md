@@ -129,14 +129,15 @@ signatures in a way that can produce the wrong result shape.
 
 ## Provider
 
-Provider setup should be token-only for execution routing, with SDK DevTools
-enabled in local development so humans and agents can inspect runtime traces.
-Vite example:
+Provider setup should be token-only for execution routing. Generated Vite React
+apps should enable SDK DevTools in local development so humans and agents can
+inspect runtime traces:
 
 ```tsx
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
 const enableDevtools =
-  import.meta.env.DEV || window.location.hostname === "localhost";
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost");
 
 <SemaphorDataAppProvider
   token={runtimeToken}
@@ -193,10 +194,10 @@ small query modules. Do not add noisy repeated wrappers just to provide them.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl` prop
-for normal customer apps. For Next.js, Remix, React Router, or custom shells,
-follow the app's existing runtime configuration convention instead of forcing
-Vite env names. Use `apiBaseUrl` only when the user explicitly needs self-hosted
-or local routing that intentionally differs from the token's `apiServiceUrl`.
+for normal Vite React apps. For other React runtimes, adapt token loading to
+the host app before codegen instead of copying the Vite snippet unchanged. Use
+`apiBaseUrl` only when the user explicitly needs self-hosted or local routing
+that intentionally differs from the token's `apiServiceUrl`.
 
 Do not import `readWindowRuntime` or generate extra token fallback variables
 such as `VITE_SEMAPHOR_TOKEN` for normal customer apps. Use hosted runtime

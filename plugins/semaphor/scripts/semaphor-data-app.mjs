@@ -1182,7 +1182,7 @@ function preparePublishManifest(root, options) {
         'Could not infer a Semaphor-hosted runtime entry file.',
         'Semaphor-hosted publish needs a static browser bundle with a hashed module entry that mounts into #root.',
         'For Vite-style apps, make sure npm run build writes dist/index.html and dist/assets/index-<hash>.js.',
-        'For server-rendered apps such as Next.js or Remix, add a static Data App entrypoint or pass --manifest with runtime.entry.',
+        'If the app uses a different build shape, add a static Data App entrypoint or pass --manifest with runtime.entry.',
       ].join(' '),
     );
   }

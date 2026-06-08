@@ -90,9 +90,10 @@ VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 
 For OAuth mode, the agent should write the token returned by
 `semaphor_get_data_app_runtime_token` to `VITE_SEMAPHOR_PROJECT_TOKEN` in the
-target app's ignored `.env.local`. For non-Vite deterministic project-token
-workflows, use `SEMAPHOR_PROJECT_TOKEN` instead. Do not commit local env files
-containing real tokens into source control.
+target app's ignored `.env.local`. The helper scripts can also read
+`SEMAPHOR_PROJECT_TOKEN` from shell env or local env files for deterministic
+project-token workflows. Do not commit local env files containing real tokens
+into source control.
 
 Owner layer: local setup/auth docs unless the MCP error is unclear.
 
@@ -291,14 +292,12 @@ Likely causes:
 
 - no `SemaphorDataAppProvider` in the rendered tree,
 - provider has no token,
-- hosted runtime did not inject `window.__SEMAPHOR_DATA_APP_RUNTIME__`,
-- component is rendered on the server without a client-side execution path.
+- hosted runtime did not inject `window.__SEMAPHOR_DATA_APP_RUNTIME__`.
 
 Fix:
 
 - ensure the hook component is inside a provider or hosted runtime,
-- pass a runtime token,
-- in Next.js, ensure hook components are client components.
+- pass a runtime token.
 
 Owner layer: customer app integration or SDK diagnostics if the idle state is
 unclear.
@@ -328,7 +327,8 @@ import {
 } from "react-semaphor/data-app-sdk";
 
 const enableDevtools =
-  import.meta.env.DEV || window.location.hostname === "localhost";
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost");
 
 <SemaphorDataAppProvider
   token={runtimeToken}

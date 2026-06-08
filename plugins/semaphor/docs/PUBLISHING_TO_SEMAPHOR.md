@@ -141,14 +141,13 @@ build static assets
   -> complete or fail the publish session
 ```
 
-## Server-Rendered Apps
+## Static Browser Entry
 
-Next.js, Remix, or custom server-rendered apps can still use Semaphor SDK query hooks
-in their own runtime. Semaphor-hosted publish needs a static browser entry.
-
-If the normal app build does not produce one, add a small static Data App
-entrypoint for Semaphor publish, then point `--build-command`, `--assets-dir`,
-or `semaphor.data-app.json` at that output.
+Semaphor-hosted publish needs a static browser entry. For the supported Vite
+React path, the normal app build should produce `dist/index.html` plus hashed
+assets. If the normal build does not produce that shape, add a small static
+Data App entrypoint for Semaphor publish, then point `--build-command`,
+`--assets-dir`, or `semaphor.data-app.json` at that output.
 
 The agent should explain this distinction instead of replacing the customer's
 app structure.

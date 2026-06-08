@@ -1,6 +1,6 @@
 # Semaphor
 
-Build Semaphor-backed React data apps from Codex or Claude Code.
+Build Semaphor-backed Vite React data apps from Codex or Claude Code.
 
 This is the installable Semaphor plugin package. It provides shared skills,
 MCP configuration, and helper scripts for building, validating, saving, and
@@ -27,9 +27,8 @@ https://github.com/semaphor-analytics/agent-plugin
    VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
    ```
 
-   For non-Vite apps, use your app's normal runtime config. The plugin helper
-   scripts also accept `SEMAPHOR_PROJECT_TOKEN` from shell env or local env
-   files.
+   The plugin helper scripts also accept `SEMAPHOR_PROJECT_TOKEN` from shell
+   env or local env files.
 
    Hosted Semaphor needs no extra server URL. For local development,
    self-hosted deployments, tunnels, or Semaphor dogfooding, add the optional

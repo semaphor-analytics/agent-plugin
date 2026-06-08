@@ -102,6 +102,63 @@ function validateClaudeManifest() {
   }
 }
 
+function validateVersionSync() {
+  const pkg = readJson('package.json');
+  const codexManifest = readJson('.codex-plugin/plugin.json');
+  const claudeManifest = readJson('.claude-plugin/plugin.json');
+  const expectedVersion = pkg?.version;
+  if (!expectedVersion) return;
+
+  for (const [label, actualVersion] of [
+    ['.codex-plugin/plugin.json', codexManifest?.version],
+    ['.claude-plugin/plugin.json', claudeManifest?.version],
+  ]) {
+    if (actualVersion && actualVersion !== expectedVersion) {
+      issues.push(
+        `${label}: version ${actualVersion} must match package.json version ${expectedVersion}`,
+      );
+    }
+  }
+
+  for (const relativePath of [
+    'scripts/call-semaphor-tool.mjs',
+    'scripts/semaphor-mcp-remote.mjs',
+  ]) {
+    const fullPath = path.join(root, relativePath);
+    if (!fs.existsSync(fullPath)) continue;
+    const text = fs.readFileSync(fullPath, 'utf8');
+    const versionMatches = [...text.matchAll(/\bversion:\s*['"]([^'"]+)['"]/g)];
+    if (versionMatches.length === 0) {
+      issues.push(`${relativePath}: missing helper-reported MCP version`);
+      continue;
+    }
+    for (const match of versionMatches) {
+      if (match[1] !== expectedVersion) {
+        issues.push(
+          `${relativePath}: helper-reported MCP version ${match[1]} must match package.json version ${expectedVersion}`,
+        );
+      }
+    }
+  }
+
+  const claudeMarketplacePath = path.resolve(
+    root,
+    '..',
+    '..',
+    '.claude-plugin',
+    'marketplace.json',
+  );
+  if (fs.existsSync(claudeMarketplacePath)) {
+    const marketplace = JSON.parse(fs.readFileSync(claudeMarketplacePath, 'utf8'));
+    const entry = marketplace?.plugins?.find((plugin) => plugin?.name === pkg.name);
+    if (entry?.version && entry.version !== expectedVersion) {
+      issues.push(
+        `.claude-plugin/marketplace.json: semaphor version ${entry.version} must match package.json version ${expectedVersion}`,
+      );
+    }
+  }
+}
+
 function validateMcpConfig() {
   const config = readJson('.mcp.json');
   const oauthServer = config?.mcpServers?.semaphor;
@@ -297,6 +354,7 @@ requireDirectory('docs');
 validatePackageJson();
 validateCodexManifest();
 validateClaudeManifest();
+validateVersionSync();
 validateMcpConfig();
 validateSkillStructure();
 validateDataAppInitializer();

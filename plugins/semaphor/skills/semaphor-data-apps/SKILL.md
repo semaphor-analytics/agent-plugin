@@ -10,13 +10,13 @@ inspect, validate, save, or publish a Semaphor-backed React data app.
 
 ## Core Mental Model
 
-A Semaphor data app is any React application that uses
-`react-semaphor/data-app-sdk` to execute governed Semaphor analytics. It does
-not need to be a Vite app, a Semaphor starter, or a specific router/layout.
+A Semaphor data app is a React application that uses
+`react-semaphor/data-app-sdk` to execute governed Semaphor analytics. Generated
+local apps should follow the Vite React runtime convention unless the target
+repo already has an equivalent React setup.
 
-This plugin is for customers building many shapes of React apps. Work with the
-customer repo as it exists. Do not force a prescribed scaffold, provider file,
-styling system, route structure, or table library.
+Work with the customer repo as it exists. Do not force the starter scaffold, a
+prescribed provider filename, styling system, route structure, or table library.
 
 The coding agent owns local source inspection and edits. Semaphor owns auth,
 metadata, analytics grounding, permissions, governed execution, row limits,
@@ -62,18 +62,12 @@ return `401 Unauthorized`, pause the data-bearing work and ask the user to
 reauthenticate or provide a project token. Keep the current task context and
 tell the user to say "try again" after auth is fixed. Do not generate fake
 analytics while waiting for auth: no placeholder dashboard shell, static mock
-analytics, generic integration points, or token-missing UI. The correct next
-action is one of:
-
-- Hosted OAuth: ask the user to use the host MCP OAuth flow for `semaphor`,
-  then say "try again". Codex example: `codex mcp login semaphor`; in Claude
-  Code or another host, use that host's MCP server auth UI or command. Mention
-  a fresh session only if the host needs one before exposing refreshed tools.
-- Project-token mode: ask the user to add `VITE_SEMAPHOR_PROJECT_TOKEN` to the
-  app's ignored `.env.local`, then retry with `workspaceDir` set to the app root.
-- Local Semaphor development: ask the user to add both
-  `VITE_SEMAPHOR_PROJECT_TOKEN` and `SEMAPHOR_SERVER_URL=http://localhost:3000`
-  to the target app's ignored `.env.local`.
+analytics, generic integration points, or token-missing UI. For hosted OAuth,
+ask the user to use the host MCP OAuth flow for `semaphor` and then say "try
+again" (Codex example: `codex mcp login semaphor`; Claude Code uses its MCP
+server auth UI/command). For project-token mode, ask for
+`VITE_SEMAPHOR_PROJECT_TOKEN` in the app's ignored `.env.local`; for local
+Semaphor, also ask for `SEMAPHOR_SERVER_URL=http://localhost:3000`.
 
 ## Operation Types
 
@@ -347,7 +341,8 @@ behavior. Vite example:
 ```tsx
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
 const enableDevtools =
-  import.meta.env.DEV || window.location.hostname === "localhost";
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost");
 
 <SemaphorDataAppProvider
   token={runtimeToken}
@@ -385,10 +380,9 @@ normal customer runtime code.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
 `VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` for
-normal customer apps. For Next.js, Remix, React Router, or custom shells,
-follow the app's existing runtime configuration convention instead of forcing
-Vite env names. Use `apiBaseUrl` only when the user explicitly needs self-hosted
-or local routing that intentionally differs from the token's `apiServiceUrl`.
+normal Vite React apps. Use `apiBaseUrl` only when the user explicitly needs
+self-hosted or local routing that intentionally differs from the token's
+`apiServiceUrl`.
 
 For the full SDK contract, read [sdk-contract.md](references/sdk-contract.md).
 

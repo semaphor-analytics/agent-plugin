@@ -12,8 +12,7 @@ normal discovery path. Record the missing example as a plugin or SDK docs gap.
 
 ## Runtime Provider
 
-Generated customer code should pass the project/runtime token only. Vite
-example:
+Generated Vite React code should pass the project/runtime token only:
 
 ```tsx
 import {
@@ -23,7 +22,8 @@ import {
 
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
 const enableDevtools =
-  import.meta.env.DEV || window.location.hostname === "localhost";
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost");
 
 root.render(
   <SemaphorDataAppProvider
@@ -75,8 +75,9 @@ The SDK decodes the Semaphor API URL from the token. Do not generate
 the user explicitly needs local or self-hosted routing that intentionally
 differs from the token's `apiServiceUrl`.
 
-For Next.js, Remix, React Router, or custom shells, follow the app's existing
-runtime configuration convention instead of forcing Vite env names.
+This plugin's generated app path is scoped to Vite React. For other React
+runtimes, adapt the token-loading line to the host app before codegen instead
+of copying this Vite snippet unchanged.
 
 ## Code Organization For Generated Dashboards
 

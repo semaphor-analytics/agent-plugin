@@ -88,10 +88,9 @@ the app once you approve the direction.
 
 ## What You Need
 
-- A React app. For a new app, start with
+- A Vite React app. For a new app, start with
   [semaphor-data-app-starter](https://github.com/semaphor-analytics/semaphor-data-app-starter).
-  Existing Vite, Next.js, Remix, React Router, monorepos, and custom product
-  shells are all fine too.
+  Existing Vite React apps and monorepos are fine too.
 - Semaphor login, or a Semaphor project token for deterministic scoped
   development.
 - Codex or Claude Code.
@@ -263,8 +262,7 @@ For deterministic scoped app development, put a project token in `.env.local`:
 VITE_SEMAPHOR_PROJECT_TOKEN="<project-token-from-semaphor-project-page>"
 ```
 
-For non-Vite apps, use your app's normal local env system. The plugin helper
-scripts can also read:
+The plugin helper scripts can also read:
 
 ```bash
 SEMAPHOR_PROJECT_TOKEN="<project-token-from-semaphor-project-page>"
@@ -396,7 +394,8 @@ provider so developers and agents can inspect query traces:
 
 ```tsx
 const enableDevtools =
-  import.meta.env.DEV || window.location.hostname === "localhost";
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost");
 
 <SemaphorDataAppProvider
   token={runtimeToken}

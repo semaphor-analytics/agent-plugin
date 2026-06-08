@@ -8,8 +8,9 @@ Codex, Claude Code, and future coding-agent hosts.
 - Keep this package host-neutral. Codex and Claude Code should use the same
   skill, MCP configuration, helper scripts, SDK query hooks, validation route,
   and Data App lifecycle APIs.
-- Keep customer app support broad. Do not require Vite, a starter scaffold, a
-  specific router, a provider filename, a styling system, or a table library.
+- Keep customer app support focused on Vite React. Do not require the starter
+  scaffold, a specific router, a provider filename, a styling system, or a
+  table library.
 - Use Semaphor MCP for authoring discovery and governed analysis.
 - Generate runtime React code with public `react-semaphor/data-app-sdk` hooks.
 - Save and publish through Semaphor Data App lifecycle APIs when requested.

@@ -33,7 +33,8 @@ export function SemaphorAnalyticsProvider({
   token: string;
 }) {
   const enableDevtools =
-    import.meta.env.DEV || window.location.hostname === "localhost";
+    import.meta.env.DEV ||
+    (typeof window !== "undefined" && window.location.hostname === "localhost");
 
   return (
     <SemaphorDataAppProvider
