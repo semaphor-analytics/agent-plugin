@@ -66,6 +66,7 @@ function hasEmptyState(content) {
 
 function scanSourceQuality(root, sourceFiles) {
   const advisories = [];
+  const issues = [];
   let usesDataAppSdkHooks = false;
   let hasProvider = false;
   let hasRootDevtools = false;
@@ -285,26 +286,26 @@ function scanSourceQuality(root, sourceFiles) {
   }
 
   if (usesDataAppSdkHooks && !hasProvider) {
-    advisories.push(
+    issues.push(
       "Data App SDK queries were found, but no SemaphorDataAppProvider import/usage was found. Queries stay idle without a runtime/provider unless the app supplies one through its own wrapper.",
     );
   }
 
   if (usesDataAppSdkHooks && hasProvider && !hasRootDevtools) {
-    advisories.push(
-      "Generated local/dev Data Apps should mount one root <SemaphorDevtools /> under SemaphorDataAppProvider so authors and agents can inspect query and input traces. Do not add per-card wrappers.",
+    issues.push(
+      "Generated local/dev Data Apps must mount one root <SemaphorDevtools /> under SemaphorDataAppProvider so authors and agents can inspect query and input traces. Do not replace this with a custom panel or per-card wrappers.",
     );
   }
 
   if (usesDataAppSdkHooks && hasProvider && !hasProviderDebugBridge) {
-    advisories.push(
-      "Generated local/dev Data Apps should pass SemaphorDataAppProvider debug={enableDevtools ? { exposeWindowBridge: true } : false} so browser/eval agents can inspect window.__SEMAPHOR_DEVTOOLS__.snapshot(). Keep this gated to local development or author preview.",
+    issues.push(
+      "Generated local/dev Data Apps must pass SemaphorDataAppProvider debug={enableDevtools ? { exposeWindowBridge: true } : false} so browser/eval agents can inspect window.__SEMAPHOR_DEVTOOLS__.snapshot(). Keep this gated to local development or author preview.",
     );
   }
 
   if (visibleFilterSpecCount > 0 && !hasCardFilterAffordance) {
-    advisories.push(
-      "Visible filters were found, but no card-level applied-filter affordance was detected. Cards/charts should show compact active filter chips or muted text for filters actually applied to that card's query.",
+    issues.push(
+      "Visible filters were found, but no card-level applied-filter affordance was detected. Cards/charts must show compact active filter chips or muted text for filters actually applied to that card's query.",
     );
   }
 
@@ -332,7 +333,7 @@ function scanSourceQuality(root, sourceFiles) {
     );
   }
 
-  return { advisories };
+  return { advisories, issues };
 }
 
 function collectRecordsQueryNames(sourceFiles) {
@@ -468,6 +469,8 @@ function main() {
       console.log(`- ${advisory}`);
     }
   }
+
+  issues.push(...quality.issues);
 
   if (args.strict) {
     issues.push(...quality.advisories);

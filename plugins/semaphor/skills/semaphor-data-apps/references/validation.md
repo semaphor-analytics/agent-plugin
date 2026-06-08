@@ -18,7 +18,8 @@ issues that would make Semaphor DevTools or reviewer agents misread the app:
   has a stable explicit `id`;
 - one root `<SemaphorDevtools />` is mounted for local/dev authoring and
   `SemaphorDataAppProvider` exposes the window bridge only behind a local/dev
-  gate;
+  gate. Missing root DevTools or missing `exposeWindowBridge` debug wiring is a
+  validator failure for generated SDK apps, not an optional polish item;
 - shared filter handles are created with `useSemaphorInputs(...)` in a shared
   parent and passed to every query that should respond;
 - every visible filter has an explicit affected-view list in the plan or code
@@ -27,11 +28,16 @@ issues that would make Semaphor DevTools or reviewer agents misread the app:
   without saying so in the UI or final response;
 - cards with active subscribed filters show a compact applied-filter
   affordance, such as chips/badges or muted text, so users can tell which
-  filters affected each card's query;
+  filters affected each card's query. Missing card-level applied-filter
+  affordances are validator failures when visible filters exist;
 - changing each visible filter would change at least one visible data-bearing
   query. Remove filters that are not passed to any visible query, or report why
   they are planned but currently unsupported;
 - query-specific field differences use `semaphor.bindInput(...)`;
+- data-backed select filters distinguish visible label fields, option value
+  fields, and runtime filter fields. For example, a dropdown may show
+  `material_name`, store `material_id`, and apply the fact-side
+  `material_id` field to subscribed fact queries;
 - remote option lists use `semaphor.inputOptions(...)` plus
   `useSemaphorQuery(...)`;
 - scalar KPI cards and planner `queryKind: "metric"` views use
@@ -63,6 +69,17 @@ subscribed query re-runs with the input applied in DevTools or trace output.
 When the data should differ, compare the visible metric/chart/table before and
 after the selection. If values happen to be equivalent for the chosen option,
 report that the trace proves application of the filter.
+
+Browser smoke for generated dashboards should explicitly verify:
+
+- the built-in Semaphor DevTools bubble is visible and opens;
+- DevTools shows registered card/data queries and input option traces;
+- every filter dropdown has options or reports a clear unsupported/modeling
+  gap;
+- selecting each filter changes at least one scoped KPI/chart/table or DevTools
+  proves the scoped query re-ran with the input applied;
+- cards that receive active filters show the applied-filter affordance;
+- no card is hiding Semaphor execution errors.
 
 Do not call the implementation done if a records query exists only to populate
 a select, combobox, multi-select, or filter menu and the same behavior can be

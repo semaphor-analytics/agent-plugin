@@ -90,7 +90,10 @@ Expected validation:
 
 - generated hooks use MCP-inspected source and field refs,
 - local typecheck/build passes,
-- browser smoke check shows governed Semaphor data.
+- browser smoke check shows governed Semaphor data, the built-in DevTools
+  bubble opens, filter dropdowns have options, scoped filter selections re-run
+  subscribed queries, affected cards show applied-filter affordances, and no
+  card hides Semaphor execution errors.
 
 
 ## 1A. Add A Derived Metric

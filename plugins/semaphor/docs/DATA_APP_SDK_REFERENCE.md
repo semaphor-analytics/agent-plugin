@@ -112,6 +112,7 @@ all `semaphor.*(...)` specs there.
 ```tsx
 import {
   SemaphorDataAppProvider,
+  SemaphorDevtools,
   defineSemaphorDataApp,
   semaphor,
   useSemaphorInputs,

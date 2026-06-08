@@ -125,6 +125,24 @@ one input spec, bind it once with `useSemaphorInputs` in a shared parent or a
 small React context, then pass that same handle array into each query that
 should respond.
 
+For every data-backed select/multi-select filter, distinguish three fields
+before writing code:
+
+- visible label field: what the user reads in the dropdown, such as
+  `material_name`;
+- option value field: the stable key stored in the input value, such as
+  `material_id`;
+- runtime filter field: the source-bearing field applied to each subscribed
+  query, such as `fact_inventory_movement.material_id`.
+
+Do not filter a fact query with a dimension display label just because the
+dropdown shows that label. If a filter's options come from a dimension but the
+card query runs against a fact, bind the selected key to the fact-side key with
+planner-provided `fieldRef`, `relationshipHint`, and `semaphor.bindInput(...)`.
+If Semaphor cannot prove that relationship, leave the card unsubscribed and
+report the missing modeled relationship instead of shipping a filter that does
+not affect the card or fails at runtime.
+
 Filter placement must match filter scope. Before rendering a visible filter,
 decide and preserve its affected views:
 

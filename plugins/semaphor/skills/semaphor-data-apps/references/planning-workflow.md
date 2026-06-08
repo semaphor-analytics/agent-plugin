@@ -141,6 +141,8 @@ invent separate option queries when the planner supplies one.
 Before writing code, resolve filter scope as an implementation map:
 
 - each visible filter/control id and field ref;
+- for data-backed option filters, the visible label field, option value field,
+  and runtime filter field for each subscribed source;
 - whether it is dashboard-wide, section-wide, or card-local;
 - each subscribed `plan.views[*].id` and query id that will receive the bound
   handle;
