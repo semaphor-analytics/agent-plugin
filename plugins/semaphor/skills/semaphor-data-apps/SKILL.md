@@ -363,16 +363,10 @@ const enableDevtools =
 </SemaphorDataAppProvider>
 ```
 
-This is the default generated-app wiring. `SemaphorDevtools` is the
-TanStack-style one-line root integration. It opens as a right dock by default
-so vertical analytics space remains available and the app stays visible beside
-the inspector; use `panelPosition="bottom"` only when the user asks for a
-bottom dock. Do not wrap every card in DevTools
-boilerplate. Stable query ids and labels are enough for the global inspector.
-For broad generated dashboards, use the TanStack-style root DevTools
-integration only. If source traceability needs help, pass hook-level debug
-metadata/source hints to `useSemaphorQuery` instead of adding per-card DevTools
-wrapper boilerplate.
+This is the default generated-app wiring. Use the one-line root DevTools
+integration, with right dock by default. Do not wrap every card in DevTools
+boilerplate; stable query ids plus optional hook-level source hints are enough
+for the global inspector.
 
 When debugging in a local browser, inspect structured traces through:
 
@@ -476,34 +470,6 @@ node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>
 Also run the target app's package typecheck/build scripts when present and
 reasonable, plus Semaphor MCP query checks for data-bearing analytics when
 credentials are available.
-
-Before saying an implementation is done, also inspect the generated app
-structure against the SDK contract:
-
-- every visible filter/control is backed by `semaphor.filter(...)`,
-  `semaphor.control(...)`, or `semaphor.sqlParam(...)`;
-- shared filters are bound once with `useSemaphorInputs(...)` and passed into
-  each subscribed `useSemaphorQuery(...)` call;
-- source-specific subscriptions use `semaphor.bindInput(...)` instead of
-  duplicate visible controls;
-- remote dropdown/search choices use `semaphor.inputOptions(...)` and appear as
-  input traces in Semaphor DevTools;
-- app content queries use `semaphor.metric`, `semaphor.records`,
-  `semaphor.analysis`, `semaphor.matrix`, or documented SQL fallbacks and
-  appear as card/data traces in Semaphor DevTools;
-- planner metric views and scalar KPI cards use `semaphor.metric(...)` unless
-  the visual is row-shaped or the SDK cannot express it; multiple scalar KPIs
-  in one card can use one `semaphor.metric(...)` query with multiple measures;
-- metric result rendering reads scalar KPIs from `result.value` and
-  `result.measures`; do not switch a scalar KPI to `semaphor.records(...)`
-  merely because the runtime also exposes aggregate rows;
-- no `semaphor.records(...)` query is used only to derive filter option lists
-  in React unless an explicit SDK gap is reported to the user;
-- every input handle is passed only to same-source queries, planner-listed
-  `appliesToViewIds`, or queries with an explicit `relationshipHint`; no query
-  is left with a runtime "could not prove a modeled relationship" failure;
-- any unsupported analytics or SDK fallback is named plainly, including the
-  user-visible behavior and the workaround used.
 
 For lifecycle details, read [publish-lifecycle.md](references/publish-lifecycle.md).
 For validation details, read [validation.md](references/validation.md).

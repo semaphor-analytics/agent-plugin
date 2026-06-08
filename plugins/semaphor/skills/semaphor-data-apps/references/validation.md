@@ -2,6 +2,8 @@
 
 Before reporting completion, run the strongest available checks:
 
+- `semaphor_validate_data_app_contract` when the host exposes the Semaphor MCP
+  tool;
 - `node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>`;
 - package typecheck script, if present;
 - package build script, if present and reasonable;
@@ -81,9 +83,11 @@ Browser smoke for generated dashboards should explicitly verify:
 - cards that receive active filters show the applied-filter affordance;
 - no card is hiding Semaphor execution errors.
 
-Do not call the implementation done if a records query exists only to populate
-a select, combobox, multi-select, or filter menu and the same behavior can be
-expressed with `semaphor.inputOptions(...)`.
+Do not call the implementation done if `semaphor_validate_data_app_contract` or
+`validate-semaphor-data-app.mjs` reports hard contract failures. Do not call the
+implementation done if a records query exists only to populate a select,
+combobox, multi-select, or filter menu and the same behavior can be expressed
+with `semaphor.inputOptions(...)`.
 
 Treat the build as the authoritative app check when typecheck/build disagree.
 Some repos have a loose root `tsc --noEmit` that under-checks app sources, so a

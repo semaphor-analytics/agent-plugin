@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const MCP_PROTOCOL_VERSION = '2024-11-05';
@@ -68,6 +69,30 @@ const FALLBACK_TOOLS = [
   ...tool,
   inputSchema: WORKSPACE_HINT_SCHEMA,
 }));
+const LOCAL_TOOLS = [
+  {
+    name: 'semaphor_validate_data_app_contract',
+    description:
+      'Validate the local React Data App source against Semaphor SDK contract requirements: root DevTools, provider debug bridge, stable query ids, inputOptions for dropdown choices, shared filter handles, card filter affordances, and modular query/spec organization. Run this after initial SDK wiring and before reporting completion.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspaceDir: WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+        runBuild: {
+          type: 'boolean',
+          description:
+            'Whether to also run the app typecheck/build scripts when present. Defaults to false for a fast contract check.',
+        },
+        strict: {
+          type: 'boolean',
+          description:
+            'Treat all validation advisories as failures in addition to hard contract issues.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+];
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(scriptDir, '..');
@@ -167,12 +192,15 @@ async function forwardRequest(message) {
       jsonrpc: '2.0',
       id: message.id,
       result: {
-        tools: FALLBACK_TOOLS,
+        tools: [...FALLBACK_TOOLS, ...LOCAL_TOOLS],
       },
     };
   }
 
   if (message.method === 'tools/call') {
+    if (message.params?.name === 'semaphor_validate_data_app_contract') {
+      return validateLocalDataAppContract(message);
+    }
     const toolArguments = message.params?.arguments;
     const context = await resolveSemaphorContext({
       allowMissing: false,
@@ -253,7 +281,80 @@ function normalizeToolsListResponse(message, response) {
     id: message.id,
     result: {
       ...(normalized?.result || {}),
-      tools,
+      tools: appendLocalTools(tools),
+    },
+  };
+}
+
+function appendLocalTools(tools) {
+  const seen = new Set(tools.map((tool) => tool?.name).filter(Boolean));
+  return [
+    ...tools,
+    ...LOCAL_TOOLS.filter((tool) => !seen.has(tool.name)),
+  ];
+}
+
+function validateLocalDataAppContract(message) {
+  const args = message.params?.arguments && typeof message.params.arguments === 'object'
+    ? message.params.arguments
+    : {};
+  const workspaceDir = firstString(
+    args.workspaceDir,
+    args.workspaceRoot,
+    args.projectDir,
+    args.repoRoot,
+    args.appDir,
+    process.cwd(),
+  );
+  const validatorPath = path.join(pluginRoot, 'scripts/validate-semaphor-data-app.mjs');
+  const commandArgs = [
+    validatorPath,
+    '--dir',
+    workspaceDir,
+  ];
+  if (!args.runBuild) {
+    commandArgs.push('--no-run');
+  }
+  if (args.strict) {
+    commandArgs.push('--strict');
+  }
+  const result = spawnSync(process.execPath, commandArgs, {
+    cwd: workspaceDir,
+    encoding: 'utf8',
+    env: process.env,
+  });
+  const stdout = redactSensitiveText(result.stdout || '');
+  const stderr = redactSensitiveText(result.stderr || '');
+  const ok = result.status === 0;
+  const text = [
+    ok
+      ? 'Semaphor Data App contract validation passed.'
+      : 'Semaphor Data App contract validation failed.',
+    stdout.trim(),
+    stderr.trim(),
+  ].filter(Boolean).join('\n\n');
+
+  return {
+    jsonrpc: '2.0',
+    id: message.id,
+    result: {
+      isError: !ok,
+      structuredContent: {
+        ok,
+        workspaceDir,
+        runBuild: Boolean(args.runBuild),
+        strict: Boolean(args.strict),
+        exitCode: result.status,
+        signal: result.signal || null,
+        stdout,
+        stderr,
+      },
+      content: [
+        {
+          type: 'text',
+          text,
+        },
+      ],
     },
   };
 }
@@ -713,6 +814,12 @@ function parseEnvValue(rawValue) {
   }
   const commentIndex = trimmed.indexOf(' #');
   return commentIndex === -1 ? trimmed : trimmed.slice(0, commentIndex).trim();
+}
+
+function firstString(...values) {
+  return values.find((value) =>
+    typeof value === 'string' && value.trim().length > 0
+  ) || '';
 }
 
 function formatJsonRpcError(error) {

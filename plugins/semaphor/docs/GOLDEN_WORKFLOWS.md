@@ -84,6 +84,9 @@ Expected agent behavior:
   `@tanstack/react-virtual` when richer table state and virtualized rendering
   are needed,
 - format numbers, dates, currencies, and percentages for scanning,
+- run `semaphor_validate_data_app_contract` when exposed, or the plugin
+  validation script fallback, after initial SDK wiring and again before final
+  handoff,
 - avoid static fixtures and invented datasets.
 
 Expected validation:

@@ -296,6 +296,24 @@ function validateDataAppInitializer() {
   }
 }
 
+function validateMcpBridge() {
+  const bridgePath = path.join(root, 'scripts/semaphor-mcp-remote.mjs');
+  if (!fs.existsSync(bridgePath)) {
+    return;
+  }
+  const bridgeText = fs.readFileSync(bridgePath, 'utf8');
+  if (!bridgeText.includes('semaphor_validate_data_app_contract')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: must expose semaphor_validate_data_app_contract as a first-class local MCP tool',
+    );
+  }
+  if (!bridgeText.includes('validate-semaphor-data-app.mjs')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: local validation tool must call scripts/validate-semaphor-data-app.mjs',
+    );
+  }
+}
+
 function scanDistributionText() {
   const forbidden = [
     /\/Users\/rohit\//,
@@ -358,6 +376,7 @@ validateVersionSync();
 validateMcpConfig();
 validateSkillStructure();
 validateDataAppInitializer();
+validateMcpBridge();
 scanDistributionText();
 
 if (issues.length > 0) {

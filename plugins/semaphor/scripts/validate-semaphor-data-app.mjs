@@ -79,6 +79,8 @@ function scanSourceQuality(root, sourceFiles) {
   let visibleFilterSpecCount = 0;
   let hasCardFilterAffordance = false;
   let hasNativeDateInput = false;
+  let useSemaphorInputCount = 0;
+  let useSemaphorInputsCount = 0;
   const recordsQueryNames = collectRecordsQueryNames(sourceFiles);
   const hasDatePickerStack =
     fs.existsSync(path.join(root, "src", "components", "ui", "calendar.tsx")) ||
@@ -101,6 +103,8 @@ function scanSourceQuality(root, sourceFiles) {
       content,
       /\bsemaphor\.(?:filter|control|sqlParam)(?:<[^>()]+>)?\s*\(/g,
     );
+    useSemaphorInputCount += countMatches(content, /\buseSemaphorInput\s*\(/g);
+    useSemaphorInputsCount += countMatches(content, /\buseSemaphorInputs\s*\(/g);
     if (
       /\b(?:Filtered by|filters? applied|appliedFilters?|activeFilters?|filterChips?|Affects)\b/i.test(
         content,
@@ -162,8 +166,8 @@ function scanSourceQuality(root, sourceFiles) {
       recordsQueryNames,
     );
     if (recordsOptionQuery) {
-      advisories.push(
-        `${location}: ${recordsOptionQuery} appears to use semaphor.records(...) as hidden filter option data. Use semaphor.inputOptions(...) for remote select/combobox choices, or document the SDK gap if records are required.`,
+      issues.push(
+        `${location}: ${recordsOptionQuery} appears to use semaphor.records(...) as hidden filter option data. Use semaphor.inputOptions(...) for remote select/combobox choices, or stop and document the SDK gap before using records.`,
       );
     }
     if (content.includes("SemaphorDataAppProvider")) {
@@ -309,6 +313,17 @@ function scanSourceQuality(root, sourceFiles) {
     );
   }
 
+  if (
+    totalSemaphorSpecCount >= 4 &&
+    visibleFilterSpecCount > 0 &&
+    useSemaphorInputCount > 1 &&
+    useSemaphorInputsCount === 0
+  ) {
+    issues.push(
+      "Broad Data Apps appear to bind visible filters with repeated useSemaphorInput(...) calls instead of a shared useSemaphorInputs(...) handle set. Bind shared filters once, then pass the relevant handles only to subscribed queries.",
+    );
+  }
+
   if (hasNativeDateInput && hasDatePickerStack) {
     advisories.push(
       "Native date inputs were found even though a host date-picker/calendar component appears available. Prefer the app's real dashboard date-range control unless the user explicitly chose native date fields.",
@@ -331,6 +346,36 @@ function scanSourceQuality(root, sourceFiles) {
     advisories.push(
       `Broad Data Apps should not keep ${nonSemaphorModuleSpecCount} Semaphor specs outside src/semaphor/* modules. Components should import specs and own hook wiring/rendering, not source/query definitions.`,
     );
+  }
+
+  return { advisories, issues };
+}
+
+function checkReactSemaphorCompatibility(root) {
+  const advisories = [];
+  const issues = [];
+  const packagePath = path.join(root, 'node_modules', 'react-semaphor', 'package.json');
+  if (!fs.existsSync(packagePath)) {
+    advisories.push(
+      'react-semaphor is listed as a dependency, but node_modules/react-semaphor was not found. Run install before relying on SDK export compatibility checks.',
+    );
+    return { advisories, issues };
+  }
+
+  try {
+    const pkg = readJson(packagePath);
+    const exportsMap = pkg.exports || {};
+    if (!Object.prototype.hasOwnProperty.call(exportsMap, './data-app-sdk')) {
+      issues.push(
+        `Installed react-semaphor${pkg.version ? `@${pkg.version}` : ''} does not expose react-semaphor/data-app-sdk. Update react-semaphor or relink the local package before generating Data App SDK code.`,
+      );
+    } else {
+      advisories.push(
+        `Installed react-semaphor${pkg.version ? `@${pkg.version}` : ''} exposes react-semaphor/data-app-sdk.`,
+      );
+    }
+  } catch (error) {
+    issues.push(`Could not inspect installed react-semaphor package: ${error.message}`);
   }
 
   return { advisories, issues };
@@ -444,6 +489,9 @@ function main() {
 
   const sourceFiles = collectFiles(root);
   const quality = scanSourceQuality(root, sourceFiles);
+  const sdkCompatibility = deps["react-semaphor"]
+    ? checkReactSemaphorCompatibility(root)
+    : { advisories: [], issues: [] };
   const sdkImports = sourceFiles.filter((filePath) =>
     fs.readFileSync(filePath, "utf8").includes("react-semaphor/data-app-sdk"),
   );
@@ -453,6 +501,9 @@ function main() {
       "No imports from react-semaphor/data-app-sdk were found.",
     );
   }
+  quality.advisories.push(...sdkCompatibility.advisories);
+  issues.push(...quality.issues);
+  issues.push(...sdkCompatibility.issues);
 
   console.log(`Checked ${sourceFiles.length} source files.`);
   console.log(`SDK import files: ${sdkImports.length}`);
@@ -469,8 +520,6 @@ function main() {
       console.log(`- ${advisory}`);
     }
   }
-
-  issues.push(...quality.issues);
 
   if (args.strict) {
     issues.push(...quality.advisories);
