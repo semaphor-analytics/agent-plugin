@@ -55,10 +55,10 @@ try {
     validationCommand:
       'semaphor_validate_data_app_contract(runBuild=true, strict=false)',
     usageExample: [
-      'import { appInputSpecs, createInputHandleMap, queries, inputsForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
+      'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
       'const handles = useSemaphorInputs(appInputSpecs);',
       'const inputHandles = createInputHandleMap(handles);',
-      'const result = useSemaphorQuery(queries.someView, { inputs: inputsForView.someView(inputHandles) });',
+      'const result = useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles));',
       'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
     ].join('\n'),
     warnings: contract.warnings,
@@ -435,8 +435,9 @@ function sdkBuilderSpecForView(view) {
   const rawSpec = view.raw.sdkSpec?.spec || {};
   const { kind: _plannerOnlyKind, id: _ignoredId, ...builderSpec } = rawSpec;
   return {
-    id: view.raw.id,
     ...builderSpec,
+    id: view.raw.id,
+    label: view.raw.visualSpec?.title || view.raw.title || builderSpec.label,
   };
 }
 
@@ -472,14 +473,28 @@ ${renderedBindings}
   },`;
   }).join('\n\n');
 
+  const optionHelpers = contract.views.map((view) => {
+    return `  ${view.name}(inputHandles: SemaphorGeneratedInputHandleMap): SemaphorQueryRuntimeOptions {
+    return {
+      inputs: inputsForView.${view.name}(inputHandles),
+      debug: queryDebugForView.${view.name},
+    };
+  },`;
+  }).join('\n\n');
+
   return `${GENERATED_HEADER}
 import { semaphor } from "react-semaphor/data-app-sdk";
-import type { SemaphorInputReference } from "react-semaphor/data-app-sdk";
+import type { SemaphorInputReference, SemaphorQueryRuntimeOptions } from "react-semaphor/data-app-sdk";
 import { fields } from "./fields";
 import type { SemaphorGeneratedInputHandleMap } from "./inputs";
+import { queryDebugForView } from "./metadata";
 
 export const inputsForView = {
 ${helpers}
+} as const;
+
+export const queryOptionsForView = {
+${optionHelpers}
 } as const;
 `;
 }
@@ -497,7 +512,18 @@ function renderMetadata(contract) {
       sdkBuilder: view.raw.sdkBuilder,
     },
   ]));
+  const queryDebugEntries = Object.fromEntries(contract.views.map((view) => [
+    view.name,
+    removeUndefined({
+      viewId: view.raw.id,
+      viewTitle: view.raw.visualSpec?.title || view.raw.title,
+      visualType: view.raw.visualSpec?.visualType,
+      title: view.raw.visualSpec?.title || view.raw.title,
+    }),
+  ]));
   return `${GENERATED_HEADER}
+export const queryDebugForView = ${renderPlainObject(queryDebugEntries)} as const;
+
 export const semaphorGeneratedContractMetadata = ${renderPlainObject({
     schemaVersion: 'semaphor-generated-data-app-contract/v1',
     title: contract.title,

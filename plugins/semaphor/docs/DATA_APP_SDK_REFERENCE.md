@@ -53,6 +53,11 @@ enough for the global inspector. For broad generated dashboards, use the
 TanStack-style root DevTools integration only. If traceability needs help, pass
 hook-level debug metadata/source hints instead of adding per-card DevTools
 wrapper boilerplate.
+For generated contracts, prefer
+`useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles))`
+over manually composing `{ inputs: inputsForView.someView(inputHandles) }`.
+`queryOptionsForView` preserves the planner's dashboard view title and visual
+type in DevTools traces, so authors can map traces back to visible cards.
 When cheap and non-repetitive, add hook-level source hints so DevTools and evals
 can point from a query trace back to code:
 
@@ -421,9 +426,12 @@ Use canonical operators such as `"="`, `"!="`, `"in"`, `"not_in"`,
 `"between"`, `">"`, `">="`, `"<"`, and `"<="`.
 
 `useSemaphorInputs` returns runtime handles. Read `handle.value` to render a
-control, call `handle.setValue(nextValue)` from UI events, and pass the same
-handles into `useSemaphorQuery(query, { inputs })`. Do not pass raw input specs
-to `useSemaphorQuery` after binding them.
+control, call `handle.setValue(nextValue)` from UI events, convert generated
+app handles with `createInputHandleMap(handles)`, and pass generated view
+options into `useSemaphorQuery(query, queryOptionsForView.someView(inputHandles))`.
+For hand-authored queries, pass the raw handle array into
+`useSemaphorQuery(query, { inputs: handles })`. Do not pass raw input specs to
+`useSemaphorQuery` after binding them.
 For shadcn/Base UI selects, type the value-change callback as
 `(value: string | null) => void`, call `handle.setValue(...)` only from the
 event handler, and use `handle.clear()` or `handle.setValue(undefined)` for the

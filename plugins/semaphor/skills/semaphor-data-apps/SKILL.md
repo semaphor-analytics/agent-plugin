@@ -124,9 +124,11 @@ state before codegen. Build React from the generated
 `src/semaphor/generated` contract plus the returned visual specs and
 unsupported gaps. Do not recreate Semaphor sources, fields, inputs, input
 option queries, or filter bindings manually unless the generator reports a
-clear unsupported analytics gap. If contract generation fails twice before
-producing files, stop and report a planner/generator/tooling failure instead
-of hand-writing `src/semaphor/generated`.
+clear unsupported analytics gap. For generated view queries, use
+`useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles))`
+so inspector traces keep the planner's view title and visual type. If contract
+generation fails twice before producing files, stop and report a
+planner/generator/tooling failure instead of hand-writing generated files.
 
 A blocked plan with zero executable views is not an implementation plan. Do
 not turn it into a placeholder or "model gap" app unless the user explicitly
@@ -134,12 +136,9 @@ asked for a model-readiness report. Ask the user to choose a better domain,
 provide a concrete business goal, or improve the semantic model. The contract
 generator intentionally rejects zero-executable-view plans by default.
 
-For broad dashboard-style app creation, prefer `preferences.maxViews` around
-15, or 20 for wide coverage. Do not treat the 8-view default as a cap or shrink
-`maxViews`; pass `responseFormat: "codegen_summary"` exactly so the planner
-returns a bounded implementation summary instead of an oversized plan. Do not
-use invented response formats such as `"compact_summary"`; valid planner
-formats are `full` and `codegen_summary`.
+For broad dashboard-style app creation, prefer `preferences.maxViews` around 15
+or 20. Use `responseFormat: "codegen_summary"` exactly; do not shrink to the
+8-view default or invent formats such as `"compact_summary"`.
 
 The visible planning response must include:
 
@@ -422,23 +421,21 @@ derivation is valid only when intentional and explained.
 Shared filters are opt-in input handles. Bind once, then pass the handle only
 to the queries that should respond.
 
-`useSemaphorInputs` returns runtime handles, not raw specs. Read
-`handle.value` for the current value, call `handle.setValue(nextValue)` from UI
-controls, and pass the same handles to `useSemaphorQuery(query, { inputs })`.
+`useSemaphorInputs` returns runtime handles, not raw specs. Read `handle.value`,
+call `handle.setValue(nextValue)`, and pass generated view options with
+`queryOptionsForView.someView(inputHandles)`. For hand-authored queries, pass
+the same handles as `{ inputs }`.
 
 Tables should render from `result.columns`, support sorting, show a useful
 empty state, and include totals for displayed numeric columns. Semaphor data
 tables are server-backed BI views. Do not fetch broad or complete table data
 and then paginate, sort, filter, pivot, or group it only in React.
 
-Infer server-backed table needs from the planned experience, not only literal
-user wording. Operational tables, queues, drill-through/detail tables,
-exploratory tables, paginated/sortable tables, and complete or large result
-tables are server-side table candidates even if the user only says "show a
-table." After presenting the plan, ask to install, use, or adapt the Semaphor
-shadcn server table registry mechanics unless the target app already has an
-equivalent server-backed table abstraction. Do not downgrade to a client-only
-table because the registry requires an install step.
+Infer server-backed table needs from the planned experience. Operational,
+drill-through, exploratory, paginated, sortable, complete, or large tables are
+server-side candidates. After presenting the plan, ask to install, use, or
+adapt the Semaphor shadcn server table registry unless the target app already
+has an equivalent server-backed table abstraction.
 
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips

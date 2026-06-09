@@ -174,6 +174,11 @@ DevTools defaults:
   use the TanStack-style root DevTools integration only. If traceability needs
   help, pass hook-level debug metadata/source hints instead of adding per-card
   DevTools wrapper boilerplate.
+- For generated contracts, prefer
+  `useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles))`
+  over manually composing `{ inputs: inputsForView.someView(inputHandles) }`.
+  `queryOptionsForView` carries the planner's dashboard view title and visual
+  type into DevTools traces.
 - When you can add source metadata without extra component wrappers, pass a
   hook-level source hint so DevTools and evals can point back to the likely app
   file:
