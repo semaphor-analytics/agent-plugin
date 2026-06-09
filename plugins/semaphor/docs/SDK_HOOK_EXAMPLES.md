@@ -250,8 +250,9 @@ export function RevenueKpi() {
 
 ## Canonical Records Query
 
-Use `columns[].key` for code access and `columns[].label` for display. Labels
-are display-only and may change.
+Use generated `rowValuesForView`/`columnKeysForView` for generated contracts.
+For hand-authored records queries, use `columns[].key` for code access and
+`columns[].label` for display. Labels are display-only and may change.
 
 ```tsx
 const ordersBySegmentQuery = semaphor.records({

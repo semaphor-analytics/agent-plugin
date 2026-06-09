@@ -58,6 +58,9 @@ For generated contracts, prefer
 over manually composing `{ inputs: inputsForView.someView(inputHandles) }`.
 `queryOptionsForView` preserves the planner's dashboard view title and visual
 type in DevTools traces, so authors can map traces back to visible cards.
+Generated contracts also export `rowValuesForView` and `columnKeysForView`.
+For charts and tables, read records through those helpers; do not use
+`visualSpec` encoding names or semantic field names directly as row keys.
 When cheap and non-repetitive, add hook-level source hints so DevTools and evals
 can point from a query trace back to code:
 
@@ -489,9 +492,11 @@ Infer server-backed table needs from table behavior. Operational tables,
 queues, drill-through/detail tables, exploratory tables, paginated/sortable
 tables, and complete or large result tables should use Semaphor server-side
 table mechanics even when the user did not literally say "server-side table."
-After planning, ask to use, install, or adapt the Semaphor table registry unless
-the app already has an equivalent server-backed table abstraction. Do not
-downgrade to client-only pagination/sorting to avoid a registry install.
+If the target app is `semaphor-data-app-starter`, use its local
+`src/components/semaphor/server-data-table` exports. Otherwise, after planning,
+ask to use, install, or adapt the Semaphor table registry unless the app already
+has an equivalent server-backed table abstraction. Do not downgrade to
+client-only pagination/sorting to avoid a registry install.
 
 ## Validation
 

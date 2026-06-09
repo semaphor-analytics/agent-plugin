@@ -244,8 +244,8 @@ as a required dashboard quality checklist, not optional inspiration.
   ordinary app authoring. Use the public SDK contract reference instead.
 - Do not use `ReturnType<typeof useSemaphorQuery>` for helper props. Use
   public SDK result types.
-- Use `columns[].key` for row access and `columns[].label` for display. Never
-  use display labels as row keys.
+- Use generated `rowValuesForView`/`columnKeysForView` for row access and
+  `columns[].label` for display. Never use labels or semantic names as row keys.
 - Prefer `semaphor_analyze` for governed semantic BI checks,
   `semaphor_matrix` for pivot/matrix checks, and
   `semaphor_query_sql_advanced` only for SQL-first or unsupported analysis.
@@ -433,9 +433,11 @@ and then paginate, sort, filter, pivot, or group it only in React.
 
 Infer server-backed table needs from the planned experience. Operational,
 drill-through, exploratory, paginated, sortable, complete, or large tables are
-server-side candidates. After presenting the plan, ask to install, use, or
-adapt the Semaphor shadcn server table registry unless the target app already
-has an equivalent server-backed table abstraction.
+server-side candidates. In `semaphor-data-app-starter`, use the local
+`src/components/semaphor/server-data-table` exports. Otherwise, after presenting
+the plan, ask to install, use, or adapt the Semaphor shadcn server table
+registry unless the target app already has an equivalent server-backed table
+abstraction.
 
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips

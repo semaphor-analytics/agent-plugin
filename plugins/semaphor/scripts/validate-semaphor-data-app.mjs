@@ -11,6 +11,7 @@ const REQUIRED_GENERATED_FILES = [
   "inputs.ts",
   "queries.ts",
   "bindings.ts",
+  "accessors.ts",
   "metadata.ts",
   "index.ts",
 ];

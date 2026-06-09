@@ -54,13 +54,7 @@ try {
     optionQueryCount: contract.optionQueries.length,
     validationCommand:
       'semaphor_validate_data_app_contract(runBuild=true, strict=false)',
-    usageExample: [
-      'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
-      'const handles = useSemaphorInputs(appInputSpecs);',
-      'const inputHandles = createInputHandleMap(handles);',
-      'const result = useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles));',
-      'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
-    ].join('\n'),
+    usageExample: renderUsageExample(contract),
     warnings: contract.warnings,
   };
   writeResult(result);
@@ -281,9 +275,35 @@ function renderFiles(contract) {
     'inputs.ts': renderInputs(contract),
     'queries.ts': renderQueries(contract),
     'bindings.ts': renderBindings(contract),
+    'accessors.ts': renderAccessors(contract),
     'metadata.ts': renderMetadata(contract),
     'index.ts': renderIndex(),
   };
+}
+
+function renderUsageExample(contract) {
+  const rowView = contract.views.find((view) => isRowShapedBuilder(view.raw.sdkSpec?.builder));
+  if (rowView) {
+    return [
+      'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, rowValuesForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
+      'const handles = useSemaphorInputs(appInputSpecs);',
+      'const inputHandles = createInputHandleMap(handles);',
+      `const result = useSemaphorQuery(queries.${rowView.name}, queryOptionsForView.${rowView.name}(inputHandles));`,
+      `const rows = result.records.map((row) => rowValuesForView.${rowView.name}(row, result.columns));`,
+      'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
+    ].join('\n');
+  }
+  const firstView = contract.views[0];
+  const queryLine = firstView
+    ? `const result = useSemaphorQuery(queries.${firstView.name}, queryOptionsForView.${firstView.name}(inputHandles));`
+    : 'const result = undefined;';
+  return [
+    'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
+    'const handles = useSemaphorInputs(appInputSpecs);',
+    'const inputHandles = createInputHandleMap(handles);',
+    queryLine,
+    'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
+  ].join('\n');
 }
 
 function renderSources(contract) {
@@ -499,6 +519,188 @@ ${optionHelpers}
 `;
 }
 
+function renderAccessors(contract) {
+  const fieldsForViewEntries = contract.views.map((view) => {
+    const accessorFields = accessorFieldsForView(view, contract);
+    const fieldEntries = accessorFields.map((field) => {
+      const fieldName = fieldNameFor(field.raw, contract);
+      if (!fieldName) return '';
+      return `    ${field.name}: fields.${fieldName},`;
+    }).filter(Boolean).join('\n');
+    return `  ${view.name}: {
+${fieldEntries}
+  },`;
+  }).join('\n');
+
+  const columnKeyEntries = contract.views.map((view) => {
+    const accessorFields = accessorFieldsForView(view, contract);
+    const keyEntries = accessorFields.map((field) => (
+      `      ${field.name}: resolveColumnKey(columns, fieldsForView.${view.name}.${field.name}),`
+    )).join('\n');
+    return `  ${view.name}(columns: SemaphorGeneratedColumns): Record<keyof typeof fieldsForView.${view.name}, string | undefined> {
+    return {
+${keyEntries}
+    };
+  },`;
+  }).join('\n\n');
+
+  const rowValueEntries = contract.views.map((view) => {
+    const accessorFields = accessorFieldsForView(view, contract);
+    const valueEntries = accessorFields.map((field) => (
+      `      ${field.name}: readCell(row, columns, fieldsForView.${view.name}.${field.name}),`
+    )).join('\n');
+    return `  ${view.name}(row: SemaphorGeneratedRow, columns: SemaphorGeneratedColumns): Record<keyof typeof fieldsForView.${view.name}, unknown> {
+    return {
+${valueEntries}
+    };
+  },`;
+  }).join('\n\n');
+
+  return `${GENERATED_HEADER}
+import type { SemaphorFieldRef, SemaphorResultColumn } from "react-semaphor/data-app-sdk";
+import { fields } from "./fields";
+
+export type SemaphorGeneratedRow = Record<string, unknown>;
+export type SemaphorGeneratedColumns = readonly SemaphorResultColumn[] | null | undefined;
+
+export const fieldsForView = {
+${fieldsForViewEntries}
+} as const;
+
+export const columnKeysForView = {
+${columnKeyEntries}
+} as const;
+
+export const rowValuesForView = {
+${rowValueEntries}
+} as const;
+
+export function resolveColumnKey(
+  columns: SemaphorGeneratedColumns,
+  field: SemaphorFieldRef,
+): string | undefined {
+  return resolveColumn(columns, field)?.key;
+}
+
+export function readCell(
+  row: SemaphorGeneratedRow,
+  columns: SemaphorGeneratedColumns,
+  field: SemaphorFieldRef,
+): unknown {
+  const key = resolveColumnKey(columns, field);
+  return key ? row[key] : undefined;
+}
+
+export function readNumberCell(
+  row: SemaphorGeneratedRow,
+  columns: SemaphorGeneratedColumns,
+  field: SemaphorFieldRef,
+): number | null {
+  const value = readCell(row, columns, field);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+export function readStringCell(
+  row: SemaphorGeneratedRow,
+  columns: SemaphorGeneratedColumns,
+  field: SemaphorFieldRef,
+): string {
+  const value = readCell(row, columns, field);
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function resolveColumn(
+  columns: SemaphorGeneratedColumns,
+  field: SemaphorFieldRef,
+): SemaphorResultColumn | undefined {
+  if (!columns || columns.length === 0) {
+    return undefined;
+  }
+  return (
+    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, true)) ||
+    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, false)) ||
+    findUniqueColumn(columns, (column) => column.label === field.label && columnMatchesField(column, field, true)) ||
+    findUniqueColumn(columns, (column) => column.label === field.label && columnMatchesField(column, field, false))
+  );
+}
+
+function findUniqueColumn(
+  columns: readonly SemaphorResultColumn[],
+  predicate: (column: SemaphorResultColumn) => boolean,
+): SemaphorResultColumn | undefined {
+  const matches = columns.filter(predicate);
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function columnMatchesField(
+  column: SemaphorResultColumn,
+  field: SemaphorFieldRef,
+  requireComparableSource: boolean,
+): boolean {
+  if (field.aggregate && column.aggregate && field.aggregate !== column.aggregate) {
+    return false;
+  }
+  if (!field.aggregate && column.aggregate) {
+    return false;
+  }
+  if (requireComparableSource && !column.source) {
+    return false;
+  }
+  return sourcesReferToSameDataset(column.source, field.source);
+}
+
+function sourcesReferToSameDataset(
+  left: SemaphorFieldRef["source"] | undefined,
+  right: SemaphorFieldRef["source"] | undefined,
+): boolean {
+  if (!left || !right) {
+    return true;
+  }
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  if (left.kind === "physical" && right.kind === "physical") {
+    if (left.connectionId && right.connectionId && left.connectionId !== right.connectionId) {
+      return false;
+    }
+    if (left.databaseName && right.databaseName && left.databaseName !== right.databaseName) {
+      return false;
+    }
+    if (left.schemaName && right.schemaName && left.schemaName !== right.schemaName) {
+      return false;
+    }
+    if (left.tableName && right.tableName && left.tableName !== right.tableName) {
+      return false;
+    }
+    return true;
+  }
+  if (left.kind === "sql" && right.kind === "sql") {
+    return !left.connectionId || !right.connectionId || left.connectionId === right.connectionId;
+  }
+  if (left.kind === "semantic" && right.kind === "semantic") {
+    if (left.domainId && right.domainId && left.domainId !== right.domainId) {
+      return false;
+    }
+    if (left.datasetId && right.datasetId) {
+      return left.datasetId === right.datasetId;
+    }
+    if (left.datasetName && right.datasetName) {
+      return left.datasetName === right.datasetName;
+    }
+    return true;
+  }
+  return false;
+}
+`;
+}
+
 function renderMetadata(contract) {
   const scope = contract.checklist.filterScopeByInput || [];
   const devtools = contract.checklist.requiredDevtools || {};
@@ -542,6 +744,7 @@ export * from "./fields";
 export * from "./inputs";
 export * from "./queries";
 export * from "./bindings";
+export * from "./accessors";
 export * from "./metadata";
 `;
 }
@@ -560,6 +763,78 @@ function collectFieldsFromValue(fields, value) {
   for (const item of Object.values(value)) {
     collectFieldsFromValue(fields, item);
   }
+}
+
+function accessorFieldsForView(view, contract) {
+  const collected = [];
+  collectOutputFieldsFromSdkSpec(collected, view.raw.sdkSpec);
+  if (collected.length === 0) {
+    for (const field of view.raw.fields || []) {
+      collectField(collected, field);
+    }
+  }
+  const items = uniqueBy(
+    collected
+      .filter((field) => field?.name && fieldNameFor(field, contract))
+      .map((field) => ({ raw: field, key: fieldKey(field), name: '' })),
+    (field) => field.key,
+  );
+  assignUniqueNames(items, (field) =>
+    camelCase(field.raw.label || field.raw.name || 'field'),
+  );
+  return items;
+}
+
+function collectOutputFieldsFromSdkSpec(fields, sdkSpec) {
+  const spec = sdkSpec?.spec;
+  if (!spec || typeof spec !== 'object') {
+    return;
+  }
+  const builder = builderMethod(sdkSpec.builder);
+  if (builder === 'records') {
+    for (const field of spec.fields || []) collectField(fields, field);
+    return;
+  }
+  if (builder === 'sql') {
+    for (const field of spec.fields || []) collectField(fields, field);
+    return;
+  }
+  if (builder === 'analysis' || builder === 'metric') {
+    collectField(fields, spec.primaryMeasure);
+    for (const measure of spec.measures || []) collectField(fields, measure);
+    for (const dimension of spec.dimensions || []) collectField(fields, dimension);
+    collectField(fields, spec.dateField);
+    return;
+  }
+  if (builder === 'matrix') {
+    const rows = matrixAxisLevels(spec.rows);
+    const columns = matrixAxisLevels(spec.columns);
+    const values = Array.isArray(spec.values) ? spec.values : [];
+    for (const row of rows) collectMatrixAxisField(fields, row);
+    for (const column of columns) collectMatrixAxisField(fields, column);
+    for (const value of values) {
+      collectField(fields, value.field);
+      collectField(fields, value.measure);
+    }
+  }
+}
+
+function matrixAxisLevels(axis) {
+  if (Array.isArray(axis)) {
+    return axis;
+  }
+  if (Array.isArray(axis?.levels)) {
+    return axis.levels;
+  }
+  return [];
+}
+
+function collectMatrixAxisField(fields, level) {
+  if (looksLikeFieldRef(level)) {
+    collectField(fields, level);
+    return;
+  }
+  collectField(fields, level?.field);
 }
 
 function isPresentationView(view) {
@@ -712,6 +987,11 @@ function builderMethod(builder) {
     throw new Error(`Unsupported sdkSpec builder: ${builder}`);
   }
   return method;
+}
+
+function isRowShapedBuilder(builder) {
+  const method = builderMethod(builder);
+  return method === 'records' || method === 'sql';
 }
 
 function operatorForInput(input) {
