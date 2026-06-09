@@ -26,10 +26,14 @@ guessing.
 For broad dashboard-style creation, pass a view budget large enough for a
 balanced first proposal. Use `preferences.maxViews: 15` by default, or up to
 20 for wider coverage. The default 8-view single-source plan is not a hard cap.
-When supported, pass `responseFormat: "codegen_summary"` for broad dashboard
-planning. Never shrink `maxViews` just because the returned planner JSON is
-verbose; keep the artifact bounded by using the codegen summary or summarizing
-fields and bindings, not by throwing away planned visual coverage.
+For broad dashboard planning, pass `responseFormat: "codegen_summary"` exactly.
+Do not pass `responseFormat: "compact_summary"` or another invented compact
+format; the supported planner response formats are `full` and
+`codegen_summary`. If an invalid response format is rejected, retry once with
+`codegen_summary` instead of falling back to a full raw plan because chat output
+looks truncated. Never shrink `maxViews` just because the returned planner JSON
+is verbose; keep the artifact bounded by using the codegen summary or
+summarizing fields and bindings, not by throwing away planned visual coverage.
 
 ## Project And Domain Selection Gate
 
@@ -100,7 +104,7 @@ For accepted greenfield/broad plans, materialize the contract before UI edits:
 ```text
 semaphor_plan_data_app(responseFormat: "codegen_summary")
 -> user accepts the visible plan
--> semaphor_generate_data_app_contract(workspaceDir, codegenSummary or planArtifactPath)
+-> semaphor_generate_data_app_contract(workspaceDir, planArtifactPath)
 -> build UI from src/semaphor/generated imports
 -> semaphor_validate_data_app_contract(workspaceDir)
 ```
@@ -114,6 +118,15 @@ If the generated metadata includes
 `semaphorGeneratedContractMetadata.presentationViews`, render those planned
 text/commentary blocks in the dashboard instead of ignoring them because they
 do not have query specs.
+Pass `planArtifactPath` to `semaphor_generate_data_app_contract` when a saved
+plan artifact exists. Use inline `codegenSummary` only when no artifact path
+exists; the local tool writes that inline object as a short-lived input file in
+the target generated output directory before running the same file-based
+generator. Do not hand-condense a full plan into generator input; that can drop
+`sdkSpec`, relationship-aware bindings, input option fields, and
+presentation-only views. If contract generation fails twice before writing
+files, stop and report a generator/tooling failure instead of manually creating
+`src/semaphor/generated`.
 
 Check `plan.sourceCoverage` before codegen:
 

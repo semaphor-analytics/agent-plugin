@@ -73,7 +73,7 @@ const LOCAL_TOOLS = [
   {
     name: 'semaphor_generate_data_app_contract',
     description:
-      'Materialize the accepted semaphor_plan_data_app codegenSummary into deterministic local TypeScript analytics contract files under src/semaphor/generated. Call this after planning is accepted and before editing UI code so agents import generated sources, fields, inputs, queries, and filter bindings instead of hand-rolling analytics wiring.',
+      'Materialize the accepted semaphor_plan_data_app codegenSummary into deterministic local TypeScript analytics contract files under src/semaphor/generated. Call this after planning is accepted and before editing UI code so agents import generated sources, fields, inputs, queries, and filter bindings instead of hand-rolling analytics wiring. If generation fails twice, stop and report the generator/tooling failure instead of manually recreating generated files.',
     annotations: {
       title: 'Generate Data App Contract',
       readOnlyHint: false,
@@ -92,12 +92,12 @@ const LOCAL_TOOLS = [
         planArtifactPath: {
           type: 'string',
           description:
-            'Path to a JSON plan artifact or planner capture containing codegenSummary. Relative paths resolve from workspaceDir.',
+            'Normal path: JSON plan artifact or planner capture containing codegenSummary. Relative paths resolve from workspaceDir. Prefer this over inline codegenSummary.',
         },
         codegenSummary: {
           type: 'object',
           description:
-            'Inline semaphor_plan_data_app codegenSummary. Prefer planArtifactPath for evals and larger artifacts.',
+            'Fallback only: inline semaphor_plan_data_app codegenSummary when no plan artifact path exists. The bridge writes it as a short-lived input file inside the target output directory before running the file-based generator. Do not pass a hand-condensed full plan.',
           additionalProperties: true,
         },
         outputDir: {
@@ -415,21 +415,28 @@ function generateLocalDataAppContract(message) {
     process.cwd(),
   );
   const generatorPath = path.join(pluginRoot, 'scripts/generate-data-app-contract.mjs');
+  const outputDir = firstString(args.outputDir, 'src/semaphor/generated');
   const commandArgs = [
     generatorPath,
     '--dir',
     workspaceDir,
     '--output',
-    firstString(args.outputDir, 'src/semaphor/generated'),
+    outputDir,
     '--json',
   ];
 
-  let input;
+  let tempPlanPath = '';
   if (args.planArtifactPath) {
     commandArgs.push('--plan', args.planArtifactPath);
   } else if (args.codegenSummary && typeof args.codegenSummary === 'object') {
-    commandArgs.push('--stdin');
-    input = JSON.stringify(args.codegenSummary);
+    const outputPath = path.resolve(workspaceDir, outputDir);
+    fs.mkdirSync(outputPath, { recursive: true });
+    tempPlanPath = path.join(
+      outputPath,
+      `.codegen-summary.input.${Date.now()}-${process.pid}.json`,
+    );
+    fs.writeFileSync(tempPlanPath, JSON.stringify(args.codegenSummary), 'utf8');
+    commandArgs.push('--plan', tempPlanPath);
   } else {
     return {
       jsonrpc: '2.0',
@@ -455,8 +462,10 @@ function generateLocalDataAppContract(message) {
     cwd: workspaceDir,
     encoding: 'utf8',
     env: process.env,
-    input,
   });
+  if (tempPlanPath) {
+    fs.rmSync(tempPlanPath, { force: true });
+  }
   const stdout = redactSensitiveText(result.stdout || '');
   const stderr = redactSensitiveText(result.stderr || '');
   const parsed = parseGeneratedToolResult(stdout);

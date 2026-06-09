@@ -33,7 +33,8 @@ Expected agent behavior:
 - for broad dashboard creation, request a balanced planner budget, normally
   `preferences.maxViews: 15` and up to 20 for wide coverage; do not treat the
   8-view default as a cap or shrink the plan because the artifact is verbose,
-  and use `responseFormat: "codegen_summary"` when supported,
+  and use `responseFormat: "codegen_summary"` exactly. Do not use invented
+  response formats such as `"compact_summary"`,
 - generate only after the user accepts the visible plan or gives a narrow
   explicit build instruction for a previously reviewed plan,
 - when the user did not name a domain, present relevant domain/app options
@@ -267,13 +268,19 @@ For broad greenfield Data Apps, the normal codegen path is:
 
 1. Call `semaphor_plan_data_app` with `responseFormat: "codegen_summary"`.
 2. Present the plan and wait for acceptance.
-3. Call `semaphor_generate_data_app_contract` with the accepted
-   `codegenSummary` or captured plan artifact.
+3. Call `semaphor_generate_data_app_contract` with the accepted saved plan
+   artifact path. Use inline `codegenSummary` only when no artifact path exists.
 4. Build the React UI from the generated `src/semaphor/generated` exports.
 5. Run `semaphor_validate_data_app_contract` before final handoff.
 
 Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.
+If contract generation fails before files are written, retry once with a saved
+`planArtifactPath` when possible. If inline `codegenSummary` is the only
+available fallback, the local tool writes it as a short-lived input file in the
+target generated output directory before running the same file-based generator.
+If it fails again, stop and report a generator/tooling failure; do not manually
+recreate `src/semaphor/generated`.
 
 
 ## 4A. Productize A Driver Or Period-Change Insight

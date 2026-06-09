@@ -115,16 +115,23 @@ source of truth before codegen. For substantial existing-app edits, use
 `semaphor_plan_data_app_change` with the current app state before codegen.
 Present the returned plan/change plan to the user. After the user accepts a
 greenfield/broad plan, call `semaphor_generate_data_app_contract` with the
-accepted `codegenSummary` or plan artifact before editing UI files. Build React
+saved plan artifact before editing UI files. Use inline `codegenSummary` only
+when no artifact path exists; the local tool materializes it inside the target
+generated output directory before running the same file-based generator. Build React
 from the generated `src/semaphor/generated` contract plus the returned visual
 specs and unsupported gaps. Do not recreate Semaphor sources, fields, inputs,
 input option queries, or filter bindings manually unless the generator reports
-a clear unsupported gap.
+a clear unsupported analytics gap. If the generator fails before producing
+files, retry once with `planArtifactPath` when available; if it fails again,
+stop and report a generator/tooling failure instead of hand-writing
+`src/semaphor/generated`.
 
 For broad dashboard-style app creation, prefer `preferences.maxViews` around
 15, or 20 for wide coverage. Do not treat the 8-view default as a cap or shrink
-`maxViews`; pass `responseFormat: "codegen_summary"` when supported so the
-planner returns a bounded implementation summary instead of an oversized plan.
+`maxViews`; pass `responseFormat: "codegen_summary"` exactly so the planner
+returns a bounded implementation summary instead of an oversized plan. Do not
+use invented response formats such as `"compact_summary"`; valid planner
+formats are `full` and `codegen_summary`.
 
 The visible planning response must include:
 

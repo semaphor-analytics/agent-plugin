@@ -85,7 +85,7 @@ function parseArgs(argv) {
 
 function readPlanArtifact({ args, workspaceDir }) {
   if (args.stdin) {
-    const input = fs.readFileSync(0, 'utf8');
+    const input = readStdinWithRetry();
     if (!input.trim()) {
       throw new Error('No JSON was provided on stdin.');
     }
@@ -94,11 +94,33 @@ function readPlanArtifact({ args, workspaceDir }) {
 
   const planPath = firstString(args.plan, args.planArtifactPath, args.codegenSummaryPath);
   if (!planPath) {
-    throw new Error('Pass --plan <path> or --stdin with a codegenSummary/plan artifact.');
+    throw new Error(
+      'Pass --plan <path> with a codegenSummary/plan artifact. --stdin is only a manual CLI fallback.',
+    );
   }
 
   const resolvedPlanPath = path.resolve(workspaceDir, planPath);
   return JSON.parse(fs.readFileSync(resolvedPlanPath, 'utf8'));
+}
+
+function readStdinWithRetry() {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return fs.readFileSync(0, 'utf8');
+    } catch (error) {
+      lastError = error;
+      if (error?.code !== 'EAGAIN') {
+        throw error;
+      }
+      sleepSync(25 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
+function sleepSync(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
 function assertInsideDirectory({ parentDir, childPath, label }) {
