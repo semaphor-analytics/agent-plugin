@@ -227,6 +227,17 @@ function buildContract(summary) {
     }));
   assignUniqueNames(optionQueries, (query) => query.name);
 
+  for (const query of optionQueries) {
+    if (
+      fieldRefsReferToSameField(query.raw.labelFieldRef, query.raw.valueFieldRef) &&
+      isIdentifierFieldRef(query.raw.valueFieldRef)
+    ) {
+      warnings.push(
+        `Input option query ${query.raw.spec?.inputId || query.input.raw.id || query.name} uses identifier field ${query.raw.valueFieldRef.name} as both label and value. It can execute, but the UI will show key values unless the semantic model exposes a human-readable label through a modeled relationship.`,
+      );
+    }
+  }
+
   const views = summary.views
     .filter((view) => view.sdkSpec?.builder && view.sdkSpec?.spec)
     .map((view) => ({
@@ -643,6 +654,17 @@ function fieldKey(field) {
     field.role || '',
     field.aggregate || '',
   ].join('|');
+}
+
+function fieldRefsReferToSameField(left, right) {
+  if (!left || !right || left.name !== right.name) {
+    return false;
+  }
+  return sourceKey(left.source) === sourceKey(right.source);
+}
+
+function isIdentifierFieldRef(field) {
+  return field?.role === 'id';
 }
 
 function sourceKey(source) {
