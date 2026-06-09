@@ -71,6 +71,46 @@ const FALLBACK_TOOLS = [
 }));
 const LOCAL_TOOLS = [
   {
+    name: 'semaphor_generate_data_app_contract',
+    description:
+      'Materialize the accepted semaphor_plan_data_app codegenSummary into deterministic local TypeScript analytics contract files under src/semaphor/generated. Call this after planning is accepted and before editing UI code so agents import generated sources, fields, inputs, queries, and filter bindings instead of hand-rolling analytics wiring.',
+    annotations: {
+      title: 'Generate Data App Contract',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspaceDir: {
+          ...WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+          description:
+            'Required React app root where generated files should be written.',
+        },
+        planArtifactPath: {
+          type: 'string',
+          description:
+            'Path to a JSON plan artifact or planner capture containing codegenSummary. Relative paths resolve from workspaceDir.',
+        },
+        codegenSummary: {
+          type: 'object',
+          description:
+            'Inline semaphor_plan_data_app codegenSummary. Prefer planArtifactPath for evals and larger artifacts.',
+          additionalProperties: true,
+        },
+        outputDir: {
+          type: 'string',
+          description:
+            'Output directory relative to workspaceDir. Defaults to src/semaphor/generated.',
+        },
+      },
+      required: ['workspaceDir'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'semaphor_validate_data_app_contract',
     description:
       'Validate the local React Data App source against Semaphor SDK contract requirements: root DevTools, provider debug bridge, stable query ids, inputOptions for dropdown choices, shared filter handles, card filter affordances, and modular query/spec organization. Run this after initial SDK wiring and before reporting completion.',
@@ -198,6 +238,9 @@ async function forwardRequest(message) {
   }
 
   if (message.method === 'tools/call') {
+    if (message.params?.name === 'semaphor_generate_data_app_contract') {
+      return generateLocalDataAppContract(message);
+    }
     if (message.params?.name === 'semaphor_validate_data_app_contract') {
       return validateLocalDataAppContract(message);
     }
@@ -357,6 +400,117 @@ function validateLocalDataAppContract(message) {
       ],
     },
   };
+}
+
+function generateLocalDataAppContract(message) {
+  const args = message.params?.arguments && typeof message.params.arguments === 'object'
+    ? message.params.arguments
+    : {};
+  const workspaceDir = firstString(
+    args.workspaceDir,
+    args.workspaceRoot,
+    args.projectDir,
+    args.repoRoot,
+    args.appDir,
+    process.cwd(),
+  );
+  const generatorPath = path.join(pluginRoot, 'scripts/generate-data-app-contract.mjs');
+  const commandArgs = [
+    generatorPath,
+    '--dir',
+    workspaceDir,
+    '--output',
+    firstString(args.outputDir, 'src/semaphor/generated'),
+    '--json',
+  ];
+
+  let input;
+  if (args.planArtifactPath) {
+    commandArgs.push('--plan', args.planArtifactPath);
+  } else if (args.codegenSummary && typeof args.codegenSummary === 'object') {
+    commandArgs.push('--stdin');
+    input = JSON.stringify(args.codegenSummary);
+  } else {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          error: 'Pass planArtifactPath or inline codegenSummary.',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Semaphor Data App contract generation requires planArtifactPath or inline codegenSummary from semaphor_plan_data_app.',
+          },
+        ],
+      },
+    };
+  }
+
+  const result = spawnSync(process.execPath, commandArgs, {
+    cwd: workspaceDir,
+    encoding: 'utf8',
+    env: process.env,
+    input,
+  });
+  const stdout = redactSensitiveText(result.stdout || '');
+  const stderr = redactSensitiveText(result.stderr || '');
+  const parsed = parseGeneratedToolResult(stdout);
+  const ok = result.status === 0 && parsed?.ok === true;
+  const text = [
+    ok
+      ? 'Semaphor Data App analytics contract generated.'
+      : 'Semaphor Data App analytics contract generation failed.',
+    parsed ? JSON.stringify(parsed, null, 2) : stdout.trim(),
+    stderr.trim(),
+  ].filter(Boolean).join('\n\n');
+
+  return {
+    jsonrpc: '2.0',
+    id: message.id,
+    result: {
+      isError: !ok,
+      structuredContent: {
+        ok,
+        workspaceDir,
+        exitCode: result.status,
+        signal: result.signal || null,
+        ...(parsed || {}),
+        stdout,
+        stderr,
+      },
+      content: [
+        {
+          type: 'text',
+          text,
+        },
+      ],
+    },
+  };
+}
+
+function parseGeneratedToolResult(stdout) {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const jsonStart = trimmed.indexOf('{');
+    if (jsonStart >= 0) {
+      try {
+        return JSON.parse(trimmed.slice(jsonStart));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
 }
 
 function exposeBridgeWorkspaceHint(tool) {

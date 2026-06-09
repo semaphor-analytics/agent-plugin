@@ -39,15 +39,19 @@ public SDK builders/hooks, validate, then save or publish when requested.
    the file/component layout, which filters apply to which cards/views, and
    how SDK DevTools will be enabled. Do not start by dumping the dashboard into
    `src/App.tsx`.
-5. Broad build: after project/domain confirmation, present a visible plan and
+5. Contract generation: after the user accepts a broad `semaphor_plan_data_app`
+   plan, call `semaphor_generate_data_app_contract` before UI edits and import
+   the generated `src/semaphor/generated` sources, fields, inputs, queries, and
+   bindings. Do not hand-roll analytics wiring from prose.
+6. Broad build: after project/domain confirmation, present a visible plan and
    stop for user approval before editing.
-6. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
+7. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
    and preserve existing views by default.
-7. Dependencies: ask before installing registry items, TanStack, chart
+8. Dependencies: ask before installing registry items, TanStack, chart
    libraries, or starter scaffolds unless already approved.
-8. SQL: use governed metric, records, analysis, matrix, and derived-field paths
+9. SQL: use governed metric, records, analysis, matrix, and derived-field paths
    before SQL unless the user explicitly asks for SQL.
-9. Completion: run typecheck/build, Semaphor validation, and browser smoke when
+10. Completion: run typecheck/build, Semaphor validation, and browser smoke when
    practical.
 
 Auth preflight is step zero for Semaphor work. Before reading package files,
@@ -109,11 +113,13 @@ target and Semaphor source are unambiguous.
 For broad new Data App requests, use `semaphor_plan_data_app` as the planning
 source of truth before codegen. For substantial existing-app edits, use
 `semaphor_plan_data_app_change` with the current app state before codegen.
-Present the returned plan/change plan to the user, then generate React from
-the returned `sources`, `inputs`, `views`, `operations`, `sdkSpec`, and
-unsupported gaps. Do not replace this with an improvised prose plan or jump
-straight to SQL unless the planner returns a justified SQL fallback or the
-user explicitly requests SQL.
+Present the returned plan/change plan to the user. After the user accepts a
+greenfield/broad plan, call `semaphor_generate_data_app_contract` with the
+accepted `codegenSummary` or plan artifact before editing UI files. Build React
+from the generated `src/semaphor/generated` contract plus the returned visual
+specs and unsupported gaps. Do not recreate Semaphor sources, fields, inputs,
+input option queries, or filter bindings manually unless the generator reports
+a clear unsupported gap.
 
 For broad dashboard-style app creation, prefer `preferences.maxViews` around
 15, or 20 for wide coverage. Do not treat the 8-view default as a cap or shrink

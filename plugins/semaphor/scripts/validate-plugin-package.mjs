@@ -307,6 +307,16 @@ function validateMcpBridge() {
       'scripts/semaphor-mcp-remote.mjs: must expose semaphor_validate_data_app_contract as a first-class local MCP tool',
     );
   }
+  if (!bridgeText.includes('semaphor_generate_data_app_contract')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: must expose semaphor_generate_data_app_contract as a first-class local MCP tool',
+    );
+  }
+  if (!bridgeText.includes('generate-data-app-contract.mjs')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: local generation tool must call scripts/generate-data-app-contract.mjs',
+    );
+  }
   if (!bridgeText.includes('validate-semaphor-data-app.mjs')) {
     issues.push(
       'scripts/semaphor-mcp-remote.mjs: local validation tool must call scripts/validate-semaphor-data-app.mjs',
@@ -363,6 +373,7 @@ requireFile('assets/logo.png');
 requireFile('assets/logo-source.png');
 requireFile('scripts/call-semaphor-tool.mjs');
 requireFile('scripts/detect-react-app.mjs');
+requireFile('scripts/generate-data-app-contract.mjs');
 requireFile('scripts/init-semaphor-data-app.mjs');
 requireFile('scripts/semaphor-data-app.mjs');
 requireDirectory('skills');

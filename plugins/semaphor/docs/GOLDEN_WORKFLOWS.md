@@ -263,6 +263,18 @@ Expected validation:
 - run the app's typecheck/build scripts when present,
 - open the app locally when practical and verify real data renders.
 
+For broad greenfield Data Apps, the normal codegen path is:
+
+1. Call `semaphor_plan_data_app` with `responseFormat: "codegen_summary"`.
+2. Present the plan and wait for acceptance.
+3. Call `semaphor_generate_data_app_contract` with the accepted
+   `codegenSummary` or captured plan artifact.
+4. Build the React UI from the generated `src/semaphor/generated` exports.
+5. Run `semaphor_validate_data_app_contract` before final handoff.
+
+Do not hand-roll Semaphor source refs, fields, option queries, or filter
+bindings in `App.tsx` when the generated contract is available.
+
 
 ## 4A. Productize A Driver Or Period-Change Insight
 

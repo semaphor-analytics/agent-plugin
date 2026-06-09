@@ -424,6 +424,11 @@ Use canonical operators such as `"="`, `"!="`, `"in"`, `"not_in"`,
 control, call `handle.setValue(nextValue)` from UI events, and pass the same
 handles into `useSemaphorQuery(query, { inputs })`. Do not pass raw input specs
 to `useSemaphorQuery` after binding them.
+For shadcn/Base UI selects, type the value-change callback as
+`(value: string | null) => void`, call `handle.setValue(...)` only from the
+event handler, and use `handle.clear()` or `handle.setValue(undefined)` for the
+empty state. For multi-selects and date ranges, narrow `handle.value` with
+`Array.isArray(...)` before indexing or displaying it.
 
 Server-side option lists use explicit label and value fields:
 
@@ -441,6 +446,10 @@ const regionOptions = semaphor.inputOptions({
 const optionsResult = useSemaphorQuery(regionOptions, {
   inputs: [regionHandle],
 });
+
+function onRegionChange(nextValue: string | null) {
+  regionHandle.setValue(nextValue ? [nextValue] : undefined);
+}
 ```
 
 `labelField` is what the user sees. `valueField` is the stable submitted value.

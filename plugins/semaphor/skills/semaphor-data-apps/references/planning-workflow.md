@@ -95,6 +95,26 @@ Treat the accepted planner response as the codegen contract:
 - every substantial deviation should be shown to the user before codegen or
   captured as a limitation after validation.
 
+For accepted greenfield/broad plans, materialize the contract before UI edits:
+
+```text
+semaphor_plan_data_app(responseFormat: "codegen_summary")
+-> user accepts the visible plan
+-> semaphor_generate_data_app_contract(workspaceDir, codegenSummary or planArtifactPath)
+-> build UI from src/semaphor/generated imports
+-> semaphor_validate_data_app_contract(workspaceDir)
+```
+
+The generated files own Semaphor source refs, fields, visible input specs,
+input option queries, view query specs, and per-view filter binding helpers.
+The React UI owns layout, controls, cards, charts, tables, formatting, applied
+filter affordances, and loading/error/empty states. Do not manually recreate
+generated analytics wiring in `App.tsx`.
+If the generated metadata includes
+`semaphorGeneratedContractMetadata.presentationViews`, render those planned
+text/commentary blocks in the dashboard instead of ignoring them because they
+do not have query specs.
+
 Check `plan.sourceCoverage` before codegen:
 
 - `included`: the planner generated one or more SDK-ready views for this

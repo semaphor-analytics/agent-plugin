@@ -29,6 +29,10 @@ const result = useSemaphorQuery(rowsQuery, {
 - Call `handle.setValue(nextValue)` from controls.
 - Pass handles, not raw specs, to `useSemaphorQuery`.
 - Bind shared filters once in a parent when multiple queries should subscribe.
+- For shadcn/Base UI selects, type `onValueChange` as `(value: string | null)
+  => void`; clear with `handle.clear()` or `handle.setValue(undefined)`.
+- For multi-selects and date ranges, narrow `handle.value` with
+  `Array.isArray(...)` before indexing or displaying it.
 
 ## Option Query Contract
 
@@ -97,7 +101,22 @@ function Filters() {
     inputs: [stateHandle],
   });
 
-  // Render controls from states.options and facilities.options.
+  const selectedState = String(stateHandle.value ?? "");
+  const selectedFacility = Array.isArray(facilityHandle.value)
+    ? String(facilityHandle.value[0] ?? "")
+    : "";
+
+  function onStateChange(nextValue: string | null) {
+    stateHandle.setValue(nextValue || undefined);
+    facilityHandle.clear();
+  }
+
+  function onFacilityChange(nextValue: string | null) {
+    facilityHandle.setValue(nextValue ? [nextValue] : undefined);
+  }
+
+  // Render controls from states.options and facilities.options using
+  // selectedState, selectedFacility, onStateChange, and onFacilityChange.
 }
 ```
 

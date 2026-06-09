@@ -81,6 +81,9 @@ function scanSourceQuality(root, sourceFiles) {
   let hasNativeDateInput = false;
   let useSemaphorInputCount = 0;
   let useSemaphorInputsCount = 0;
+  let importsGeneratedContract = false;
+  const generatedContractDir = path.join(root, "src", "semaphor", "generated");
+  const hasGeneratedContract = fs.existsSync(generatedContractDir);
   const recordsQueryNames = collectRecordsQueryNames(sourceFiles);
   const hasDatePickerStack =
     fs.existsSync(path.join(root, "src", "components", "ui", "calendar.tsx")) ||
@@ -119,6 +122,14 @@ function scanSourceQuality(root, sourceFiles) {
       semaphorModuleSpecCount += semaphorSpecCount;
     } else {
       nonSemaphorModuleSpecCount += semaphorSpecCount;
+    }
+    if (
+      !/^src[/\\]semaphor[/\\]generated[/\\]/.test(location) &&
+      /(?:from\s+["'][^"']*semaphor\/generated["']|from\s+["'][^"']*semaphor\\generated["'])/.test(
+        content,
+      )
+    ) {
+      importsGeneratedContract = true;
     }
 
     for (const missingId of semaphorBuilderCallsMissingId(content)) {
@@ -346,6 +357,29 @@ function scanSourceQuality(root, sourceFiles) {
     advisories.push(
       `Broad Data Apps should not keep ${nonSemaphorModuleSpecCount} Semaphor specs outside src/semaphor/* modules. Components should import specs and own hook wiring/rendering, not source/query definitions.`,
     );
+  }
+
+  if (hasGeneratedContract) {
+    const requiredGeneratedFiles = [
+      "sources.ts",
+      "fields.ts",
+      "inputs.ts",
+      "queries.ts",
+      "bindings.ts",
+      "index.ts",
+    ];
+    for (const fileName of requiredGeneratedFiles) {
+      if (!fs.existsSync(path.join(generatedContractDir, fileName))) {
+        issues.push(
+          `Generated Semaphor contract is incomplete: missing src/semaphor/generated/${fileName}. Regenerate with semaphor_generate_data_app_contract.`,
+        );
+      }
+    }
+    if (usesDataAppSdkHooks && !importsGeneratedContract) {
+      issues.push(
+        "src/semaphor/generated exists, but app UI files do not import it. Use the generated queries, appInputSpecs, createInputHandleMap, and inputsForView instead of hand-rolling analytics wiring.",
+      );
+    }
   }
 
   return { advisories, issues };

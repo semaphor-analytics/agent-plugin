@@ -13,6 +13,11 @@ Before reporting completion, run the strongest available checks:
 Before reporting completion, inspect the generated structure and fix SDK-shape
 issues that would make Semaphor DevTools or reviewer agents misread the app:
 
+- broad greenfield apps created from `semaphor_plan_data_app` should have a
+  generated `src/semaphor/generated/` analytics contract from
+  `semaphor_generate_data_app_contract`; UI code should import that contract
+  instead of rebuilding Semaphor sources, fields, input option queries, or
+  filter bindings by hand;
 - visible filters and controls are defined with `semaphor.filter(...)`,
   `semaphor.control(...)`, or `semaphor.sqlParam(...)`;
 - every `semaphor.metric`, `semaphor.records`, `semaphor.analysis`,
@@ -50,6 +55,10 @@ issues that would make Semaphor DevTools or reviewer agents misread the app:
   silently become a scalar card, a planned stacked bar should not silently
   become a single-series bar, and a planned table should not silently become a
   short client-only list;
+- presentation-only planned views are rendered visibly from
+  `semaphorGeneratedContractMetadata.presentationViews` or otherwise represented
+  with their planned title/content. Do not drop planner text/commentary blocks
+  just because they do not have server query specs;
 - `semaphor.records(...)` is reserved for app content rows, charts, tables,
   trends, breakdowns, grouped KPI support, or details, not hidden dropdown
   option derivation or scalar KPI shortcuts;
