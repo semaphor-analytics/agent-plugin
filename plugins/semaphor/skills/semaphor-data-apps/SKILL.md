@@ -46,8 +46,9 @@ public SDK builders/hooks, validate, then save or publish when requested.
    Do not hand-roll analytics wiring from prose or local guesses.
 6. Broad build: after project/domain confirmation, present a visible plan and
    stop for user approval before editing.
-7. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
-   and preserve existing views by default.
+7. Existing generated app: use `semaphor_update_data_app_contract` so the
+   generated manifest drives change planning and regeneration; preserve
+   existing views by default.
 8. Dependencies: ask before installing registry items, TanStack, chart
    libraries, or starter scaffolds unless already approved.
 9. SQL: use governed metric, records, analysis, matrix, and derived-field paths
@@ -112,23 +113,17 @@ such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
 For broad new Data App requests, use Semaphor planning as the source of truth
-before codegen. Present the visible plan/change plan to the user when the
-workflow requires approval. After approval, use the combined greenfield tool:
+before codegen. After approval, use
 `semaphor_create_data_app_contract({ workspaceDir, domainId, goal,
-preferences })`. It calls the planner with `responseFormat: "codegen_summary"`
-and writes `src/semaphor/generated` in one step. Use the separate
-`semaphor_plan_data_app` -> `semaphor_generate_data_app_contract` sequence only
-for explicit preview/debug/eval artifact workflows. For substantial
-existing-app edits, use `semaphor_plan_data_app_change` with the current app
-state before codegen. Build React from the generated
-`src/semaphor/generated` contract plus the returned visual specs and
-unsupported gaps. Do not recreate Semaphor sources, fields, inputs, input
-option queries, or filter bindings manually unless the generator reports a
-clear unsupported analytics gap. For generated view queries, use
-`useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles))`
-so inspector traces keep the planner's view title and visual type. If contract
-generation fails twice before producing files, stop and report a
+preferences })`. For substantial edits to a generated app, use
+`semaphor_update_data_app_contract({ workspaceDir, goal, operationIntent })`.
+Build React from `src/semaphor/generated` plus returned visual specs and
+unsupported gaps. Do not recreate generated sources, fields, inputs, input
+option queries, or filter bindings manually. For generated view queries, use
+`useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles))`.
+If contract generation fails twice before producing files, stop and report a
 planner/generator/tooling failure instead of hand-writing generated files.
+Treat generated `contract.manifest.json` as the durable contract for changes.
 
 A blocked plan with zero executable views is not an implementation plan. Do
 not turn it into a placeholder or "model gap" app unless the user explicitly
@@ -167,6 +162,7 @@ calls for data-app work are:
 - `semaphor_get_dataset_schema`
 - `semaphor_get_domain_relationships`
 - `semaphor_create_data_app_contract`
+- `semaphor_update_data_app_contract`
 - `semaphor_plan_data_app`
 - `semaphor_plan_data_app_change`
 

@@ -42,6 +42,9 @@ function validatePackageJson() {
   if (!pkg?.scripts?.['validate:data-app']) {
     issues.push('package.json: missing validate:data-app script');
   }
+  if (!pkg?.scripts?.['test:generator']) {
+    issues.push('package.json: missing test:generator script');
+  }
 }
 
 function validateCodexManifest() {
@@ -317,6 +320,21 @@ function validateMcpBridge() {
       'scripts/semaphor-mcp-remote.mjs: must expose semaphor_create_data_app_contract as the default greenfield local MCP tool',
     );
   }
+  if (!bridgeText.includes('semaphor_update_data_app_contract')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: must expose semaphor_update_data_app_contract for generated app changes',
+    );
+  }
+  if (!bridgeText.includes('migrationReport')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: update tool must return a migrationReport for presentation edits',
+    );
+  }
+  if (!bridgeText.includes('filterEffectReportPath')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: validation tool must expose filterEffectReportPath for browser filter QA',
+    );
+  }
   if (!bridgeText.includes('generate-data-app-contract.mjs')) {
     issues.push(
       'scripts/semaphor-mcp-remote.mjs: local generation tool must call scripts/generate-data-app-contract.mjs',
@@ -326,6 +344,71 @@ function validateMcpBridge() {
     issues.push(
       'scripts/semaphor-mcp-remote.mjs: local validation tool must call scripts/validate-semaphor-data-app.mjs',
     );
+  }
+  const generatorPath = path.join(root, 'scripts/generate-data-app-contract.mjs');
+  const summaryValidationPath = path.join(root, 'scripts/data-app-codegen-summary-validation.mjs');
+  if (fs.existsSync(generatorPath)) {
+    const generatorText = fs.readFileSync(generatorPath, 'utf8');
+    if (!generatorText.includes('contract.manifest.json')) {
+      issues.push(
+        'scripts/generate-data-app-contract.mjs: generator must write contract.manifest.json for iterative planning and drift detection',
+      );
+    }
+    if (!generatorText.includes('codegenSummaryHash')) {
+      issues.push(
+        'scripts/generate-data-app-contract.mjs: generator must write codegenSummaryHash so manifest payload drift is detectable',
+      );
+    }
+    const summaryValidationText = fs.existsSync(summaryValidationPath)
+      ? fs.readFileSync(summaryValidationPath, 'utf8')
+      : '';
+    if (!summaryValidationText.includes('semaphor-data-app-codegen-summary/v1')) {
+      issues.push(
+        'scripts/data-app-codegen-summary-validation.mjs: must enforce semaphor-data-app-codegen-summary/v1',
+      );
+    }
+    for (const requiredExport of [
+      'generatedQueryViewIds',
+      'generatedInputOptionQueryIds',
+      'filterContractsForView',
+      'inputsForViewId',
+      'queryOptionsForViewId',
+    ]) {
+      if (!generatorText.includes(requiredExport)) {
+        issues.push(
+          `scripts/generate-data-app-contract.mjs: generated contract must expose ${requiredExport}`,
+        );
+      }
+    }
+  }
+  const validatorPath = path.join(root, 'scripts/validate-semaphor-data-app.mjs');
+  if (fs.existsSync(validatorPath)) {
+    const validatorText = fs.readFileSync(validatorPath, 'utf8');
+    if (!validatorText.includes('contract.manifest.json')) {
+      issues.push(
+        'scripts/validate-semaphor-data-app.mjs: validator must require contract.manifest.json',
+      );
+    }
+    if (!validatorText.includes('generatedContentHash')) {
+      issues.push(
+        'scripts/validate-semaphor-data-app.mjs: validator must verify generatedContentHash to catch generated-contract drift',
+      );
+    }
+    if (!validatorText.includes('codegenSummaryHash')) {
+      issues.push(
+        'scripts/validate-semaphor-data-app.mjs: validator must verify codegenSummaryHash to catch manifest payload drift',
+      );
+    }
+    if (!validatorText.includes('validateFilterEffectReport')) {
+      issues.push(
+        'scripts/validate-semaphor-data-app.mjs: validator must support filter-effect report validation',
+      );
+    }
+    if (!validatorText.includes('--filter-effect-report')) {
+      issues.push(
+        'scripts/validate-semaphor-data-app.mjs: validator CLI must expose --filter-effect-report',
+      );
+    }
   }
 }
 
@@ -377,10 +460,12 @@ requireFile('assets/composer-icon.png');
 requireFile('assets/logo.png');
 requireFile('assets/logo-source.png');
 requireFile('scripts/call-semaphor-tool.mjs');
+requireFile('scripts/data-app-codegen-summary-validation.mjs');
 requireFile('scripts/detect-react-app.mjs');
 requireFile('scripts/generate-data-app-contract.mjs');
 requireFile('scripts/init-semaphor-data-app.mjs');
 requireFile('scripts/semaphor-data-app.mjs');
+requireFile('scripts/test-generate-data-app-contract.mjs');
 requireDirectory('skills');
 requireDirectory('scripts');
 requireDirectory('docs');

@@ -13,8 +13,9 @@
     "prepare:publish": "node scripts/semaphor-data-app.mjs prepare-publish",
     "publish:data-app": "node scripts/semaphor-data-app.mjs publish",
     "validate:data-app": "node scripts/validate-semaphor-data-app.mjs",
-    "validate:plugin": "node scripts/validate-plugin-package.mjs",
-    "validate:codex-plugin": "node scripts/validate-plugin-package.mjs --codex",
+    "test:generator": "node scripts/test-generate-data-app-contract.mjs",
+    "validate:plugin": "node scripts/validate-plugin-package.mjs && node scripts/test-generate-data-app-contract.mjs",
+    "validate:codex-plugin": "node scripts/validate-plugin-package.mjs --codex && node scripts/test-generate-data-app-contract.mjs",
     "validate:claude-plugin": "claude plugin validate ."
   }
 }

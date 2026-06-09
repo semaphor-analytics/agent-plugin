@@ -20,6 +20,29 @@ contract completeness, generated contract hygiene, and optional local
 typecheck/build. It intentionally does not infer analytics semantics from
 React source text.
 
+When browser smoke captures a Semaphor DevTools bridge snapshot, pass it into
+validation:
+
+```bash
+node <plugin>/scripts/validate-semaphor-data-app.mjs \
+  --dir <app> \
+  --devtools-snapshot out/devtools-snapshot.json
+```
+
+After changing visible filters, pass a filter-effect report too:
+
+```bash
+node <plugin>/scripts/validate-semaphor-data-app.mjs \
+  --dir <app> \
+  --filter-effect-report out/filter-effect-report.json
+```
+
+The filter-effect report is browser-smoke evidence. It should include a
+`checks` or `filterEffects` array with each generated `inputId` and either
+`passed: true` or one of `changedQueryIds`, `reranQueryIds`,
+`affectedViewIds`, or `changedViewIds` containing a subscribed generated query
+id.
+
 ## What Semaphor Owns
 
 Semaphor planner, generated contract, validation route, execution route, and

@@ -1,14 +1,28 @@
 #!/usr/bin/env node
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  assertValidCodegenSummary,
+} from './data-app-codegen-summary-validation.mjs';
 
 const MCP_PROTOCOL_VERSION = '2024-11-05';
 const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
 const CLIENT_REQUEST_TIMEOUT_MS = 2000;
+const GENERATED_CONTRACT_FILES = [
+  'sources.ts',
+  'fields.ts',
+  'inputs.ts',
+  'queries.ts',
+  'bindings.ts',
+  'accessors.ts',
+  'metadata.ts',
+  'index.ts',
+];
 const WORKSPACE_HINT_SCHEMA = {
   type: 'object',
   properties: {
@@ -54,7 +68,7 @@ const FALLBACK_TOOLS = [
   {
     name: 'semaphor_plan_data_app',
     description:
-      'Plan a Semaphor-backed React Data App from a selected semantic domain. Requires domainId and goal. In local plugin sessions, pass workspaceDir so the bridge can persist returned codegenSummary to .semaphor/data-app-codegen-summary.latest.json for semaphor_generate_data_app_contract. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+      'Plan a Semaphor-backed React Data App from a selected semantic domain. Requires domainId and goal. In local plugin sessions, pass workspaceDir so the bridge can persist the returned canonical codegenSummary JSON to .semaphor/data-app-codegen-summary.latest.json for semaphor_generate_data_app_contract. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
   },
   {
     name: 'semaphor_plan_data_app_change',
@@ -155,12 +169,12 @@ const LOCAL_TOOLS = [
         planArtifactPath: {
           type: 'string',
           description:
-            'Normal path: JSON plan artifact or planner capture containing codegenSummary. Relative paths resolve from workspaceDir. Prefer the planArtifactPath returned by semaphor_plan_data_app over inline codegenSummary.',
+            'Advanced path: canonical semaphor-data-app-codegen-summary/v1 JSON file. Relative paths resolve from workspaceDir. Prefer semaphor_create_data_app_contract for greenfield builds.',
         },
         codegenSummary: {
           type: 'object',
           description:
-            'Fallback only: inline semaphor_plan_data_app codegenSummary when no plan artifact path exists. The bridge writes it as a short-lived input file inside the target output directory before running the file-based generator. Do not pass a hand-condensed full plan.',
+            'Fallback only: inline canonical semaphor-data-app-codegen-summary/v1 object when no artifact path exists. The bridge writes it as a short-lived OS temp file before running the file-based generator. Do not pass a hand-condensed full plan or wrapper object.',
           additionalProperties: true,
         },
         outputDir: {
@@ -175,6 +189,69 @@ const LOCAL_TOOLS = [
         },
       },
       required: ['workspaceDir'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'semaphor_update_data_app_contract',
+    description:
+      'Update an existing generated Semaphor Data App analytics contract. Reads src/semaphor/generated/contract.manifest.json as the durable current plan, calls semaphor_plan_data_app_change, and regenerates the same deterministic contract files. Use this for iterative app changes instead of editing generated analytics wiring or reconstructing current state from App.tsx.',
+    annotations: {
+      title: 'Update Data App Contract',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspaceDir: {
+          ...WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+          description:
+            'Required React app root containing src/semaphor/generated/contract.manifest.json.',
+        },
+        goal: {
+          type: 'string',
+          description: 'User-approved change goal for the existing generated Data App.',
+        },
+        operationIntent: {
+          type: 'object',
+          description:
+            'Structured change intent. Supports add, edit, and remove generated-contract changes; omit to default to { kind: "add" }.',
+          additionalProperties: true,
+        },
+        domainId: {
+          type: 'string',
+          description:
+            'Optional semantic domain id. Required only if the current manifest contains multiple domains.',
+        },
+        preferences: {
+          type: 'object',
+          description: 'Optional planner preferences for the new candidate views.',
+          additionalProperties: true,
+        },
+        datasetName: {
+          type: 'string',
+          description: 'Optional single dataset name to prioritize for the change.',
+        },
+        datasetNames: {
+          type: 'array',
+          description: 'Optional dataset names to prioritize for the change.',
+          items: { type: 'string' },
+        },
+        outputDir: {
+          type: 'string',
+          description:
+            'Generated contract directory relative to workspaceDir. Defaults to src/semaphor/generated.',
+        },
+        allowEmptyContract: {
+          type: 'boolean',
+          description:
+            'Escape hatch for explicit model-gap report apps only. Normal updates must leave this false.',
+        },
+      },
+      required: ['workspaceDir', 'goal'],
       additionalProperties: false,
     },
   },
@@ -195,6 +272,16 @@ const LOCAL_TOOLS = [
           type: 'boolean',
           description:
             'Treat all validation advisories as failures in addition to hard contract issues.',
+        },
+        devtoolsSnapshotPath: {
+          type: 'string',
+          description:
+            'Optional path, relative to workspaceDir, to a captured Semaphor DevTools bridge JSON snapshot. When provided, validation requires generated query and input option traces to be present.',
+        },
+        filterEffectReportPath: {
+          type: 'string',
+          description:
+            'Optional path, relative to workspaceDir, to a browser smoke report proving each generated filter reran or changed at least one subscribed generated query.',
         },
       },
       additionalProperties: false,
@@ -312,6 +399,9 @@ async function forwardRequest(message) {
     if (message.params?.name === 'semaphor_generate_data_app_contract') {
       return generateLocalDataAppContract(message);
     }
+    if (message.params?.name === 'semaphor_update_data_app_contract') {
+      return updateLocalDataAppContract(message);
+    }
     if (message.params?.name === 'semaphor_validate_data_app_contract') {
       return validateLocalDataAppContract(message);
     }
@@ -403,13 +493,7 @@ function maybePersistDataAppPlanArtifact(message, normalized) {
     const artifactDir = path.resolve(workspaceDir, '.semaphor');
     fs.mkdirSync(artifactDir, { recursive: true });
     const artifactPath = path.join(artifactDir, 'data-app-codegen-summary.latest.json');
-    const artifact = {
-      schemaVersion: 'semaphor-data-app-codegen-summary-artifact/v1',
-      createdAt: new Date().toISOString(),
-      plannerTool: 'semaphor_plan_data_app',
-      codegenSummary,
-    };
-    fs.writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(artifactPath, `${JSON.stringify(codegenSummary, null, 2)}\n`, 'utf8');
     const relativeArtifactPath = path.relative(path.resolve(workspaceDir), artifactPath);
     const note =
       `Saved Semaphor codegen summary artifact to ${relativeArtifactPath}. ` +
@@ -519,6 +603,12 @@ function validateLocalDataAppContract(message) {
   }
   if (args.strict) {
     commandArgs.push('--strict');
+  }
+  if (typeof args.devtoolsSnapshotPath === 'string' && args.devtoolsSnapshotPath.trim()) {
+    commandArgs.push('--devtools-snapshot', args.devtoolsSnapshotPath.trim());
+  }
+  if (typeof args.filterEffectReportPath === 'string' && args.filterEffectReportPath.trim()) {
+    commandArgs.push('--filter-effect-report', args.filterEffectReportPath.trim());
   }
   const result = spawnSync(process.execPath, commandArgs, {
     cwd: workspaceDir,
@@ -800,6 +890,248 @@ function generateLocalDataAppContract(message) {
   };
 }
 
+async function updateLocalDataAppContract(message) {
+  const args = message.params?.arguments && typeof message.params.arguments === 'object'
+    ? message.params.arguments
+    : {};
+  const workspaceDir = firstString(
+    args.workspaceDir,
+    args.workspaceRoot,
+    args.projectDir,
+    args.repoRoot,
+    args.appDir,
+    process.cwd(),
+  );
+  const outputDir = firstString(args.outputDir, 'src/semaphor/generated');
+  const goal = typeof args.goal === 'string' ? args.goal.trim() : '';
+  if (!workspaceDir || !goal) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          error: 'Pass workspaceDir and goal.',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Semaphor Data App contract update requires workspaceDir and goal.',
+          },
+        ],
+      },
+    };
+  }
+
+  let manifest;
+  try {
+    manifest = readGeneratedContractManifest({ workspaceDir, outputDir });
+  } catch (error) {
+    const text = redactSensitiveText(error instanceof Error ? error.message : String(error));
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          outputDir,
+          error: text,
+        },
+        content: [{ type: 'text', text }],
+      },
+    };
+  }
+
+  const currentSummary = manifest.codegenSummary;
+  const domainResolution = resolveDomainIdFromCurrentSummary({
+    domainId: args.domainId,
+    currentSummary,
+  });
+  if (!domainResolution.ok) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          outputDir,
+          error: domainResolution.error,
+        },
+        content: [{ type: 'text', text: domainResolution.error }],
+      },
+    };
+  }
+
+  const context = await resolveSemaphorContext({
+    allowMissing: false,
+    includeClientRoots: true,
+    toolArguments: args,
+  });
+  if (!context?.token) {
+    return missingSemaphorAuthResponse(message);
+  }
+
+  const changeArguments = {
+    domainId: domainResolution.domainId,
+    goal,
+    operationIntent:
+      args.operationIntent && typeof args.operationIntent === 'object'
+        ? args.operationIntent
+        : {
+            kind: 'add',
+            reason:
+              'Default generated Data App update intent: add governed views/filters while preserving existing generated contract entries.',
+          },
+    target: {
+      kind: 'data_app',
+      appPath: workspaceDir,
+      currentPlan: currentSummary,
+      existingViewIds: Array.isArray(currentSummary.views)
+        ? currentSummary.views.map((view) => view?.id).filter(Boolean)
+        : [],
+    },
+    ...(args.preferences ? { preferences: args.preferences } : {}),
+    ...(args.datasetName ? { datasetName: args.datasetName } : {}),
+    ...(args.datasetNames ? { datasetNames: args.datasetNames } : {}),
+    includeCalculatedFields: args.includeCalculatedFields,
+  };
+  const plannerMessage = {
+    jsonrpc: '2.0',
+    id: message.id,
+    method: 'tools/call',
+    params: {
+      name: 'semaphor_plan_data_app_change',
+      arguments: changeArguments,
+    },
+  };
+  const plannerResponse = await postMcpJsonRpc(plannerMessage, context);
+  const normalizedPlannerResponse = normalizeJsonRpcResponse(plannerMessage, plannerResponse);
+  if (normalizedPlannerResponse?.error) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      error: normalizedPlannerResponse.error,
+    };
+  }
+  if (normalizedPlannerResponse?.result?.isError) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: normalizedPlannerResponse.result,
+    };
+  }
+
+  const codegenSummary =
+    normalizedPlannerResponse?.result?.structuredContent?.codegenSummary;
+  const changePlan = normalizedPlannerResponse?.result?.structuredContent?.changePlan;
+  if (
+    changePlan?.validation?.status === 'blocked' ||
+    changePlan?.nextStep === 'ask_user'
+  ) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          plannerTool: 'semaphor_plan_data_app_change',
+          changePlan,
+          plan: codegenSummary ? compactCodegenSummary(codegenSummary) : null,
+          error:
+            'Change planner did not return a buildable update. Generated analytics contract was not modified.',
+        },
+        content: [
+          {
+            type: 'text',
+            text: [
+              'Semaphor Data App change planning is blocked or requires user input.',
+              'The generated analytics contract was not modified.',
+              JSON.stringify(compactChangePlan(changePlan), null, 2),
+            ].join('\n\n'),
+          },
+        ],
+      },
+    };
+  }
+  if (!codegenSummary || typeof codegenSummary !== 'object') {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          plannerTool: 'semaphor_plan_data_app_change',
+          error: 'Change planner response did not include structuredContent.codegenSummary.',
+        },
+        content: [
+          {
+            type: 'text',
+            text:
+              'Semaphor Data App change planning succeeded, but did not return an updated codegenSummary. Do not edit generated analytics files by hand.',
+          },
+        ],
+      },
+    };
+  }
+
+  const generation = runDataAppContractGenerator({
+    workspaceDir,
+    outputDir,
+    codegenSummary,
+    allowEmptyContract: args.allowEmptyContract === true,
+  });
+  const migrationReport = buildContractMigrationReport({
+    before: currentSummary,
+    after: codegenSummary,
+    changePlan,
+  });
+  const text = [
+    generation.ok
+      ? 'Semaphor Data App change plan accepted and analytics contract regenerated.'
+      : 'Semaphor Data App change plan was produced, but analytics contract regeneration failed.',
+    JSON.stringify({
+      change: compactChangePlan(changePlan),
+      migrationReport,
+      generated: generation.parsed || null,
+      error: generation.parsed?.error || null,
+    }, null, 2),
+    generation.stderr.trim(),
+  ].filter(Boolean).join('\n\n');
+
+  return {
+    jsonrpc: '2.0',
+    id: message.id,
+    result: {
+      isError: !generation.ok,
+      structuredContent: {
+        ok: generation.ok,
+        workspaceDir,
+        plannerTool: 'semaphor_plan_data_app_change',
+        generatorTool: 'semaphor_generate_data_app_contract',
+        changePlan,
+        migrationReport,
+        plan: compactCodegenSummary(codegenSummary),
+        exitCode: generation.exitCode,
+        signal: generation.signal,
+        ...(generation.parsed || {}),
+        stdout: generation.stdout,
+        stderr: generation.stderr,
+      },
+      content: [{ type: 'text', text }],
+    },
+  };
+}
+
 function runDataAppContractGenerator({
   workspaceDir,
   outputDir,
@@ -896,6 +1228,281 @@ function compactCodegenSummary(summary) {
       optionQueryId: input?.optionQuery?.id || '',
     })),
   };
+}
+
+function compactChangePlan(changePlan) {
+  const operations = Array.isArray(changePlan?.operations)
+    ? changePlan.operations
+    : [];
+  return {
+    operationCount: operations.length,
+    operations: operations.slice(0, 30).map((operation) => ({
+      op: operation?.op || '',
+      targetViewId: operation?.targetViewId || operation?.view?.id || operation?.after?.id || '',
+      inputId: operation?.input?.id || '',
+      affectedViewIds: Array.isArray(operation?.affectedViewIds)
+        ? operation.affectedViewIds
+        : [],
+    })),
+    nextStep: changePlan?.nextStep || '',
+    validation: changePlan?.validation || null,
+  };
+}
+
+function buildContractMigrationReport({ before, after, changePlan }) {
+  const beforeViews = mapById(before?.views);
+  const afterViews = mapById(after?.views);
+  const beforeInputs = mapById(before?.inputs);
+  const afterInputs = mapById(after?.inputs);
+  const beforeFilters = mapById(before?.filterContracts, 'inputId');
+  const afterFilters = mapById(after?.filterContracts, 'inputId');
+
+  return {
+    schemaVersion: 'semaphor-generated-data-app-migration-report/v1',
+    changeOperations: compactChangePlan(changePlan),
+    views: diffRecords({
+      before: beforeViews,
+      after: afterViews,
+      changedReason: viewChangeReason,
+    }),
+    inputs: diffRecords({
+      before: beforeInputs,
+      after: afterInputs,
+      changedReason: inputChangeReason,
+    }),
+    filterContracts: diffRecords({
+      before: beforeFilters,
+      after: afterFilters,
+      changedReason: filterContractChangeReason,
+    }),
+    agentAction:
+      'Update presentation components for added/edited/removed view ids and input controls. Do not edit generated analytics files by hand.',
+  };
+}
+
+function mapById(items, key = 'id') {
+  const map = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const id = item?.[key];
+    if (typeof id === 'string' && id.trim()) {
+      map.set(id, item);
+    }
+  }
+  return map;
+}
+
+function diffRecords({ before, after, changedReason }) {
+  const ids = Array.from(new Set([...before.keys(), ...after.keys()])).sort();
+  return {
+    added: ids
+      .filter((id) => !before.has(id) && after.has(id))
+      .map((id) => ({ id })),
+    removed: ids
+      .filter((id) => before.has(id) && !after.has(id))
+      .map((id) => ({ id })),
+    changed: ids
+      .filter((id) => before.has(id) && after.has(id))
+      .map((id) => ({
+        id,
+        reasons: changedReason(before.get(id), after.get(id)),
+      }))
+      .filter((entry) => entry.reasons.length > 0),
+    unchanged: ids.filter((id) =>
+      before.has(id) &&
+      after.has(id) &&
+      changedReason(before.get(id), after.get(id)).length === 0
+    ),
+  };
+}
+
+function viewChangeReason(before, after) {
+  const reasons = [];
+  if (before?.sdkBuilder !== after?.sdkBuilder) reasons.push('sdkBuilder');
+  if (before?.queryKind !== after?.queryKind) reasons.push('queryKind');
+  if (before?.visual !== after?.visual) reasons.push('visual');
+  if (canonicalJson(before?.sdkSpec || null) !== canonicalJson(after?.sdkSpec || null)) {
+    reasons.push('sdkSpec');
+  }
+  if (canonicalJson(before?.fields || []) !== canonicalJson(after?.fields || [])) {
+    reasons.push('fields');
+  }
+  if (canonicalJson(before?.visualSpec || null) !== canonicalJson(after?.visualSpec || null)) {
+    reasons.push('visualSpec');
+  }
+  return reasons;
+}
+
+function inputChangeReason(before, after) {
+  const reasons = [];
+  if (before?.type !== after?.type) reasons.push('type');
+  if (before?.label !== after?.label) reasons.push('label');
+  if (canonicalJson(before?.fieldRef || null) !== canonicalJson(after?.fieldRef || null)) {
+    reasons.push('fieldRef');
+  }
+  if (
+    canonicalJson(before?.appliesToViewIds || []) !==
+    canonicalJson(after?.appliesToViewIds || [])
+  ) {
+    reasons.push('appliesToViewIds');
+  }
+  if (canonicalJson(before?.optionQuery || null) !== canonicalJson(after?.optionQuery || null)) {
+    reasons.push('optionQuery');
+  }
+  if (canonicalJson(before?.bindings || []) !== canonicalJson(after?.bindings || [])) {
+    reasons.push('bindings');
+  }
+  return reasons;
+}
+
+function filterContractChangeReason(before, after) {
+  const reasons = [];
+  if (
+    canonicalJson(before?.appliesToViewIds || []) !==
+    canonicalJson(after?.appliesToViewIds || [])
+  ) {
+    reasons.push('appliesToViewIds');
+  }
+  if (
+    canonicalJson(before?.notAppliedToViewIds || []) !==
+    canonicalJson(after?.notAppliedToViewIds || [])
+  ) {
+    reasons.push('notAppliedToViewIds');
+  }
+  if (canonicalJson(before?.bindings || []) !== canonicalJson(after?.bindings || [])) {
+    reasons.push('bindings');
+  }
+  if (canonicalJson(before?.optionQuery || null) !== canonicalJson(after?.optionQuery || null)) {
+    reasons.push('optionQuery');
+  }
+  return reasons;
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
+  }
+  return `{${Object.keys(value)
+    .sort()
+    .filter((key) => value[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(',')}}`;
+}
+
+function readGeneratedContractManifest({ workspaceDir, outputDir }) {
+  const manifestPath = path.resolve(workspaceDir, outputDir, 'contract.manifest.json');
+  if (!pathIsInside(path.resolve(workspaceDir), manifestPath)) {
+    throw new Error('outputDir must resolve inside workspaceDir.');
+  }
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(
+      `Missing generated contract manifest at ${path.relative(workspaceDir, manifestPath)}. Run semaphor_create_data_app_contract before update.`,
+    );
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  if (
+    manifest?.schemaVersion !==
+    'semaphor-generated-data-app-contract-manifest/v1'
+  ) {
+    throw new Error(
+      `${path.relative(workspaceDir, manifestPath)} is not a Semaphor generated contract manifest.`,
+    );
+  }
+  if (
+    manifest?.codegenSummary?.schemaVersion !==
+    'semaphor-data-app-codegen-summary/v1'
+  ) {
+    throw new Error(
+      `${path.relative(workspaceDir, manifestPath)} does not contain a canonical codegenSummary.`,
+    );
+  }
+  if (!Array.isArray(manifest.codegenSummary.filterContracts)) {
+    throw new Error(
+      `${path.relative(workspaceDir, manifestPath)} was generated from an old summary without filterContracts. Regenerate with semaphor_create_data_app_contract before iterative updates.`,
+    );
+  }
+  assertValidCodegenSummary(manifest.codegenSummary);
+  const expectedSummaryHash = hashCanonicalJson(manifest.codegenSummary);
+  if (manifest.codegenSummaryHash !== expectedSummaryHash) {
+    throw new Error(
+      `${path.relative(workspaceDir, manifestPath)} codegenSummaryHash does not match codegenSummary. Regenerate the contract instead of updating from a hand-edited manifest.`,
+    );
+  }
+  const expectedContentHash = hashGeneratedContractFiles(
+    path.resolve(workspaceDir, outputDir),
+  );
+  if (manifest.generatedContentHash !== expectedContentHash) {
+    throw new Error(
+      `${path.relative(workspaceDir, manifestPath)} generatedContentHash does not match generated TypeScript files. Regenerate the contract before iterative updates.`,
+    );
+  }
+  return manifest;
+}
+
+function hashGeneratedContractFiles(generatedDir) {
+  const hash = crypto.createHash('sha256');
+  for (const fileName of [...GENERATED_CONTRACT_FILES].sort()) {
+    const filePath = path.join(generatedDir, fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+    hash.update(fileName);
+    hash.update('\0');
+    hash.update(fs.readFileSync(filePath, 'utf8'));
+    hash.update('\0');
+  }
+  return `sha256:${hash.digest('hex')}`;
+}
+
+function pathIsInside(parentDir, childPath) {
+  const relative = path.relative(parentDir, childPath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function resolveDomainIdFromCurrentSummary({ domainId, currentSummary }) {
+  if (typeof domainId === 'string' && domainId.trim()) {
+    return { ok: true, domainId: domainId.trim() };
+  }
+  const domainIds = new Set();
+  collectDomainIds(domainIds, currentSummary?.sources);
+  collectDomainIds(domainIds, currentSummary?.inputs);
+  collectDomainIds(domainIds, currentSummary?.views);
+  const values = Array.from(domainIds);
+  if (values.length === 1) {
+    return { ok: true, domainId: values[0] };
+  }
+  if (values.length > 1) {
+    return {
+      ok: false,
+      error:
+        `Current generated contract contains multiple semantic domains (${values.join(', ')}). Pass domainId for this update.`,
+    };
+  }
+  return {
+    ok: false,
+    error:
+      'Current generated contract does not contain a semantic domainId. Regenerate the contract or pass domainId explicitly.',
+  };
+}
+
+function collectDomainIds(target, value) {
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectDomainIds(target, item);
+    }
+    return;
+  }
+  if (value.kind === 'semantic' && typeof value.domainId === 'string' && value.domainId.trim()) {
+    target.add(value.domainId.trim());
+  }
+  for (const item of Object.values(value)) {
+    collectDomainIds(target, item);
+  }
 }
 
 function isPlannerPresentationView(view) {

@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import {
+  validateCodegenSummary,
+} from "./data-app-codegen-summary-validation.mjs";
 
 const GENERATED_CONTRACT_DIR = path.join("src", "semaphor", "generated");
+const CONTRACT_MANIFEST_SCHEMA_VERSION = "semaphor-generated-data-app-contract-manifest/v1";
 const REQUIRED_GENERATED_FILES = [
   "sources.ts",
   "fields.ts",
@@ -14,6 +19,7 @@ const REQUIRED_GENERATED_FILES = [
   "accessors.ts",
   "metadata.ts",
   "index.ts",
+  "contract.manifest.json",
 ];
 
 const SKIPPED_DIRS = new Set([
@@ -37,6 +43,12 @@ function parseArgs(argv) {
       args.runBuild = false;
     } else if (arg === "--strict") {
       args.strict = true;
+    } else if (arg === "--devtools-snapshot") {
+      args.devtoolsSnapshotPath = argv[index + 1];
+      index += 1;
+    } else if (arg === "--filter-effect-report") {
+      args.filterEffectReportPath = argv[index + 1];
+      index += 1;
     } else if (arg === "--help" || arg === "-h") {
       args.help = true;
     }
@@ -117,6 +129,9 @@ function scanDataAppPreflight(root, sources) {
 
   if (!usesSdk) {
     advisories.push("No imports from react-semaphor/data-app-sdk were found.");
+    if (hasGeneratedContract) {
+      issues.push(...scanGeneratedContract(root, generatedDir));
+    }
     return { issues, advisories, sdkSources, hasGeneratedContract };
   }
 
@@ -191,6 +206,7 @@ function scanGeneratedContract(root, generatedDir) {
       issues.push(`Generated Semaphor contract is incomplete: missing ${GENERATED_CONTRACT_DIR}/${fileName}.`);
     }
   }
+  issues.push(...validateGeneratedContractManifest(root, generatedDir));
 
   for (const filePath of collectSourceFiles(generatedDir)) {
     const location = formatLocation(root, filePath);
@@ -219,6 +235,109 @@ function scanGeneratedContract(root, generatedDir) {
     }
   }
   return issues;
+}
+
+function validateGeneratedContractManifest(root, generatedDir) {
+  const issues = [];
+  const manifestPath = path.join(generatedDir, "contract.manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    return issues;
+  }
+  let manifest;
+  try {
+    manifest = readJson(manifestPath);
+  } catch (error) {
+    return [`${formatLocation(root, manifestPath)}: could not parse generated contract manifest: ${error.message}`];
+  }
+  if (manifest?.schemaVersion !== CONTRACT_MANIFEST_SCHEMA_VERSION) {
+    issues.push(
+      `${formatLocation(root, manifestPath)}: schemaVersion must be ${CONTRACT_MANIFEST_SCHEMA_VERSION}. Regenerate the contract with semaphor_create_data_app_contract.`,
+    );
+  }
+  for (const issue of validateCodegenSummary(manifest?.codegenSummary)) {
+    issues.push(`${formatLocation(root, manifestPath)}: codegenSummary.${issue}`);
+  }
+  if (typeof manifest?.codegenSummaryHash !== "string") {
+    issues.push(`${formatLocation(root, manifestPath)}: codegenSummaryHash is required.`);
+  } else if (manifest?.codegenSummary && typeof manifest.codegenSummary === "object") {
+    const expectedSummaryHash = hashCanonicalJson(manifest.codegenSummary);
+    if (manifest.codegenSummaryHash !== expectedSummaryHash) {
+      issues.push(
+        `${formatLocation(root, manifestPath)}: codegenSummaryHash does not match codegenSummary. Regenerate the contract instead of editing the manifest.`,
+      );
+    }
+  }
+  const inputIds = new Set((manifest?.codegenSummary?.inputs || [])
+    .map((input) => input?.id)
+    .filter((id) => typeof id === "string" && id.length > 0));
+  const viewIds = new Set((manifest?.codegenSummary?.views || [])
+    .map((view) => view?.id)
+    .filter((id) => typeof id === "string" && id.length > 0));
+  for (const [index, filterContract] of (manifest?.codegenSummary?.filterContracts || []).entries()) {
+    if (!filterContract?.inputId || !inputIds.has(filterContract.inputId)) {
+      issues.push(
+        `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.inputId must reference a generated input.`,
+      );
+    }
+    if (!Array.isArray(filterContract?.bindings)) {
+      continue;
+    }
+    for (const [bindingIndex, binding] of (filterContract?.bindings || []).entries()) {
+      if (!binding?.viewId || !viewIds.has(binding.viewId)) {
+        issues.push(
+          `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.viewId must reference a generated view.`,
+        );
+      }
+      if (!binding?.fieldRef?.name) {
+        issues.push(
+          `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.fieldRef is required.`,
+        );
+      }
+    }
+  }
+  const expectedHash = hashGeneratedFiles(generatedDir);
+  if (manifest?.generatedContentHash !== expectedHash) {
+    issues.push(
+      `${formatLocation(root, manifestPath)}: generatedContentHash does not match generated TypeScript files. Regenerate the contract instead of hand-editing generated files.`,
+    );
+  }
+  return issues;
+}
+
+function hashGeneratedFiles(generatedDir) {
+  const hash = crypto.createHash("sha256");
+  const fileNames = REQUIRED_GENERATED_FILES
+    .filter((fileName) => fileName.endsWith(".ts"))
+    .sort();
+  for (const fileName of fileNames) {
+    const filePath = path.join(generatedDir, fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+    hash.update(fileName);
+    hash.update("\0");
+    hash.update(fs.readFileSync(filePath, "utf8"));
+    hash.update("\0");
+  }
+  return `sha256:${hash.digest("hex")}`;
+}
+
+function hashCanonicalJson(value) {
+  return `sha256:${crypto.createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  const entries = Object.keys(value)
+    .sort()
+    .filter((key) => value[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`);
+  return `{${entries.join(",")}}`;
 }
 
 function checkReactSemaphorCompatibility(root) {
@@ -272,7 +391,7 @@ function runScript(root, packageManager, scriptName) {
 function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
-    console.log("Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict]");
+    console.log("Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict] [--devtools-snapshot <path>] [--filter-effect-report <path>]");
     process.exit(0);
   }
 
@@ -301,6 +420,18 @@ function main() {
 
   issues.push(...preflight.issues, ...sdkCompatibility.issues);
   advisories.push(...preflight.advisories, ...sdkCompatibility.advisories);
+  if (args.devtoolsSnapshotPath) {
+    issues.push(...validateDevtoolsSnapshot({
+      root,
+      snapshotPath: args.devtoolsSnapshotPath,
+    }));
+  }
+  if (args.filterEffectReportPath) {
+    issues.push(...validateFilterEffectReport({
+      root,
+      reportPath: args.filterEffectReportPath,
+    }));
+  }
 
   console.log(`Checked ${sourceFiles.length} source files.`);
   console.log(`SDK import files: ${preflight.sdkSources.length}`);
@@ -345,3 +476,132 @@ function main() {
 }
 
 main();
+
+function validateDevtoolsSnapshot({ root, snapshotPath }) {
+  const issues = [];
+  const manifestPath = path.join(root, GENERATED_CONTRACT_DIR, "contract.manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    return [
+      "DevTools snapshot validation requires src/semaphor/generated/contract.manifest.json.",
+    ];
+  }
+  const resolvedSnapshotPath = path.resolve(root, snapshotPath);
+  if (!fs.existsSync(resolvedSnapshotPath)) {
+    return [`DevTools snapshot file was not found: ${formatLocation(root, resolvedSnapshotPath)}.`];
+  }
+  let snapshot;
+  try {
+    snapshot = readJson(resolvedSnapshotPath);
+  } catch (error) {
+    return [`DevTools snapshot file could not be parsed: ${error.message}`];
+  }
+  const manifest = readJson(manifestPath);
+  const expectedQueryIds = (manifest.codegenSummary?.views || [])
+    .filter((view) => view?.sdkSpec?.builder && view?.sdkSpec?.spec)
+    .map((view) => view.id)
+    .filter(Boolean);
+  const expectedOptionQueryIds = (manifest.codegenSummary?.inputs || [])
+    .filter((input) => input?.optionQuery)
+    .map((input) => input.optionQuery.id || `${input.id}-options`)
+    .filter(Boolean);
+  const observedIds = collectDevtoolsTraceIds(snapshot);
+  for (const queryId of expectedQueryIds) {
+    if (!observedIds.has(queryId)) {
+      issues.push(`DevTools snapshot is missing generated query trace "${queryId}".`);
+    }
+  }
+  for (const queryId of expectedOptionQueryIds) {
+    if (!observedIds.has(queryId)) {
+      issues.push(`DevTools snapshot is missing generated input option trace "${queryId}".`);
+    }
+  }
+  return issues;
+}
+
+function collectDevtoolsTraceIds(value, ids = new Set()) {
+  if (!value || typeof value !== "object") {
+    return ids;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectDevtoolsTraceIds(item, ids);
+    }
+    return ids;
+  }
+  if (typeof value.queryId === "string" && value.queryId.trim()) {
+    ids.add(value.queryId.trim());
+  }
+  if (typeof value.inputOptionQueryId === "string" && value.inputOptionQueryId.trim()) {
+    ids.add(value.inputOptionQueryId.trim());
+  }
+  for (const item of Object.values(value)) {
+    collectDevtoolsTraceIds(item, ids);
+  }
+  return ids;
+}
+
+function validateFilterEffectReport({ root, reportPath }) {
+  const manifestPath = path.join(root, GENERATED_CONTRACT_DIR, "contract.manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    return [
+      "Filter-effect report validation requires src/semaphor/generated/contract.manifest.json.",
+    ];
+  }
+  const resolvedReportPath = path.resolve(root, reportPath);
+  if (!fs.existsSync(resolvedReportPath)) {
+    return [`Filter-effect report file was not found: ${formatLocation(root, resolvedReportPath)}.`];
+  }
+  let report;
+  try {
+    report = readJson(resolvedReportPath);
+  } catch (error) {
+    return [`Filter-effect report file could not be parsed: ${error.message}`];
+  }
+  const manifest = readJson(manifestPath);
+  const filterContracts = manifest.codegenSummary?.filterContracts || [];
+  const checks = Array.isArray(report?.checks)
+    ? report.checks
+    : Array.isArray(report?.filterEffects)
+      ? report.filterEffects
+      : [];
+  const checksByInputId = new Map(checks
+    .filter((check) => typeof check?.inputId === "string")
+    .map((check) => [check.inputId, check]));
+  const issues = [];
+  for (const filterContract of filterContracts) {
+    const appliesToViewIds = Array.isArray(filterContract?.appliesToViewIds)
+      ? filterContract.appliesToViewIds
+      : [];
+    if (appliesToViewIds.length === 0) {
+      continue;
+    }
+    const check = checksByInputId.get(filterContract.inputId);
+    if (!check) {
+      issues.push(
+        `Filter-effect report is missing generated input "${filterContract.inputId}".`,
+      );
+      continue;
+    }
+    const evidenceViewIds = new Set([
+      ...arrayStrings(check.changedQueryIds),
+      ...arrayStrings(check.reranQueryIds),
+      ...arrayStrings(check.affectedViewIds),
+      ...arrayStrings(check.changedViewIds),
+    ]);
+    const hasSubscribedEvidence = appliesToViewIds.some((viewId) =>
+      evidenceViewIds.has(viewId)
+    );
+    if (check.passed !== true && !hasSubscribedEvidence) {
+      issues.push(
+        `Filter-effect report for "${filterContract.inputId}" must show a subscribed generated query reran or changed.`,
+      );
+    }
+  }
+  return issues;
+}
+
+function arrayStrings(value) {
+  return Array.isArray(value)
+    ? value.filter((item) => typeof item === "string" && item.trim())
+    : [];
+}

@@ -15,9 +15,10 @@ Use Semaphor planner tools as the source of truth for broad analytical work:
   plans with `responseFormat: "codegen_summary"` and materializes
   `src/semaphor/generated` in one step.
 - Substantial existing-app analytical edit:
-  call `semaphor_plan_data_app_change` with `goal`, structured
-  `operationIntent`, and current app state such as `currentPlan`,
-  `existingViewIds`, and known inputs.
+  for generated apps, call `semaphor_update_data_app_contract` with `goal`,
+  structured `operationIntent`, and `workspaceDir`; it reads the generated
+  manifest as current state. Use `semaphor_plan_data_app_change` directly only
+  for preview/debug workflows that must not write files.
 
 Do not replace planner output with an agent-invented plan. Present the returned
 plan or change plan, then wait for the user's decision before editing files.
@@ -111,6 +112,12 @@ user/eval accepts the visible plan
 -> semaphor_validate_data_app_contract(workspaceDir)
 ```
 
+After browser smoke captures a Semaphor DevTools bridge snapshot, pass it to
+`semaphor_validate_data_app_contract` as `devtoolsSnapshotPath`. This requires
+generated query ids and generated input option query ids to appear in DevTools
+traces. It proves registration/execution visibility; still compare traces or
+values after changing filters to prove filter effect.
+
 Use the older explicit sequence only when a human/eval workflow needs a
 separate plan artifact before generation, or when debugging the planner to
 generator boundary:
@@ -121,11 +128,31 @@ semaphor_plan_data_app(responseFormat: "codegen_summary")
 -> semaphor_generate_data_app_contract(workspaceDir, planArtifactPath)
 ```
 
+In the explicit sequence, `planArtifactPath` must point at the canonical
+top-level `semaphor-data-app-codegen-summary/v1` JSON object. Do not pass a
+full plan, eval `plan.json`, `{ codegenSummary }`, or `{ summary }` wrapper.
+
 The generated files own Semaphor source refs, fields, visible input specs,
 input option queries, view query specs, and per-view filter binding helpers.
 The React UI owns layout, controls, cards, charts, tables, formatting, applied
 filter affordances, and loading/error/empty states. Do not manually recreate
 generated analytics wiring in `App.tsx`.
+The generated directory also includes `contract.manifest.json`. Treat that
+manifest as the durable accepted analytics contract for future change
+planning. Do not edit generated files by hand; validation checks that the
+manifest hash still matches the generated TypeScript files.
+For iterative analytics changes to a generated app, call:
+
+```text
+semaphor_update_data_app_contract(workspaceDir, goal, operationIntent)
+-> reads src/semaphor/generated/contract.manifest.json
+-> calls semaphor_plan_data_app_change with the manifest codegenSummary
+-> regenerates src/semaphor/generated from the updated summary
+```
+
+Do not inspect `App.tsx` to reconstruct query specs, filter bindings, source
+refs, or option queries. Inspect UI files only to decide where the changed
+views/controls should render.
 If the generated metadata includes
 `semaphorGeneratedContractMetadata.presentationViews`, render those planned
 text/commentary blocks in the dashboard instead of ignoring them because they
@@ -407,8 +434,9 @@ scratch. Use it to build the shadcn/TanStack table component.
 
 If the user is working in an existing app, inspect the current source and
 manifest first. Preserve existing views unless the user asks to replace them.
-For substantial analytical edits, call `semaphor_plan_data_app_change` and
-present the returned change operations:
+For substantial analytical edits in generated apps, call
+`semaphor_update_data_app_contract` and present the returned migration report
+plus any change operations:
 
 - keep;
 - modify;
@@ -416,9 +444,10 @@ present the returned change operations:
 - remove;
 - validation steps.
 
-V1 change planning implements additive changes and preserve-by-default
-blocking for edit/remove/mixed requests. If the planner returns `ask_user`,
-do not rewrite the app as a greenfield build.
+Generated-contract change planning supports additive, edit, and remove
+requests while preserving non-target views by default. If the planner returns
+`ask_user` or a blocked status, do not rewrite the app as a greenfield build;
+ask for the missing decision or report the unsupported model gap.
 
 Do not silently convert an existing app into a greenfield rewrite.
 

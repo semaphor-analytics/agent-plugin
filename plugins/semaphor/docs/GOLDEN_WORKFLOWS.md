@@ -28,8 +28,9 @@ Expected agent behavior:
 
 - inspect Semaphor data before editing,
 - inspect local React app structure,
-- call `semaphor_plan_data_app` and produce a visible grounded plan before
-  editing if the request is broad,
+- call `semaphor_create_data_app_contract` after plan approval for broad
+  builds so the grounded plan and generated contract are produced through the
+  Semaphor tools before UI edits,
 - for broad dashboard creation, request a balanced planner budget, normally
   `preferences.maxViews: 15` and up to 20 for wide coverage; do not treat the
   8-view default as a cap or shrink the plan because the artifact is verbose,
@@ -58,6 +59,9 @@ Expected agent behavior:
   `App.tsx` or one giant replacement dashboard component,
 - generate from the returned `sources`, `inputs`, `views`, `sdkSpec`,
   unsupported gaps, and assumptions instead of improvising query specs,
+- if a generated app is changed later, call
+  `semaphor_update_data_app_contract` and use its migration report before
+  presentation edits,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
   builders plus `useSemaphorQuery`,
 - give every runtime query spec a stable explicit `id`,
@@ -279,6 +283,9 @@ planner/generator boundary.
 
 Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.
+The generated directory includes `contract.manifest.json`; future analytics
+changes should start from that manifest rather than reconstructing the current
+plan from UI code.
 If contract generation fails twice before files are written, stop and report a
 planner/generator/tooling failure; do not manually recreate
 `src/semaphor/generated`.
