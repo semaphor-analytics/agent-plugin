@@ -118,7 +118,7 @@ const LOCAL_TOOLS = [
   {
     name: 'semaphor_validate_data_app_contract',
     description:
-      'Validate the local React Data App source against Semaphor SDK contract requirements: root DevTools, provider debug bridge, stable query ids, inputOptions for dropdown choices, shared filter handles, card filter affordances, and modular query/spec organization. Run this after initial SDK wiring and before reporting completion.',
+      'Run deterministic local Data App preflight: React/react-semaphor package setup, public SDK availability, root provider/DevTools wiring, generated contract completeness, generated contract hygiene, and optional typecheck/build. This does not prove analytics semantics; use Semaphor validation/execution and DevTools traces for filter applicability and query correctness.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -434,10 +434,10 @@ function generateLocalDataAppContract(message) {
   if (args.planArtifactPath) {
     commandArgs.push('--plan', args.planArtifactPath);
   } else if (args.codegenSummary && typeof args.codegenSummary === 'object') {
-    const outputPath = path.resolve(workspaceDir, outputDir);
-    fs.mkdirSync(outputPath, { recursive: true });
+    const artifactDir = path.resolve(workspaceDir, '.semaphor');
+    fs.mkdirSync(artifactDir, { recursive: true });
     tempPlanPath = path.join(
-      outputPath,
+      artifactDir,
       `.codegen-summary.input.${Date.now()}-${process.pid}.json`,
     );
     fs.writeFileSync(tempPlanPath, JSON.stringify(args.codegenSummary), 'utf8');

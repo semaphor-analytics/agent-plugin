@@ -199,9 +199,11 @@ query.
 Relationship-aware filters are executable planner output, not suggestions to
 recreate manually. Preserve `input.relationshipHint`,
 `input.relationshipsUsed`, `input.optionQuery.population`, and
-`input.optionQuery.dependencies` when translating planned inputs into
-`semaphor.filter(...)` and `semaphor.inputOptions(...)`. A related population
-means the option list should be narrowed through the base fact/source on the
+`input.optionQuery.dependencies` when translating planned inputs into generated
+contract metadata and SDK specs. Emit `relationshipHint` into runtime
+`semaphor.bindInput(...)`; keep `relationshipsUsed` as evidence, not a runtime
+SDK property. A related population means the option list should be narrowed
+through the base fact/source on the
 server. A missing or unsupported relationship should remain an unsupported gap
 or modeling fix; do not replace it with a client-side join, client-side filter,
 or raw SQL join unless the planner returns an explicit SQL fallback or the user

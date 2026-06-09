@@ -211,9 +211,11 @@ as a required dashboard quality checklist, not optional inspiration.
   state the SDK gap and the workaround before reporting completion.
 - When the Data App planner returns inputs, preserve the planner-emitted
   `fieldRef`, `optionQuery`, `population`, `relationshipHint`,
-  `relationshipsUsed`, and `appliesToViewIds`. Use those bindings for
-  server-side filters/cascading option lists; do not recreate the relationship
-  with client-side joins, client-side filtering, or raw SQL.
+  `relationshipsUsed`, and `appliesToViewIds`. Use `relationshipHint` in
+  runtime `semaphor.bindInput(...)` calls; keep `relationshipsUsed` as
+  generated metadata/evidence for review and DevTools context, not as an SDK
+  runtime option. Do not recreate the relationship with client-side joins,
+  client-side filtering, or raw SQL.
 - Treat visible filter scope as part of the app contract: top bar for
   dashboard-wide filters; place or label scoped filters by affected view.
 - Do not make a visible input globally active by default. Pass an input handle

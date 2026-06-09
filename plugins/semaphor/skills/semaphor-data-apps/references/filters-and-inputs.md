@@ -287,9 +287,11 @@ const salesRows = useSemaphorQuery(salesQuery, {
 
 If the planner returns `input.bindings[]`, each binding is a server-side
 subscription target. Preserve its `fieldRef`, `relationshipHint`,
-`relationshipsUsed`, and `appliesToViewIds` in codegen. Do not flatten this
-into one bare `field` unless all subscribed queries truly use the same
-source-bearing field.
+`relationshipsUsed`, and `appliesToViewIds` in codegen. Emit
+`relationshipHint` into runtime `semaphor.bindInput(...)` calls; keep
+`relationshipsUsed` as metadata/evidence for review and inspection. Do not
+flatten this into one bare `field` unless all subscribed queries truly use the
+same source-bearing field.
 
 ## Planner-Emitted Relationship Filters
 
@@ -299,6 +301,7 @@ planned input may include:
 - `relationshipHint`: relationship ids the runtime should use to disambiguate
   role-playing or alternate paths;
 - `relationshipsUsed`: evidence to show or inspect why the filter is valid;
+  do not pass this object to `semaphor.bindInput(...)`;
 - `optionQuery.population`: a related population that constrains options
   through a base fact/source;
 - `optionQuery.dependencies`: dependency behavior for cascading option lists.

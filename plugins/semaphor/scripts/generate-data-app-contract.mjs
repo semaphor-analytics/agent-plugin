@@ -95,7 +95,7 @@ function parseArgs(argv) {
 
 function readPlanArtifact({ args, workspaceDir }) {
   if (args.stdin) {
-    const input = readStdinWithRetry();
+    const input = fs.readFileSync(0, 'utf8');
     if (!input.trim()) {
       throw new Error('No JSON was provided on stdin.');
     }
@@ -111,26 +111,6 @@ function readPlanArtifact({ args, workspaceDir }) {
 
   const resolvedPlanPath = path.resolve(workspaceDir, planPath);
   return JSON.parse(fs.readFileSync(resolvedPlanPath, 'utf8'));
-}
-
-function readStdinWithRetry() {
-  let lastError;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return fs.readFileSync(0, 'utf8');
-    } catch (error) {
-      lastError = error;
-      if (error?.code !== 'EAGAIN') {
-        throw error;
-      }
-      sleepSync(25 * (attempt + 1));
-    }
-  }
-  throw lastError;
-}
-
-function sleepSync(milliseconds) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
 function assertInsideDirectory({ parentDir, childPath, label }) {
@@ -399,7 +379,7 @@ function renderInputs(contract) {
 
   return `${GENERATED_HEADER}
 import { semaphor } from "react-semaphor/data-app-sdk";
-import type { SemaphorInputReference } from "react-semaphor/data-app-sdk";
+import type { SemaphorInputHandle } from "react-semaphor/data-app-sdk";
 import { fields } from "./fields";
 import { sources } from "./sources";
 
@@ -411,9 +391,9 @@ export const appInputSpecs = [${appSpecs}] as const;
 export const appInputIds = [${inputIds}] as const;
 
 export type SemaphorGeneratedInputId = typeof appInputIds[number];
-export type SemaphorGeneratedInputHandleMap = Partial<Record<SemaphorGeneratedInputId, SemaphorInputReference>>;
+export type SemaphorGeneratedInputHandleMap = Partial<Record<SemaphorGeneratedInputId, SemaphorInputHandle>>;
 
-export function createInputHandleMap(handles: readonly SemaphorInputReference[]): SemaphorGeneratedInputHandleMap {
+export function createInputHandleMap(handles: readonly SemaphorInputHandle[]): SemaphorGeneratedInputHandleMap {
   return Object.fromEntries(appInputIds.map((id, index) => [id, handles[index]])) as SemaphorGeneratedInputHandleMap;
 }
 
@@ -426,10 +406,7 @@ ${optionQueries}
 function renderQueries(contract) {
   const queryEntries = contract.views.map((view) => {
     const builder = builderMethod(view.raw.sdkSpec.builder);
-    const spec = {
-      id: view.raw.id,
-      ...view.raw.sdkSpec.spec,
-    };
+    const spec = sdkBuilderSpecForView(view);
     return `  ${view.name}: semaphor.${builder}(${renderValue(spec, contract)}),`;
   }).join('\n');
   return `${GENERATED_HEADER}
@@ -441,6 +418,15 @@ export const queries = {
 ${queryEntries}
 } as const;
 `;
+}
+
+function sdkBuilderSpecForView(view) {
+  const rawSpec = view.raw.sdkSpec?.spec || {};
+  const { kind: _plannerOnlyKind, id: _ignoredId, ...builderSpec } = rawSpec;
+  return {
+    id: view.raw.id,
+    ...builderSpec,
+  };
 }
 
 function renderBindings(contract) {
@@ -455,9 +441,13 @@ function renderBindings(contract) {
       const bindingParts = [`field: fields.${fieldName}`];
       if (binding.relationshipHint) {
         bindingParts.push(`relationshipHint: ${renderPlainObject(binding.relationshipHint)}`);
-      }
-      if (binding.relationshipsUsed) {
-        bindingParts.push(`relationshipsUsed: ${renderPlainObject(binding.relationshipsUsed)}`);
+      } else if (Array.isArray(binding.relationshipsUsed) && binding.relationshipsUsed.length > 0) {
+        const relationshipIds = binding.relationshipsUsed
+          .map((relationship) => relationship?.id)
+          .filter((id) => typeof id === 'string' && id.length > 0);
+        if (relationshipIds.length > 0) {
+          bindingParts.push(`relationshipHint: ${renderPlainObject({ relationshipIds })}`);
+        }
       }
       const handleRef = `inputHandles[${JSON.stringify(inputId)}]`;
       return `    if (${handleRef}) {

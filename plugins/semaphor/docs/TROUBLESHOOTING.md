@@ -577,7 +577,7 @@ Expected agent behavior:
 Owner layer: customer app integration or SDK type exports if public SDK types
 are missing.
 
-## `validate:data-app` Advisories
+## `validate:data-app` Preflight Output
 
 Symptom:
 
@@ -585,11 +585,17 @@ Symptom:
 Validation advisories:
 ```
 
-Default advisories are not blockers. They point the agent at likely issues such as
-placeholder refs, stale SDK shapes, missing obvious provider wiring, or record
-label/key confusion.
+Default advisories are not blockers. The plugin-local validator is a
+deterministic preflight for package setup, SDK availability,
+provider/DevTools wiring, generated contract completeness, generated contract
+hygiene, and local typecheck/build.
+
+It does not prove analytics semantics. Use Semaphor planner/validation,
+execution results, and DevTools traces to prove filter applicability,
+relationship correctness, chart query shape, and whether filter selections
+rerun subscribed queries.
 
 Use `--strict` only for explicit quality gates.
 
-Owner layer: usually generated code or docs, unless the advisory points to a
-missing SDK/MCP capability.
+Owner layer: plugin preflight for local wiring issues; Semaphor planner, SDK,
+runtime, or semantic model for analytics correctness.
