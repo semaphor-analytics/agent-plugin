@@ -39,10 +39,11 @@ public SDK builders/hooks, validate, then save or publish when requested.
    the file/component layout, which filters apply to which cards/views, and
    how SDK DevTools will be enabled. Do not start by dumping the dashboard into
    `src/App.tsx`.
-5. Contract generation: after the user accepts a broad `semaphor_plan_data_app`
-   plan, call `semaphor_generate_data_app_contract` before UI edits and import
-   the generated `src/semaphor/generated` sources, fields, inputs, queries, and
-   bindings. Do not hand-roll analytics wiring from prose.
+5. Contract generation: for greenfield/broad builds, call
+   `semaphor_create_data_app_contract` before UI edits so planning and contract
+   materialization happen through the Semaphor tools. Import the generated
+   `src/semaphor/generated` sources, fields, inputs, queries, and bindings.
+   Do not hand-roll analytics wiring from prose or local guesses.
 6. Broad build: after project/domain confirmation, present a visible plan and
    stop for user approval before editing.
 7. Existing app: inspect current source, use `semaphor_plan_data_app_change`,
@@ -110,21 +111,22 @@ specific previously presented plan, then edit. If the request is a narrow edit
 such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
-For broad new Data App requests, use `semaphor_plan_data_app` as the planning
-source of truth before codegen. For substantial existing-app edits, use
-`semaphor_plan_data_app_change` with the current app state before codegen.
-Present the returned plan/change plan to the user. After the user accepts a
-greenfield/broad plan, call `semaphor_generate_data_app_contract` with the
-saved plan artifact before editing UI files. Use inline `codegenSummary` only
-when no artifact path exists; the local tool materializes it inside the target
-generated output directory before running the same file-based generator. Build React
-from the generated `src/semaphor/generated` contract plus the returned visual
-specs and unsupported gaps. Do not recreate Semaphor sources, fields, inputs,
-input option queries, or filter bindings manually unless the generator reports
-a clear unsupported analytics gap. If the generator fails before producing
-files, retry once with `planArtifactPath` when available; if it fails again,
-stop and report a generator/tooling failure instead of hand-writing
-`src/semaphor/generated`.
+For broad new Data App requests, use Semaphor planning as the source of truth
+before codegen. Present the visible plan/change plan to the user when the
+workflow requires approval. After approval, use the combined greenfield tool:
+`semaphor_create_data_app_contract({ workspaceDir, domainId, goal,
+preferences })`. It calls the planner with `responseFormat: "codegen_summary"`
+and writes `src/semaphor/generated` in one step. Use the separate
+`semaphor_plan_data_app` -> `semaphor_generate_data_app_contract` sequence only
+for explicit preview/debug/eval artifact workflows. For substantial
+existing-app edits, use `semaphor_plan_data_app_change` with the current app
+state before codegen. Build React from the generated
+`src/semaphor/generated` contract plus the returned visual specs and
+unsupported gaps. Do not recreate Semaphor sources, fields, inputs, input
+option queries, or filter bindings manually unless the generator reports a
+clear unsupported analytics gap. If contract generation fails twice before
+producing files, stop and report a planner/generator/tooling failure instead
+of hand-writing `src/semaphor/generated`.
 
 A blocked plan with zero executable views is not an implementation plan. Do
 not turn it into a placeholder or "model gap" app unless the user explicitly
@@ -165,6 +167,7 @@ calls for data-app work are:
 - `semaphor_list_datasets`
 - `semaphor_get_dataset_schema`
 - `semaphor_get_domain_relationships`
+- `semaphor_create_data_app_contract`
 - `semaphor_plan_data_app`
 - `semaphor_plan_data_app_change`
 

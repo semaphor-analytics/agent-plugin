@@ -312,6 +312,11 @@ function validateMcpBridge() {
       'scripts/semaphor-mcp-remote.mjs: must expose semaphor_generate_data_app_contract as a first-class local MCP tool',
     );
   }
+  if (!bridgeText.includes('semaphor_create_data_app_contract')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: must expose semaphor_create_data_app_contract as the default greenfield local MCP tool',
+    );
+  }
   if (!bridgeText.includes('generate-data-app-contract.mjs')) {
     issues.push(
       'scripts/semaphor-mcp-remote.mjs: local generation tool must call scripts/generate-data-app-contract.mjs',

@@ -266,21 +266,22 @@ Expected validation:
 
 For broad greenfield Data Apps, the normal codegen path is:
 
-1. Call `semaphor_plan_data_app` with `responseFormat: "codegen_summary"`.
-2. Present the plan and wait for acceptance.
-3. Call `semaphor_generate_data_app_contract` with the accepted saved plan
-   artifact path. Use inline `codegenSummary` only when no artifact path exists.
-4. Build the React UI from the generated `src/semaphor/generated` exports.
-5. Run `semaphor_validate_data_app_contract` before final handoff.
+1. Resolve project/domain and get user/eval approval to build.
+2. Call `semaphor_create_data_app_contract` with `workspaceDir`, `domainId`,
+   `goal`, and planner `preferences` such as `maxViews: 15`.
+3. Build the React UI from the generated `src/semaphor/generated` exports.
+4. Run `semaphor_validate_data_app_contract` before final handoff.
+
+Use the explicit `semaphor_plan_data_app` ->
+`semaphor_generate_data_app_contract` sequence only when the workflow requires
+a separate accepted plan artifact before generation, or when debugging the
+planner/generator boundary.
 
 Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.
-If contract generation fails before files are written, retry once with a saved
-`planArtifactPath` when possible. If inline `codegenSummary` is the only
-available fallback, the local tool writes it as a short-lived input file in the
-target generated output directory before running the same file-based generator.
-If it fails again, stop and report a generator/tooling failure; do not manually
-recreate `src/semaphor/generated`.
+If contract generation fails twice before files are written, stop and report a
+planner/generator/tooling failure; do not manually recreate
+`src/semaphor/generated`.
 
 If the planner returns zero executable views, do not generate a dashboard. Stop
 and ask for a better domain, clearer business goal, or semantic-model

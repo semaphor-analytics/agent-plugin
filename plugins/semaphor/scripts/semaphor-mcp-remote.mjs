@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
@@ -53,7 +54,7 @@ const FALLBACK_TOOLS = [
   {
     name: 'semaphor_plan_data_app',
     description:
-      'Plan a Semaphor-backed React Data App from a selected semantic domain. Requires domainId and goal. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
+      'Plan a Semaphor-backed React Data App from a selected semantic domain. Requires domainId and goal. In local plugin sessions, pass workspaceDir so the bridge can persist returned codegenSummary to .semaphor/data-app-codegen-summary.latest.json for semaphor_generate_data_app_contract. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.',
   },
   {
     name: 'semaphor_plan_data_app_change',
@@ -70,6 +71,68 @@ const FALLBACK_TOOLS = [
   inputSchema: WORKSPACE_HINT_SCHEMA,
 }));
 const LOCAL_TOOLS = [
+  {
+    name: 'semaphor_create_data_app_contract',
+    description:
+      'Default greenfield Data App path. Plan a Semaphor-backed React Data App from a selected semantic domain and immediately materialize deterministic local TypeScript analytics contract files under src/semaphor/generated. Use this after project/domain resolution and user approval to build so agents do not manage planner JSON artifacts or hand-roll analytics wiring. For preview-only planning use semaphor_plan_data_app; for existing app changes use semaphor_plan_data_app_change.',
+    annotations: {
+      title: 'Create Data App Contract',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspaceDir: {
+          ...WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+          description:
+            'Required React app root where generated files should be written.',
+        },
+        domainId: {
+          type: 'string',
+          description: 'Selected semantic domain id for the greenfield Data App plan.',
+        },
+        goal: {
+          type: 'string',
+          description: 'User-approved business goal for the Data App.',
+        },
+        preferences: {
+          type: 'object',
+          description:
+            'Optional planner preferences such as maxViews, includeFilters, includeTables, includeKpis, and visualStyle.',
+          additionalProperties: true,
+        },
+        datasetName: {
+          type: 'string',
+          description: 'Optional single dataset name to prioritize.',
+        },
+        datasetNames: {
+          type: 'array',
+          description: 'Optional dataset names to prioritize.',
+          items: { type: 'string' },
+        },
+        requestedDatasetNames: {
+          type: 'array',
+          description: 'Optional requested dataset names when the scenario names specific sources.',
+          items: { type: 'string' },
+        },
+        outputDir: {
+          type: 'string',
+          description:
+            'Output directory relative to workspaceDir. Defaults to src/semaphor/generated.',
+        },
+        allowEmptyContract: {
+          type: 'boolean',
+          description:
+            'Escape hatch for explicit model-gap report apps only. Normal dashboard builds must leave this false so zero-executable-view plans stop before writing generated files.',
+        },
+      },
+      required: ['workspaceDir', 'domainId', 'goal'],
+      additionalProperties: false,
+    },
+  },
   {
     name: 'semaphor_generate_data_app_contract',
     description:
@@ -92,7 +155,7 @@ const LOCAL_TOOLS = [
         planArtifactPath: {
           type: 'string',
           description:
-            'Normal path: JSON plan artifact or planner capture containing codegenSummary. Relative paths resolve from workspaceDir. Prefer this over inline codegenSummary.',
+            'Normal path: JSON plan artifact or planner capture containing codegenSummary. Relative paths resolve from workspaceDir. Prefer the planArtifactPath returned by semaphor_plan_data_app over inline codegenSummary.',
         },
         codegenSummary: {
           type: 'object',
@@ -243,6 +306,9 @@ async function forwardRequest(message) {
   }
 
   if (message.method === 'tools/call') {
+    if (message.params?.name === 'semaphor_create_data_app_contract') {
+      return createLocalDataAppContract(message);
+    }
     if (message.params?.name === 'semaphor_generate_data_app_contract') {
       return generateLocalDataAppContract(message);
     }
@@ -256,32 +322,11 @@ async function forwardRequest(message) {
       toolArguments,
     });
     if (!context?.token) {
-      return {
-        jsonrpc: '2.0',
-        id: message.id,
-        result: {
-          isError: true,
-          content: [
-            {
-              type: 'text',
-              text: [
-                'Semaphor project token was not found for this workspace.',
-                'This is a recoverable setup step for Semaphor data-bearing work, not a denial of the user request.',
-                'Pause, preserve the task context, and ask the user to authenticate before continuing.',
-                'Do not create a placeholder dashboard shell, static mock analytics, or generic query integration point.',
-                'If hosted OAuth tools are exposed, use the MCP server named semaphor and call semaphor_list_projects.',
-                'If hosted OAuth tools are not exposed, the OAuth app connection requires reauthentication, or the semaphor MCP is not logged in, ask the user to use the current host MCP OAuth login or reauthentication flow for the server named semaphor, then say try again. In Codex, the command is codex mcp login semaphor; in Claude Code or another host, use that host MCP server authentication UI or command. Mention a fresh agent session only if the host does not expose refreshed OAuth tools in the current session.',
-                'For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.',
-                'If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.',
-                'For local development, add SEMAPHOR_SERVER_URL=http://localhost:3000 to the same .env.local. Hosted Semaphor defaults to https://semaphor.cloud.',
-              ].join(' '),
-            },
-          ],
-        },
-      };
+      return missingSemaphorAuthResponse(message);
     }
     const response = await postMcpJsonRpc(stripBridgeOnlyToolArguments(message), context);
-    return normalizeJsonRpcResponse(message, response);
+    const normalized = normalizeJsonRpcResponse(message, response);
+    return maybePersistDataAppPlanArtifact(message, normalized);
   }
 
   return {
@@ -334,12 +379,121 @@ function normalizeToolsListResponse(message, response) {
   };
 }
 
+function maybePersistDataAppPlanArtifact(message, normalized) {
+  if (message.params?.name !== 'semaphor_plan_data_app') {
+    return normalized;
+  }
+
+  const args = message.params?.arguments && typeof message.params.arguments === 'object'
+    ? message.params.arguments
+    : {};
+  const workspaceDir = firstString(
+    args.workspaceDir,
+    args.workspaceRoot,
+    args.projectDir,
+    args.repoRoot,
+    args.appDir,
+  );
+  const codegenSummary = normalized?.result?.structuredContent?.codegenSummary;
+  if (!workspaceDir || !codegenSummary || typeof codegenSummary !== 'object') {
+    return normalized;
+  }
+
+  try {
+    const artifactDir = path.resolve(workspaceDir, '.semaphor');
+    fs.mkdirSync(artifactDir, { recursive: true });
+    const artifactPath = path.join(artifactDir, 'data-app-codegen-summary.latest.json');
+    const artifact = {
+      schemaVersion: 'semaphor-data-app-codegen-summary-artifact/v1',
+      createdAt: new Date().toISOString(),
+      plannerTool: 'semaphor_plan_data_app',
+      codegenSummary,
+    };
+    fs.writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
+    const relativeArtifactPath = path.relative(path.resolve(workspaceDir), artifactPath);
+    const note =
+      `Saved Semaphor codegen summary artifact to ${relativeArtifactPath}. ` +
+      'Pass this path as planArtifactPath to semaphor_generate_data_app_contract.';
+    return appendPlannerArtifactResult(normalized, {
+      workspaceDir: path.resolve(workspaceDir),
+      planArtifactPath: relativeArtifactPath,
+      codegenSummaryArtifactPath: relativeArtifactPath,
+      note,
+    });
+  } catch (error) {
+    const warning =
+      `Semaphor plan succeeded, but the local bridge could not persist the codegen summary artifact: ` +
+      redactSensitiveText(error instanceof Error ? error.message : String(error));
+    return appendPlannerArtifactResult(normalized, {
+      workspaceDir: path.resolve(workspaceDir),
+      artifactWarning: warning,
+      note: warning,
+    });
+  }
+}
+
+function appendPlannerArtifactResult(normalized, details) {
+  const result = normalized?.result && typeof normalized.result === 'object'
+    ? normalized.result
+    : {};
+  const structuredContent = result.structuredContent && typeof result.structuredContent === 'object'
+    ? result.structuredContent
+    : {};
+  const content = Array.isArray(result.content) ? result.content : [];
+  return {
+    ...normalized,
+    result: {
+      ...result,
+      structuredContent: {
+        ...structuredContent,
+        planArtifactPath: details.planArtifactPath,
+        codegenSummaryArtifactPath: details.codegenSummaryArtifactPath,
+        workspaceDir: details.workspaceDir,
+        artifactWarning: details.artifactWarning,
+      },
+      content: [
+        ...content,
+        {
+          type: 'text',
+          text: details.note,
+        },
+      ],
+    },
+  };
+}
+
 function appendLocalTools(tools) {
   const seen = new Set(tools.map((tool) => tool?.name).filter(Boolean));
   return [
     ...tools,
     ...LOCAL_TOOLS.filter((tool) => !seen.has(tool.name)),
   ];
+}
+
+function missingSemaphorAuthResponse(message) {
+  return {
+    jsonrpc: '2.0',
+    id: message.id,
+    result: {
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: [
+            'Semaphor project token was not found for this workspace.',
+            'This is a recoverable setup step for Semaphor data-bearing work, not a denial of the user request.',
+            'Pause, preserve the task context, and ask the user to authenticate before continuing.',
+            'Do not create a placeholder dashboard shell, static mock analytics, or generic query integration point.',
+            'If hosted OAuth tools are exposed, use the MCP server named semaphor and call semaphor_list_projects.',
+            'If hosted OAuth tools are not exposed, the OAuth app connection requires reauthentication, or the semaphor MCP is not logged in, ask the user to use the current host MCP OAuth login or reauthentication flow for the server named semaphor, then say try again. In Codex, the command is codex mcp login semaphor; in Claude Code or another host, use that host MCP server authentication UI or command. Mention a fresh agent session only if the host does not expose refreshed OAuth tools in the current session.',
+            'For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.',
+            'If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.',
+            'For local development, add SEMAPHOR_SERVER_URL=http://localhost:3000 to the same .env.local. Hosted Semaphor defaults to https://semaphor.cloud.',
+          ].join(' '),
+        },
+      ],
+    },
+  };
 }
 
 function validateLocalDataAppContract(message) {
@@ -407,6 +561,172 @@ function validateLocalDataAppContract(message) {
   };
 }
 
+async function createLocalDataAppContract(message) {
+  const args = message.params?.arguments && typeof message.params.arguments === 'object'
+    ? message.params.arguments
+    : {};
+  const workspaceDir = firstString(
+    args.workspaceDir,
+    args.workspaceRoot,
+    args.projectDir,
+    args.repoRoot,
+    args.appDir,
+    process.cwd(),
+  );
+  const domainId = firstString(args.domainId);
+  const goal = firstString(args.goal);
+
+  if (!workspaceDir || !domainId || !goal) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          error: 'Pass workspaceDir, domainId, and goal.',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Semaphor Data App contract creation requires workspaceDir, domainId, and goal.',
+          },
+        ],
+      },
+    };
+  }
+
+  const context = await resolveSemaphorContext({
+    allowMissing: false,
+    includeClientRoots: true,
+    toolArguments: args,
+  });
+  if (!context?.token) {
+    return missingSemaphorAuthResponse(message);
+  }
+
+  const plannerArguments = plannerArgumentsForCreateContract(args);
+  const plannerMessage = {
+    jsonrpc: '2.0',
+    id: message.id,
+    method: 'tools/call',
+    params: {
+      name: 'semaphor_plan_data_app',
+      arguments: plannerArguments,
+    },
+  };
+  const plannerResponse = await postMcpJsonRpc(plannerMessage, context);
+  const normalizedPlannerResponse = normalizeJsonRpcResponse(plannerMessage, plannerResponse);
+  if (normalizedPlannerResponse?.error) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      error: normalizedPlannerResponse.error,
+    };
+  }
+  if (normalizedPlannerResponse?.result?.isError) {
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: normalizedPlannerResponse.result,
+    };
+  }
+
+  const codegenSummary =
+    normalizedPlannerResponse?.result?.structuredContent?.codegenSummary;
+  if (!codegenSummary || typeof codegenSummary !== 'object') {
+    const contentText = contentTextFromResult(normalizedPlannerResponse?.result);
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          plannerTool: 'semaphor_plan_data_app',
+          error: 'Planner response did not include structuredContent.codegenSummary.',
+        },
+        content: [
+          {
+            type: 'text',
+            text: [
+              'Semaphor Data App planning succeeded, but the response did not include codegenSummary.',
+              'Retry planning with responseFormat="codegen_summary"; do not reconstruct analytics wiring from prose.',
+              contentText,
+            ].filter(Boolean).join('\n\n'),
+          },
+        ],
+      },
+    };
+  }
+
+  const generation = runDataAppContractGenerator({
+    workspaceDir,
+    outputDir: firstString(args.outputDir, 'src/semaphor/generated'),
+    codegenSummary,
+    allowEmptyContract: args.allowEmptyContract === true,
+  });
+  const ok = generation.ok;
+  const planSummary = compactCodegenSummary(codegenSummary);
+  const text = [
+    ok
+      ? 'Semaphor Data App plan accepted and analytics contract generated.'
+      : 'Semaphor Data App plan was produced, but analytics contract generation failed.',
+    JSON.stringify({
+      plan: planSummary,
+      generated: generation.parsed || null,
+      error: generation.parsed?.error || null,
+    }, null, 2),
+    generation.stderr.trim(),
+  ].filter(Boolean).join('\n\n');
+
+  return {
+    jsonrpc: '2.0',
+    id: message.id,
+    result: {
+      isError: !ok,
+      structuredContent: {
+        ok,
+        workspaceDir: path.resolve(workspaceDir),
+        plannerTool: 'semaphor_plan_data_app',
+        generatorTool: 'semaphor_generate_data_app_contract',
+        plan: planSummary,
+        exitCode: generation.exitCode,
+        signal: generation.signal,
+        ...(generation.parsed || {}),
+        stdout: generation.stdout,
+        stderr: generation.stderr,
+      },
+      content: [
+        {
+          type: 'text',
+          text,
+        },
+      ],
+    },
+  };
+}
+
+function plannerArgumentsForCreateContract(args) {
+  const {
+    workspaceDir: _workspaceDir,
+    workspaceRoot: _workspaceRoot,
+    projectDir: _projectDir,
+    repoRoot: _repoRoot,
+    appDir: _appDir,
+    outputDir: _outputDir,
+    allowEmptyContract: _allowEmptyContract,
+    responseFormat: _responseFormat,
+    ...plannerArguments
+  } = args;
+  return {
+    ...plannerArguments,
+    responseFormat: 'codegen_summary',
+  };
+}
+
 function generateLocalDataAppContract(message) {
   const args = message.params?.arguments && typeof message.params.arguments === 'object'
     ? message.params.arguments
@@ -419,30 +739,8 @@ function generateLocalDataAppContract(message) {
     args.appDir,
     process.cwd(),
   );
-  const generatorPath = path.join(pluginRoot, 'scripts/generate-data-app-contract.mjs');
   const outputDir = firstString(args.outputDir, 'src/semaphor/generated');
-  const commandArgs = [
-    generatorPath,
-    '--dir',
-    workspaceDir,
-    '--output',
-    outputDir,
-    '--json',
-  ];
-
-  let tempPlanPath = '';
-  if (args.planArtifactPath) {
-    commandArgs.push('--plan', args.planArtifactPath);
-  } else if (args.codegenSummary && typeof args.codegenSummary === 'object') {
-    const artifactDir = path.resolve(workspaceDir, '.semaphor');
-    fs.mkdirSync(artifactDir, { recursive: true });
-    tempPlanPath = path.join(
-      artifactDir,
-      `.codegen-summary.input.${Date.now()}-${process.pid}.json`,
-    );
-    fs.writeFileSync(tempPlanPath, JSON.stringify(args.codegenSummary), 'utf8');
-    commandArgs.push('--plan', tempPlanPath);
-  } else {
+  if (!args.planArtifactPath && !(args.codegenSummary && typeof args.codegenSummary === 'object')) {
     return {
       jsonrpc: '2.0',
       id: message.id,
@@ -462,43 +760,35 @@ function generateLocalDataAppContract(message) {
       },
     };
   }
-  if (args.allowEmptyContract === true) {
-    commandArgs.push('--allow-empty');
-  }
 
-  const result = spawnSync(process.execPath, commandArgs, {
-    cwd: workspaceDir,
-    encoding: 'utf8',
-    env: process.env,
+  const generation = runDataAppContractGenerator({
+    workspaceDir,
+    outputDir,
+    planArtifactPath: args.planArtifactPath,
+    codegenSummary: args.codegenSummary,
+    allowEmptyContract: args.allowEmptyContract === true,
   });
-  if (tempPlanPath) {
-    fs.rmSync(tempPlanPath, { force: true });
-  }
-  const stdout = redactSensitiveText(result.stdout || '');
-  const stderr = redactSensitiveText(result.stderr || '');
-  const parsed = parseGeneratedToolResult(stdout);
-  const ok = result.status === 0 && parsed?.ok === true;
   const text = [
-    ok
+    generation.ok
       ? 'Semaphor Data App analytics contract generated.'
       : 'Semaphor Data App analytics contract generation failed.',
-    parsed ? JSON.stringify(parsed, null, 2) : stdout.trim(),
-    stderr.trim(),
+    generation.parsed ? JSON.stringify(generation.parsed, null, 2) : generation.stdout.trim(),
+    generation.stderr.trim(),
   ].filter(Boolean).join('\n\n');
 
   return {
     jsonrpc: '2.0',
     id: message.id,
     result: {
-      isError: !ok,
+      isError: !generation.ok,
       structuredContent: {
-        ok,
+        ok: generation.ok,
         workspaceDir,
-        exitCode: result.status,
-        signal: result.signal || null,
-        ...(parsed || {}),
-        stdout,
-        stderr,
+        exitCode: generation.exitCode,
+        signal: generation.signal,
+        ...(generation.parsed || {}),
+        stdout: generation.stdout,
+        stderr: generation.stderr,
       },
       content: [
         {
@@ -508,6 +798,121 @@ function generateLocalDataAppContract(message) {
       ],
     },
   };
+}
+
+function runDataAppContractGenerator({
+  workspaceDir,
+  outputDir,
+  planArtifactPath,
+  codegenSummary,
+  allowEmptyContract,
+}) {
+  const generatorPath = path.join(pluginRoot, 'scripts/generate-data-app-contract.mjs');
+  const commandArgs = [
+    generatorPath,
+    '--dir',
+    workspaceDir,
+    '--output',
+    outputDir,
+    '--json',
+  ];
+  let tempDir = '';
+  try {
+    if (planArtifactPath) {
+      commandArgs.push('--plan', planArtifactPath);
+    } else if (codegenSummary && typeof codegenSummary === 'object') {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semaphor-data-app-contract-'));
+      const tempPlanPath = path.join(tempDir, 'codegen-summary.json');
+      fs.writeFileSync(tempPlanPath, JSON.stringify(codegenSummary), 'utf8');
+      commandArgs.push('--plan', tempPlanPath);
+    } else {
+      throw new Error('Pass planArtifactPath or inline codegenSummary.');
+    }
+    if (allowEmptyContract === true) {
+      commandArgs.push('--allow-empty');
+    }
+
+    const result = spawnSync(process.execPath, commandArgs, {
+      cwd: workspaceDir,
+      encoding: 'utf8',
+      env: process.env,
+    });
+    const stdout = redactSensitiveText(result.stdout || '');
+    const stderr = redactSensitiveText(result.stderr || '');
+    const parsed = parseGeneratedToolResult(stdout);
+    return {
+      ok: result.status === 0 && parsed?.ok === true,
+      exitCode: result.status,
+      signal: result.signal || null,
+      stdout,
+      stderr,
+      parsed,
+    };
+  } catch (error) {
+    const message = redactSensitiveText(error instanceof Error ? error.message : String(error));
+    return {
+      ok: false,
+      exitCode: null,
+      signal: null,
+      stdout: '',
+      stderr: message,
+      parsed: {
+        ok: false,
+        error: message,
+      },
+    };
+  } finally {
+    if (tempDir) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+}
+
+function compactCodegenSummary(summary) {
+  const views = Array.isArray(summary?.views) ? summary.views : [];
+  const inputs = Array.isArray(summary?.inputs) ? summary.inputs : [];
+  const sources = Array.isArray(summary?.sources) ? summary.sources : [];
+  return {
+    title: summary?.title || '',
+    sourceCount: sources.length,
+    inputCount: inputs.length,
+    viewCount: views.length,
+    executableViewCount: views.filter((view) => view?.sdkSpec?.builder && view?.sdkSpec?.spec).length,
+    presentationViewCount: views.filter((view) => isPlannerPresentationView(view)).length,
+    views: views.slice(0, 30).map((view) => ({
+      id: view?.id || '',
+      title: view?.title || '',
+      visualType: view?.visualSpec?.type || view?.visualType || '',
+      queryKind: view?.sdkSpec?.builder || view?.queryKind || '',
+      sourceKeys: Array.isArray(view?.sourceKeys) ? view.sourceKeys : [],
+    })),
+    inputs: inputs.slice(0, 30).map((input) => ({
+      id: input?.id || '',
+      label: input?.label || '',
+      type: input?.type || input?.kind || '',
+      appliesToViewIds: Array.isArray(input?.appliesToViewIds)
+        ? input.appliesToViewIds
+        : [],
+      optionQueryId: input?.optionQuery?.id || '',
+    })),
+  };
+}
+
+function isPlannerPresentationView(view) {
+  return (
+    view?.computation?.kind === 'presentation_only' ||
+    view?.kind === 'presentation_only' ||
+    view?.sdkSpec?.builder === 'presentation_only'
+  );
+}
+
+function contentTextFromResult(result) {
+  return Array.isArray(result?.content)
+    ? result.content
+        .map((item) => (item?.type === 'text' && typeof item.text === 'string' ? item.text : ''))
+        .filter(Boolean)
+        .join('\n')
+    : '';
 }
 
 function parseGeneratedToolResult(stdout) {
