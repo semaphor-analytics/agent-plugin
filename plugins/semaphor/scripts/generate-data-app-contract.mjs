@@ -21,6 +21,16 @@ try {
   const artifact = readPlanArtifact({ args, workspaceDir });
   const summary = normalizeCodegenSummary(artifact);
   const contract = buildContract(summary);
+  if (
+    contract.views.length === 0 &&
+    !booleanArg(args.allowEmpty) &&
+    !booleanArg(args['allow-empty']) &&
+    !booleanArg(args.allowEmptyContract)
+  ) {
+    throw new Error(
+      'Contract generation produced zero executable views. Stop and ask for a different domain/goal or semantic model improvement; pass --allow-empty only for an explicit model-gap report.',
+    );
+  }
   const files = renderFiles(contract);
 
   fs.mkdirSync(outputDir, { recursive: true });
@@ -357,7 +367,10 @@ function renderInputs(contract) {
     if (input.raw.relationshipHint) {
       spec.push(`relationshipHint: ${renderPlainObject(input.raw.relationshipHint)}`);
     }
-    return `  ${input.name}: semaphor.filter({ ${spec.join(', ')} } as any),`;
+    if (!fieldName) {
+      throw new Error(`Input ${input.raw.id || input.name} is missing a generated field reference.`);
+    }
+    return `  ${input.name}: semaphor.filter({ ${spec.join(', ')} }),`;
   }).join('\n');
 
   const appSpecs = contract.inputs.map((input) => `filterSpecs.${input.name}`).join(', ');
@@ -378,11 +391,15 @@ function renderInputs(contract) {
     if (option.population) parts.push(`population: ${renderPlainObject(option.population)}`);
     if (option.dependencies) parts.push(`dependencies: ${renderPlainObject(option.dependencies)}`);
     parts.push(`limit: ${JSON.stringify(option.limit || option.spec?.limit || 100)}`);
-    return `  ${query.name}: semaphor.inputOptions({ ${parts.join(', ')} } as any),`;
+    if (!sourceName || !valueField || !labelField) {
+      throw new Error(`Input option query ${option.id || `${input.id}-options`} is missing source, valueField, or labelField.`);
+    }
+    return `  ${query.name}: semaphor.inputOptions({ ${parts.join(', ')} }),`;
   }).join('\n');
 
   return `${GENERATED_HEADER}
 import { semaphor } from "react-semaphor/data-app-sdk";
+import type { SemaphorInputReference } from "react-semaphor/data-app-sdk";
 import { fields } from "./fields";
 import { sources } from "./sources";
 
@@ -394,9 +411,9 @@ export const appInputSpecs = [${appSpecs}] as const;
 export const appInputIds = [${inputIds}] as const;
 
 export type SemaphorGeneratedInputId = typeof appInputIds[number];
-export type SemaphorGeneratedInputHandleMap = Partial<Record<SemaphorGeneratedInputId, any>>;
+export type SemaphorGeneratedInputHandleMap = Partial<Record<SemaphorGeneratedInputId, SemaphorInputReference>>;
 
-export function createInputHandleMap(handles: readonly any[]): SemaphorGeneratedInputHandleMap {
+export function createInputHandleMap(handles: readonly SemaphorInputReference[]): SemaphorGeneratedInputHandleMap {
   return Object.fromEntries(appInputIds.map((id, index) => [id, handles[index]])) as SemaphorGeneratedInputHandleMap;
 }
 
@@ -413,7 +430,7 @@ function renderQueries(contract) {
       id: view.raw.id,
       ...view.raw.sdkSpec.spec,
     };
-    return `  ${view.name}: semaphor.${builder}(${renderValue(spec, contract)} as any),`;
+    return `  ${view.name}: semaphor.${builder}(${renderValue(spec, contract)}),`;
   }).join('\n');
   return `${GENERATED_HEADER}
 import { semaphor } from "react-semaphor/data-app-sdk";
@@ -442,17 +459,21 @@ function renderBindings(contract) {
       if (binding.relationshipsUsed) {
         bindingParts.push(`relationshipsUsed: ${renderPlainObject(binding.relationshipsUsed)}`);
       }
-      return `    inputHandles[${JSON.stringify(inputId)}] ? semaphor.bindInput(inputHandles[${JSON.stringify(inputId)}], { ${bindingParts.join(', ')} } as any) : undefined,`;
+      const handleRef = `inputHandles[${JSON.stringify(inputId)}]`;
+      return `    if (${handleRef}) {
+      inputs.push(semaphor.bindInput(${handleRef}, { ${bindingParts.join(', ')} }));
+    }`;
     }).filter(Boolean).join('\n');
-    return `  ${view.name}(inputHandles: SemaphorGeneratedInputHandleMap) {
-    return [
+    return `  ${view.name}(inputHandles: SemaphorGeneratedInputHandleMap): SemaphorInputReference[] {
+    const inputs: SemaphorInputReference[] = [];
 ${renderedBindings}
-    ].filter(Boolean) as any[];
+    return inputs;
   },`;
   }).join('\n\n');
 
   return `${GENERATED_HEADER}
 import { semaphor } from "react-semaphor/data-app-sdk";
+import type { SemaphorInputReference } from "react-semaphor/data-app-sdk";
 import { fields } from "./fields";
 import type { SemaphorGeneratedInputHandleMap } from "./inputs";
 
@@ -710,6 +731,10 @@ function shortSourceName(sourceKeyValue) {
 
 function removeUndefined(value) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
+}
+
+function booleanArg(value) {
+  return value === true || value === 'true' || value === '1' || value === 'yes';
 }
 
 function firstString(...values) {

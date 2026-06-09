@@ -126,6 +126,12 @@ files, retry once with `planArtifactPath` when available; if it fails again,
 stop and report a generator/tooling failure instead of hand-writing
 `src/semaphor/generated`.
 
+A blocked plan with zero executable views is not an implementation plan. Do
+not turn it into a placeholder or "model gap" app unless the user explicitly
+asked for a model-readiness report. Ask the user to choose a better domain,
+provide a concrete business goal, or improve the semantic model. The contract
+generator intentionally rejects zero-executable-view plans by default.
+
 For broad dashboard-style app creation, prefer `preferences.maxViews` around
 15, or 20 for wide coverage. Do not treat the 8-view default as a cap or shrink
 `maxViews`; pass `responseFormat: "codegen_summary"` exactly so the planner

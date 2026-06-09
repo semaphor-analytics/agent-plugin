@@ -375,6 +375,7 @@ function scanSourceQuality(root, sourceFiles) {
         );
       }
     }
+    issues.push(...scanGeneratedContractTypeEscapes(root, generatedContractDir));
     if (usesDataAppSdkHooks && !importsGeneratedContract) {
       issues.push(
         "src/semaphor/generated exists, but app UI files do not import it. Use the generated queries, appInputSpecs, createInputHandleMap, and inputsForView instead of hand-rolling analytics wiring.",
@@ -383,6 +384,23 @@ function scanSourceQuality(root, sourceFiles) {
   }
 
   return { advisories, issues };
+}
+
+function scanGeneratedContractTypeEscapes(root, generatedContractDir) {
+  const issues = [];
+  for (const filePath of collectFiles(generatedContractDir)) {
+    const content = fs.readFileSync(filePath, "utf8");
+    const lines = content.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (/\bany\b|@ts-(?:ignore|expect-error)\b/.test(line)) {
+        issues.push(
+          `${formatLocation(root, filePath)}:${index + 1}: generated Semaphor contract files must be fully typed. Regenerate with an updated semaphor_generate_data_app_contract instead of using any or TypeScript suppression comments.`,
+        );
+      }
+    }
+  }
+  return issues;
 }
 
 function checkReactSemaphorCompatibility(root) {

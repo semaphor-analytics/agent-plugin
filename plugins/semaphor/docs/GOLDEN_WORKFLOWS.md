@@ -282,6 +282,11 @@ target generated output directory before running the same file-based generator.
 If it fails again, stop and report a generator/tooling failure; do not manually
 recreate `src/semaphor/generated`.
 
+If the planner returns zero executable views, do not generate a dashboard. Stop
+and ask for a better domain, clearer business goal, or semantic-model
+improvement unless the user explicitly requested a model-gap report. The local
+contract generator rejects zero-executable-view plans by default.
+
 
 ## 4A. Productize A Driver Or Period-Change Insight
 

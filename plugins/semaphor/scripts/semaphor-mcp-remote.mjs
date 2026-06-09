@@ -73,7 +73,7 @@ const LOCAL_TOOLS = [
   {
     name: 'semaphor_generate_data_app_contract',
     description:
-      'Materialize the accepted semaphor_plan_data_app codegenSummary into deterministic local TypeScript analytics contract files under src/semaphor/generated. Call this after planning is accepted and before editing UI code so agents import generated sources, fields, inputs, queries, and filter bindings instead of hand-rolling analytics wiring. If generation fails twice, stop and report the generator/tooling failure instead of manually recreating generated files.',
+      'Materialize the accepted semaphor_plan_data_app codegenSummary into deterministic local TypeScript analytics contract files under src/semaphor/generated. Call this after planning is accepted and before editing UI code so agents import generated sources, fields, inputs, queries, and filter bindings instead of hand-rolling analytics wiring. Zero-executable-view plans are rejected by default because a blocked plan is not an implementation plan. If generation fails twice, stop and report the generator/tooling failure instead of manually recreating generated files.',
     annotations: {
       title: 'Generate Data App Contract',
       readOnlyHint: false,
@@ -104,6 +104,11 @@ const LOCAL_TOOLS = [
           type: 'string',
           description:
             'Output directory relative to workspaceDir. Defaults to src/semaphor/generated.',
+        },
+        allowEmptyContract: {
+          type: 'boolean',
+          description:
+            'Escape hatch for explicit model-gap report apps only. Normal dashboard builds must leave this false so zero-executable-view plans stop before writing generated files.',
         },
       },
       required: ['workspaceDir'],
@@ -456,6 +461,9 @@ function generateLocalDataAppContract(message) {
         ],
       },
     };
+  }
+  if (args.allowEmptyContract === true) {
+    commandArgs.push('--allow-empty');
   }
 
   const result = spawnSync(process.execPath, commandArgs, {

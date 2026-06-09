@@ -128,6 +128,13 @@ presentation-only views. If contract generation fails twice before writing
 files, stop and report a generator/tooling failure instead of manually creating
 `src/semaphor/generated`.
 
+If the accepted plan has zero executable views, stop before codegen unless the
+user explicitly asked for a model-readiness or semantic-gap report. A blocked
+plan is not a dashboard implementation plan. Ask for a different domain, a
+clearer business goal, or semantic-model improvements. The generator rejects
+zero-executable-view plans by default so agents do not accidentally ship empty
+generated contracts.
+
 Check `plan.sourceCoverage` before codegen:
 
 - `included`: the planner generated one or more SDK-ready views for this
