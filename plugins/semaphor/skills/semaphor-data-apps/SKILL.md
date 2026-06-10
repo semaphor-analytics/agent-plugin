@@ -77,7 +77,9 @@ ask the user to use the host MCP OAuth flow for `semaphor` and then say "try
 again" (Codex example: `codex mcp login semaphor`; Claude Code uses its MCP
 server auth UI/command). For project-token mode, ask for
 `VITE_SEMAPHOR_PROJECT_TOKEN` in the app's ignored `.env.local`; for local
-Semaphor, also ask for `SEMAPHOR_SERVER_URL=http://localhost:3000`.
+Semaphor, also ask for `SEMAPHOR_SERVER_URL=http://localhost:3000` for plugin
+tools and `VITE_SEMAPHOR_SERVER_URL=http://localhost:3000` for browser runtime
+routing.
 
 ## Operation Types
 
@@ -398,10 +400,10 @@ The window bridge must stay development-only. Do not enable
 normal customer runtime code.
 
 The SDK decodes the Semaphor API URL from the token. Do not generate
-`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` for
-normal Vite React apps. Use `apiBaseUrl` only when the user explicitly needs
-self-hosted or local routing that intentionally differs from the token's
-`apiServiceUrl`.
+`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, `VITE_SEMAPHOR_SERVER_URL`,
+or `apiBaseUrl` for normal hosted Vite React apps. Use `VITE_SEMAPHOR_SERVER_URL`
+or `apiBaseUrl` only when the user explicitly needs self-hosted or local routing
+that intentionally differs from the token's `apiServiceUrl`.
 
 For the full SDK contract, read [sdk-contract.md](references/sdk-contract.md).
 

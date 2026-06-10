@@ -784,7 +784,9 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
       activeInputs: [],
     });
     if (!optionsResult.ok) {
-      issues.push(`Input "${filterContract.inputId}" option query failed: ${optionsResult.error}`);
+      issues.push(
+        `Input "${filterContract.inputId}" option query failed${formatExecutionFailureClassification(optionsResult.error)}: ${optionsResult.error}`,
+      );
       continue;
     }
     const options = extractOptions(optionsResult.data).slice(0, sampleCount);
@@ -813,7 +815,9 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
         activeInputs: [],
       });
       if (!baseline.ok) {
-        errors.push(`${binding.viewId} baseline failed: ${baseline.error}`);
+        errors.push(
+          `${binding.viewId} baseline failed${formatExecutionFailureClassification(baseline.error)}: ${baseline.error}`,
+        );
         continue;
       }
       const baselineSummary = summarizeResultData(baseline.data);
@@ -833,7 +837,9 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
           ],
         });
         if (!filtered.ok) {
-          errors.push(`${binding.viewId} with ${filterContract.inputId}=${String(option.value)} failed: ${filtered.error}`);
+          errors.push(
+            `${binding.viewId} with ${filterContract.inputId}=${String(option.value)} failed${formatExecutionFailureClassification(filtered.error)}: ${filtered.error}`,
+          );
           continue;
         }
         const filteredSummary = summarizeResultData(filtered.data);
@@ -861,6 +867,30 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
     );
   }
   return { issues, advisories };
+}
+
+function formatExecutionFailureClassification(error) {
+  const classification = classifyExecutionFailure(error);
+  return classification ? ` [${classification}]` : "";
+}
+
+function classifyExecutionFailure(error) {
+  const message = String(error || "").toLowerCase();
+  if (
+    message.includes("nameresolutionerror") ||
+    message.includes("failed to resolve") ||
+    message.includes("nodename nor servname provided")
+  ) {
+    return "warehouse_unreachable";
+  }
+  if (
+    message.includes("econnrefused") ||
+    message.includes("connection refused") ||
+    message.includes("fetch failed")
+  ) {
+    return "local_runtime_unhealthy";
+  }
+  return "";
 }
 
 function readLocalEnv(root) {

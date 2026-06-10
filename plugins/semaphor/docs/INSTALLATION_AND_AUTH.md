@@ -81,16 +81,20 @@ to the Semaphor host encoded in the project token's `apiServiceUrl`, which is
 usually `https://semaphor.cloud`.
 
 For local development, self-hosted deployments, tunnels, or dogfooding against
-an unreleased Semaphor app, set one host-level override in the same ignored
-local env file:
+an unreleased Semaphor app, set tool-side and browser-side host overrides in
+the same ignored local env file:
 
 ```bash
 VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
 SEMAPHOR_SERVER_URL="http://localhost:3000"
+VITE_SEMAPHOR_SERVER_URL="http://localhost:3000"
 ```
 
 The plugin derives MCP from that host as `${SEMAPHOR_SERVER_URL}/api/mcp`, and
-the save/publish helpers use the same Semaphor host. If
+the save/publish helpers use the same Semaphor host. Browser-side Vite code can
+only read the `VITE_` form, so local Data App providers should use
+`VITE_SEMAPHOR_SERVER_URL` or an explicit `apiBaseUrl` prop when they must route
+to local Semaphor. If
 `SEMAPHOR_SERVER_URL` is not set and the token does not contain `apiServiceUrl`,
 the plugin defaults to `https://semaphor.cloud`.
 
