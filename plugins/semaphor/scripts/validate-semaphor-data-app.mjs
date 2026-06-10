@@ -879,7 +879,9 @@ function classifyExecutionFailure(error) {
   if (
     message.includes("nameresolutionerror") ||
     message.includes("failed to resolve") ||
-    message.includes("nodename nor servname provided")
+    message.includes("nodename nor servname provided") ||
+    message.includes("enotfound") ||
+    message.includes("getaddrinfo")
   ) {
     return "warehouse_unreachable";
   }
