@@ -363,10 +363,92 @@ function checkReactSemaphorCompatibility(root) {
         `Installed react-semaphor${pkg.version ? `@${pkg.version}` : ""} exposes react-semaphor/data-app-sdk.`,
       );
     }
+    advisories.push(...detectDuplicateReactCopies(root));
+    advisories.push(...detectViteReactDedupeAdvisories(root));
   } catch (error) {
     issues.push(`Could not inspect installed react-semaphor package: ${error.message}`);
   }
   return { issues, advisories };
+}
+
+function detectDuplicateReactCopies(root) {
+  const advisories = [];
+  const duplicateChecks = [
+    {
+      packageName: "react",
+      appPackagePath: path.join(root, "node_modules", "react", "package.json"),
+      linkedPackagePath: path.join(root, "node_modules", "react-semaphor", "node_modules", "react", "package.json"),
+    },
+    {
+      packageName: "react-dom",
+      appPackagePath: path.join(root, "node_modules", "react-dom", "package.json"),
+      linkedPackagePath: path.join(root, "node_modules", "react-semaphor", "node_modules", "react-dom", "package.json"),
+    },
+  ];
+
+  for (const check of duplicateChecks) {
+    const appRealPath = realpathIfExists(check.appPackagePath);
+    const linkedRealPath = realpathIfExists(check.linkedPackagePath);
+    if (!appRealPath || !linkedRealPath || appRealPath === linkedRealPath) {
+      continue;
+    }
+    const appVersion = readPackageVersion(check.appPackagePath);
+    const linkedVersion = readPackageVersion(check.linkedPackagePath);
+    advisories.push(
+      [
+        `Possible duplicate ${check.packageName} copies detected between the app and linked react-semaphor.`,
+        `App ${check.packageName}${appVersion ? `@${appVersion}` : ""}: ${path.dirname(appRealPath)}.`,
+        `react-semaphor nested ${check.packageName}${linkedVersion ? `@${linkedVersion}` : ""}: ${path.dirname(linkedRealPath)}.`,
+        "This usually happens with npm link/local repo development and can cause invalid hook call or useMemo dispatcher errors in published bundles.",
+        "For Vite apps, add resolve.alias for react/react-dom to the app root node_modules and resolve.dedupe: [\"react\", \"react-dom\"].",
+      ].join(" "),
+    );
+  }
+
+  return advisories;
+}
+
+function detectViteReactDedupeAdvisories(root) {
+  const packageJsonPath = path.join(root, "package.json");
+  const pkg = fs.existsSync(packageJsonPath) ? readJson(packageJsonPath) : {};
+  const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+  if (!deps.vite) {
+    return [];
+  }
+  const configPath = [
+    "vite.config.ts",
+    "vite.config.js",
+    "vite.config.mts",
+    "vite.config.mjs",
+  ]
+    .map((fileName) => path.join(root, fileName))
+    .find((filePath) => fs.existsSync(filePath));
+  if (!configPath) {
+    return [];
+  }
+  const config = fs.readFileSync(configPath, "utf8");
+  if (config.includes("dedupe") && config.includes("react") && config.includes("react-dom")) {
+    return [];
+  }
+  return [
+    `${formatLocation(root, configPath)} does not appear to dedupe react and react-dom. If this app uses linked/local react-semaphor during development, add Vite resolve.dedupe for react/react-dom to avoid duplicate React hook-dispatcher errors.`,
+  ];
+}
+
+function realpathIfExists(filePath) {
+  try {
+    return fs.existsSync(filePath) ? fs.realpathSync(filePath) : "";
+  } catch {
+    return "";
+  }
+}
+
+function readPackageVersion(packagePath) {
+  try {
+    return readJson(packagePath).version || "";
+  } catch {
+    return "";
+  }
 }
 
 function runScript(root, packageManager, scriptName) {

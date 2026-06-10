@@ -1001,6 +1001,10 @@ function runBuild(root, options) {
   if (!command) {
     throw new Error('No build command found. Pass --build-command or --no-build.');
   }
+  const nodeEngineWarning = nodeEngineMismatchWarning(root);
+  if (nodeEngineWarning) {
+    emitWarning(nodeEngineWarning, options);
+  }
   const stdio = options.json ? ['ignore', 'pipe', 'pipe'] : 'inherit';
   const result = spawnSync(command, {
     cwd: root,
@@ -1017,7 +1021,115 @@ function runBuild(root, options) {
     }
   }
   if (result.status !== 0) {
-    throw new Error(`Build command failed: ${command}`);
+    throw new Error(
+      [
+        `Build command failed: ${command}`,
+        nodeEngineWarning
+          ? `Node engine warning before build: ${nodeEngineWarning}`
+          : '',
+      ].filter(Boolean).join('\n'),
+    );
+  }
+}
+
+function nodeEngineMismatchWarning(root) {
+  const packageJsonPath = path.join(root, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return '';
+  }
+  const pkg = readJson(packageJsonPath);
+  const nodeRange = pkg.engines?.node;
+  if (typeof nodeRange !== 'string' || !nodeRange.trim()) {
+    return '';
+  }
+  const currentNodeVersion = process.versions.node;
+  const satisfied = satisfiesSimpleNodeRange(currentNodeVersion, nodeRange);
+  if (satisfied !== false) {
+    return '';
+  }
+  return [
+    `This app declares engines.node="${nodeRange}", but publish is running with Node v${currentNodeVersion}.`,
+    'Continuing because engine ranges are advisory for many apps, but build or publish may fail.',
+    'If it does fail, rerun publish from the app shell or Node version manager that satisfies the app engine.',
+  ].join(' ');
+}
+
+function satisfiesSimpleNodeRange(version, range) {
+  const parsedVersion = parseVersionTuple(version);
+  if (!parsedVersion) {
+    return null;
+  }
+  const groups = range
+    .split('||')
+    .map((group) => group.trim())
+    .filter(Boolean);
+  let sawSupportedComparator = false;
+
+  for (const group of groups) {
+    const comparators = group.split(/\s+/).filter(Boolean);
+    let groupSatisfied = true;
+    let groupSupported = false;
+    for (const comparator of comparators) {
+      const result = satisfiesSimpleComparator(parsedVersion, comparator);
+      if (result === null) {
+        groupSatisfied = false;
+        continue;
+      }
+      sawSupportedComparator = true;
+      groupSupported = true;
+      if (!result) {
+        groupSatisfied = false;
+      }
+    }
+    if (groupSupported && groupSatisfied) {
+      return true;
+    }
+  }
+
+  return sawSupportedComparator ? false : null;
+}
+
+function satisfiesSimpleComparator(versionTuple, comparator) {
+  const match = comparator.match(/^(>=|>|<=|<|=)?v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/);
+  if (!match) {
+    return null;
+  }
+  const operator = match[1] || '=';
+  const target = [
+    Number(match[2]),
+    Number(match[3] || 0),
+    Number(match[4] || 0),
+  ];
+  const comparison = compareVersionTuples(versionTuple, target);
+  if (operator === '>=') return comparison >= 0;
+  if (operator === '>') return comparison > 0;
+  if (operator === '<=') return comparison <= 0;
+  if (operator === '<') return comparison < 0;
+  return comparison === 0;
+}
+
+function parseVersionTuple(value) {
+  const match = String(value).match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareVersionTuples(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] > right[index]) return 1;
+    if (left[index] < right[index]) return -1;
+  }
+  return 0;
+}
+
+function emitWarning(message, options) {
+  const text = `Warning: ${message}\n`;
+  if (options.json) {
+    process.stderr.write(text);
+  } else {
+    console.warn(text.trimEnd());
   }
 }
 
