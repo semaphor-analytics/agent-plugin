@@ -33,7 +33,13 @@ const SKIPPED_DIRS = new Set([
 ]);
 
 function parseArgs(argv) {
-  const args = { dir: process.cwd(), runBuild: true, strict: false };
+  const args = {
+    dir: process.cwd(),
+    runBuild: true,
+    strict: false,
+    liveFilterEffect: false,
+    filterEffectSamples: 2,
+  };
   for (let index = 2; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--dir") {
@@ -48,6 +54,11 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--filter-effect-report") {
       args.filterEffectReportPath = argv[index + 1];
+      index += 1;
+    } else if (arg === "--live-filter-effect") {
+      args.liveFilterEffect = true;
+    } else if (arg === "--filter-effect-samples") {
+      args.filterEffectSamples = Number.parseInt(argv[index + 1], 10);
       index += 1;
     } else if (arg === "--help" || arg === "-h") {
       args.help = true;
@@ -470,10 +481,10 @@ function runScript(root, packageManager, scriptName) {
   return result.status === 0;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
-    console.log("Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict] [--devtools-snapshot <path>] [--filter-effect-report <path>]");
+    console.log("Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict] [--devtools-snapshot <path>] [--filter-effect-report <path>] [--live-filter-effect] [--filter-effect-samples <n>]");
     process.exit(0);
   }
 
@@ -513,6 +524,16 @@ function main() {
       root,
       reportPath: args.filterEffectReportPath,
     }));
+  }
+  if (args.liveFilterEffect) {
+    const liveFilterResult = await validateLiveFilterEffects({
+      root,
+      sampleCount: Number.isFinite(args.filterEffectSamples)
+        ? Math.max(1, args.filterEffectSamples)
+        : 2,
+    });
+    issues.push(...liveFilterResult.issues);
+    advisories.push(...liveFilterResult.advisories);
   }
 
   console.log(`Checked ${sourceFiles.length} source files.`);
@@ -557,7 +578,10 @@ function main() {
   console.log("Semaphor data app preflight passed.");
 }
 
-main();
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
 
 function validateDevtoolsSnapshot({ root, snapshotPath }) {
   const issues = [];
@@ -680,6 +704,483 @@ function validateFilterEffectReport({ root, reportPath }) {
     }
   }
   return issues;
+}
+
+async function validateLiveFilterEffects({ root, sampleCount }) {
+  const manifestPath = path.join(root, GENERATED_CONTRACT_DIR, "contract.manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    return {
+      issues: [
+        "Live filter-effect validation requires src/semaphor/generated/contract.manifest.json.",
+      ],
+      advisories: [],
+    };
+  }
+
+  const manifest = readJson(manifestPath);
+  const summary = manifest.codegenSummary || {};
+  const optionInputs = (summary.inputs || []).filter((input) => input?.optionQuery);
+  const filterContracts = summary.filterContracts || [];
+  if (optionInputs.length === 0 || filterContracts.length === 0) {
+    return {
+      issues: [],
+      advisories: [
+        "Live filter-effect validation skipped because no generated option-backed filters were found.",
+      ],
+    };
+  }
+
+  const env = readLocalEnv(root);
+  const token =
+    env.VITE_SEMAPHOR_PROJECT_TOKEN ||
+    env.SEMAPHOR_PROJECT_TOKEN ||
+    process.env.VITE_SEMAPHOR_PROJECT_TOKEN ||
+    process.env.SEMAPHOR_PROJECT_TOKEN;
+  if (!token) {
+    return {
+      issues: [
+        "Live filter-effect validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
+      ],
+      advisories: [],
+    };
+  }
+  const executeUrl = resolveDataAppExecuteUrl({ env, token });
+  if (!executeUrl) {
+    return {
+      issues: [
+        "Live filter-effect validation could not resolve the Semaphor execute URL. Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
+      ],
+      advisories: [],
+    };
+  }
+
+  const context = {
+    executeUrl,
+    token,
+    sourcesByKey: new Map((summary.sources || [])
+      .filter((source) => typeof source?.sourceKey === "string")
+      .map((source) => [source.sourceKey, stripSourceKey(source)])),
+  };
+  const issues = [];
+  const advisories = [];
+
+  for (const filterContract of filterContracts) {
+    const input = optionInputs.find((candidate) => candidate.id === filterContract.inputId);
+    const appliesToViewIds = Array.isArray(filterContract.appliesToViewIds)
+      ? filterContract.appliesToViewIds
+      : [];
+    if (!input || appliesToViewIds.length === 0) {
+      continue;
+    }
+    const optionIntent = buildInputOptionIntent(input, filterContract, context);
+    if (!optionIntent) {
+      issues.push(`Live filter-effect validation could not build option query for "${filterContract.inputId}".`);
+      continue;
+    }
+
+    const optionsResult = await executeDataAppIntent({
+      context,
+      intent: optionIntent,
+      activeInputs: [],
+    });
+    if (!optionsResult.ok) {
+      issues.push(`Input "${filterContract.inputId}" option query failed: ${optionsResult.error}`);
+      continue;
+    }
+    const options = extractOptions(optionsResult.data).slice(0, sampleCount);
+    if (options.length === 0) {
+      issues.push(`Input "${filterContract.inputId}" option query returned no usable options.`);
+      continue;
+    }
+
+    const checkedViewIds = [];
+    const usefulViewIds = [];
+    const errors = [];
+    const bindings = (filterContract.bindings || [])
+      .filter((binding) => binding?.viewId && appliesToViewIds.includes(binding.viewId))
+      .slice(0, 3);
+
+    for (const binding of bindings) {
+      const view = (summary.views || []).find((candidate) => candidate?.id === binding.viewId);
+      const viewIntent = buildViewIntent(view, context);
+      if (!viewIntent) {
+        continue;
+      }
+      checkedViewIds.push(binding.viewId);
+      const baseline = await executeDataAppIntent({
+        context,
+        intent: viewIntent,
+        activeInputs: [],
+      });
+      if (!baseline.ok) {
+        errors.push(`${binding.viewId} baseline failed: ${baseline.error}`);
+        continue;
+      }
+      const baselineSummary = summarizeResultData(baseline.data);
+
+      for (const option of options) {
+        const filtered = await executeDataAppIntent({
+          context,
+          intent: viewIntent,
+          activeInputs: [
+            buildActiveInput({
+              input,
+              filterContract,
+              binding,
+              option,
+              context,
+            }),
+          ],
+        });
+        if (!filtered.ok) {
+          errors.push(`${binding.viewId} with ${filterContract.inputId}=${String(option.value)} failed: ${filtered.error}`);
+          continue;
+        }
+        const filteredSummary = summarizeResultData(filtered.data);
+        if (filterEffectLooksUseful({ baseline: baselineSummary, filtered: filteredSummary })) {
+          usefulViewIds.push(binding.viewId);
+          break;
+        }
+      }
+    }
+
+    if (checkedViewIds.length === 0) {
+      issues.push(`Input "${filterContract.inputId}" has no executable subscribed views for live filter-effect validation.`);
+      continue;
+    }
+    if (usefulViewIds.length === 0) {
+      issues.push(
+        `Input "${filterContract.inputId}" did not produce a non-empty/non-zero result for sampled subscribed views (${checkedViewIds.join(", ")}). ${errors.join(" ")}`.trim(),
+      );
+    }
+  }
+
+  if (issues.length === 0) {
+    advisories.push(
+      `Live filter-effect validation passed against ${executeUrl} for ${optionInputs.length} option-backed input(s).`,
+    );
+  }
+  return { issues, advisories };
+}
+
+function readLocalEnv(root) {
+  const values = { ...process.env };
+  const envPath = path.join(root, ".env.local");
+  if (!fs.existsSync(envPath)) {
+    return values;
+  }
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    let trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    if (trimmed.startsWith("export ")) {
+      trimmed = trimmed.slice("export ".length).trim();
+    }
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = stripUnquotedInlineComment(
+      trimmed.slice(separatorIndex + 1).trim(),
+    );
+    values[key] = unquoteEnvValue(value);
+  }
+  return values;
+}
+
+function stripUnquotedInlineComment(value) {
+  let quote = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if ((character === '"' || character === "'") && value[index - 1] !== "\\") {
+      quote = quote === character ? "" : quote || character;
+      continue;
+    }
+    if (!quote && character === "#" && /\s/.test(value[index - 1] || "")) {
+      return value.slice(0, index).trim();
+    }
+  }
+  return value;
+}
+
+function unquoteEnvValue(value) {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function resolveDataAppExecuteUrl({ env, token }) {
+  const explicitServerUrl =
+    env.SEMAPHOR_SERVER_URL ||
+    env.VITE_SEMAPHOR_SERVER_URL ||
+    env.NEXT_PUBLIC_SEMAPHOR_SERVER_URL;
+  if (explicitServerUrl) {
+    return joinExecutePath(explicitServerUrl);
+  }
+  const explicitApiUrl =
+    env.VITE_SEMAPHOR_API_SERVICE_URL ||
+    env.SEMAPHOR_API_SERVICE_URL ||
+    env.NEXT_PUBLIC_API_SERVICE_URL;
+  if (explicitApiUrl) {
+    return joinExecutePath(explicitApiUrl);
+  }
+  const payload = decodeJwtPayload(token);
+  return typeof payload?.apiServiceUrl === "string"
+    ? joinExecutePath(payload.apiServiceUrl)
+    : "";
+}
+
+function joinExecutePath(baseUrl) {
+  const trimmed = String(baseUrl || "").replace(/\/+$/, "");
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.endsWith("/api/v1")) {
+    return `${trimmed}/data-app/execute`;
+  }
+  if (trimmed.endsWith("/api")) {
+    return `${trimmed}/v1/data-app/execute`;
+  }
+  return `${trimmed}/api/v1/data-app/execute`;
+}
+
+function decodeJwtPayload(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length < 2) {
+    return {};
+  }
+  try {
+    const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = `${normalized}${"=".repeat((4 - (normalized.length % 4)) % 4)}`;
+    return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function stripSourceKey(source) {
+  if (!source || typeof source !== "object") {
+    return source;
+  }
+  const { sourceKey: _sourceKey, ...rest } = source;
+  return rest;
+}
+
+function expandGeneratedRefs(value, context) {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => expandGeneratedRefs(item, context));
+  }
+  if (
+    typeof value.sourceKey === "string" &&
+    typeof value.kind === "string" &&
+    (typeof value.datasetName === "string" || typeof value.datasetId === "string")
+  ) {
+    return stripSourceKey(value);
+  }
+  const expanded = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key !== "sourceKey") {
+      expanded[key] = expandGeneratedRefs(item, context);
+    }
+  }
+  if (typeof value.sourceKey === "string") {
+    const source = context.sourcesByKey.get(value.sourceKey);
+    if (source && !expanded.source) {
+      expanded.source = source;
+    }
+  }
+  return expanded;
+}
+
+function buildInputOptionIntent(input, filterContract, context) {
+  const optionQuery = input.optionQuery || filterContract.optionQuery;
+  if (!optionQuery) {
+    return null;
+  }
+  const expanded = expandGeneratedRefs(optionQuery, context);
+  const source = expanded.source || optionQuery.source;
+  const valueField = expanded.valueFieldRef || expanded.valueField;
+  const labelField = expanded.labelFieldRef || expanded.labelField;
+  if (!source || !valueField || !labelField) {
+    return null;
+  }
+  return {
+    version: 1,
+    kind: "inputOptions",
+    id: optionQuery.id || `${input.id}-options`,
+    inputId: input.id,
+    source: stripSourceKey(source),
+    valueField,
+    labelField,
+    ...(expanded.population ? { population: expanded.population } : {}),
+    ...(expanded.dependencies ? { dependencies: expanded.dependencies } : {}),
+    limit: optionQuery.limit || optionQuery.spec?.limit || 100,
+  };
+}
+
+function buildViewIntent(view, context) {
+  if (!view?.sdkSpec?.builder || !view?.sdkSpec?.spec) {
+    return null;
+  }
+  const kind = String(view.sdkSpec.builder).replace("semaphor.", "");
+  if (!["metric", "records", "analysis", "matrix", "sql"].includes(kind)) {
+    return null;
+  }
+  const spec = expandGeneratedRefs(view.sdkSpec.spec, context);
+  return {
+    version: 1,
+    ...spec,
+    kind,
+    id: view.id,
+    label: view.visualSpec?.title || view.title || spec.label,
+  };
+}
+
+function buildActiveInput({ input, filterContract, binding, option, context }) {
+  const field = expandGeneratedRefs(binding.fieldRef || filterContract.fieldRef || input.fieldRef, context);
+  const operator = filterContract.operator || input.operator || "in";
+  const relationshipHint = relationshipHintForBinding(binding);
+  return {
+    inputId: filterContract.inputId || input.id,
+    kind: "filter",
+    operator,
+    value: activeInputValueForOperator(operator, option.value),
+    isActive: true,
+    field,
+    ...(relationshipHint ? { relationshipHint } : {}),
+  };
+}
+
+function relationshipHintForBinding(binding) {
+  if (binding.relationshipHint) {
+    return binding.relationshipHint;
+  }
+  const relationshipIds = (binding.relationshipsUsed || [])
+    .map((relationship) => relationship?.id)
+    .filter((id) => typeof id === "string" && id.length > 0);
+  return relationshipIds.length > 0 ? { relationshipIds } : undefined;
+}
+
+function activeInputValueForOperator(operator, value) {
+  if (operator === "in" || operator === "not_in") {
+    return [value];
+  }
+  if (operator === "between") {
+    return Array.isArray(value) ? value : [value, value];
+  }
+  return value;
+}
+
+async function executeDataAppIntent({ context, intent, activeInputs }) {
+  const response = await fetch(context.executeUrl, {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${context.token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      intent,
+      activeInputs,
+      resultShape: intent.kind,
+    }),
+  });
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+  if (!response.ok || data?.error) {
+    return {
+      ok: false,
+      status: response.status,
+      error: data?.error || `HTTP ${response.status}`,
+      data,
+    };
+  }
+  return { ok: true, data };
+}
+
+function extractOptions(data) {
+  return Array.isArray(data?.options)
+    ? data.options.filter((option) =>
+      option &&
+      Object.prototype.hasOwnProperty.call(option, "value") &&
+      option.value !== null &&
+      option.value !== undefined
+    )
+    : [];
+}
+
+function summarizeResultData(data) {
+  const records = Array.isArray(data?.records)
+    ? data.records
+    : Array.isArray(data?.rows)
+      ? data.rows
+      : [];
+  const values = [];
+  collectNumericValues(data?.value, values);
+  collectNumericValues(data?.measures, values);
+  collectNumericValues(records, values);
+  return {
+    hasRows: records.length > 0 || Number(data?.rowCount || 0) > 0,
+    nonZeroNumericCount: values.filter((value) => value !== 0).length,
+    numericCount: values.length,
+    fingerprint: stableResultFingerprint(data),
+  };
+}
+
+function stableResultFingerprint(data) {
+  return canonicalJson({
+    value: data?.value,
+    measures: data?.measures,
+    records: data?.records,
+    rows: data?.rows,
+    rowCount: data?.rowCount,
+    columns: data?.columns,
+    options: data?.options,
+  });
+}
+
+function collectNumericValues(value, output) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    output.push(value);
+    return;
+  }
+  if (!value || typeof value !== "object") {
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectNumericValues(item, output));
+    return;
+  }
+  Object.values(value).forEach((item) => collectNumericValues(item, output));
+}
+
+function filterEffectLooksUseful({ baseline, filtered }) {
+  if (baseline.fingerprint === filtered.fingerprint) {
+    return false;
+  }
+  if (filtered.nonZeroNumericCount > 0) {
+    return true;
+  }
+  if (filtered.hasRows && baseline.numericCount === 0) {
+    return true;
+  }
+  if (!baseline.hasRows && filtered.hasRows) {
+    return true;
+  }
+  return baseline.nonZeroNumericCount === 0 && filtered.hasRows;
 }
 
 function arrayStrings(value) {

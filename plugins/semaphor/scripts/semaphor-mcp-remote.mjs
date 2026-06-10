@@ -258,7 +258,7 @@ const LOCAL_TOOLS = [
   {
     name: 'semaphor_validate_data_app_contract',
     description:
-      'Run deterministic local Data App preflight: React/react-semaphor package setup, public SDK availability, root provider/DevTools wiring, generated contract completeness, generated contract hygiene, and optional typecheck/build. This does not prove analytics semantics; use Semaphor validation/execution and DevTools traces for filter applicability and query correctness.',
+      'Run deterministic local Data App preflight: React/react-semaphor package setup, public SDK availability, root provider/DevTools wiring, generated contract completeness, generated contract hygiene, optional typecheck/build, and optional live generated filter-effect checks.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -282,6 +282,11 @@ const LOCAL_TOOLS = [
           type: 'string',
           description:
             'Optional path, relative to workspaceDir, to a browser smoke report proving each generated filter reran or changed at least one subscribed generated query.',
+        },
+        liveFilterEffectCheck: {
+          type: 'boolean',
+          description:
+            'When true, execute generated option-backed filters against Semaphor with the app runtime token and fail if sampled subscribed queries error or return empty/all-zero results.',
         },
       },
       additionalProperties: false,
@@ -609,6 +614,9 @@ function validateLocalDataAppContract(message) {
   }
   if (typeof args.filterEffectReportPath === 'string' && args.filterEffectReportPath.trim()) {
     commandArgs.push('--filter-effect-report', args.filterEffectReportPath.trim());
+  }
+  if (args.liveFilterEffectCheck) {
+    commandArgs.push('--live-filter-effect');
   }
   const result = spawnSync(process.execPath, commandArgs, {
     cwd: workspaceDir,
@@ -2003,6 +2011,10 @@ function firstString(...values) {
   return values.find((value) =>
     typeof value === 'string' && value.trim().length > 0
   ) || '';
+}
+
+function hashCanonicalJson(value) {
+  return `sha256:${crypto.createHash('sha256').update(canonicalJson(value)).digest('hex')}`;
 }
 
 function formatJsonRpcError(error) {

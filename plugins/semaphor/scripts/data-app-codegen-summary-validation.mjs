@@ -284,11 +284,24 @@ function validateOptionQuery(value, path) {
     ...validateOptionalFieldRef(optionQuery.valueFieldRef, `${path}.valueFieldRef`),
     ...validateOptionalFieldRef(optionQuery.labelFieldRef, `${path}.labelFieldRef`),
     ...validateOptionalFieldRef(optionQuery.filterFieldRef, `${path}.filterFieldRef`),
+    ...validateNonMeasureOptionField(optionQuery.valueFieldRef, `${path}.valueFieldRef`),
+    ...validateNonMeasureOptionField(optionQuery.labelFieldRef, `${path}.labelFieldRef`),
+    ...validateNonMeasureOptionField(optionQuery.filterFieldRef, `${path}.filterFieldRef`),
   ];
 }
 
 function validateOptionalFieldRef(value, path) {
   return value === undefined ? [] : validateFieldRef(value, path);
+}
+
+function validateNonMeasureOptionField(value, path) {
+  const fieldRef = asRecord(value);
+  if (!fieldRef || fieldRef.role !== 'measure') {
+    return [];
+  }
+  return [
+    `${path} must not be a measure. Input option fields must be categorical keys or labels so dropdown values are grouped, not aggregated.`,
+  ];
 }
 
 function validateFieldRef(value, path) {
