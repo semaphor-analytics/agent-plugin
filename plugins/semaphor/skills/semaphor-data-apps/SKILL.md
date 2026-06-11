@@ -35,17 +35,14 @@ public SDK builders/hooks, validate, then save or publish when requested.
    has multiple usable domains, ask the user to choose one. If the goal clearly
    implies a domain, state the recommended domain and ask for confirmation
    before calling `semaphor_plan_data_app`.
-4. Implementation map: before the first source edit for a broad app, decide
-   the file/component layout, which filters apply to which cards/views, and
-   how SDK DevTools will be enabled. Do not start by dumping the dashboard into
+4. Broad build plan: after project/domain confirmation, call
+   `semaphor_plan_data_app`, present the visible plan, and stop for approval.
+5. Implementation map: include file layout, filter-to-view scope, and SDK
+   DevTools setup in that visible plan. Do not dump the dashboard into
    `src/App.tsx`.
-5. Contract generation: for greenfield/broad builds, call
-   `semaphor_create_data_app_contract` before UI edits so planning and contract
-   materialization happen through the Semaphor tools. Import the generated
-   `src/semaphor/generated` sources, fields, inputs, queries, and bindings.
-   Do not hand-roll analytics wiring from prose or local guesses.
-6. Broad build: after project/domain confirmation, present a visible plan and
-   stop for user approval before editing.
+6. Contract generation: only after explicit plan approval, call
+   `semaphor_generate_data_app_contract` with the planner's canonical artifact.
+   Import generated sources, fields, inputs, queries, and bindings.
 7. Existing generated app: use `semaphor_update_data_app_contract` so the
    generated manifest drives change planning and regeneration; preserve
    existing views by default.
@@ -114,11 +111,13 @@ specific previously presented plan, then edit. If the request is a narrow edit
 such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
-For broad new Data App requests, use Semaphor planning as the source of truth
-before codegen. After approval, use
-`semaphor_create_data_app_contract({ workspaceDir, domainId, goal,
-preferences })`. For substantial edits to a generated app, use
-`semaphor_update_data_app_contract({ workspaceDir, goal, operationIntent })`.
+For broad new Data App requests, call `semaphor_plan_data_app({ workspaceDir,
+domainId, goal, preferences, responseFormat: "codegen_summary" })`, present the
+visible plan, and stop. After approval, call
+`semaphor_generate_data_app_contract({ workspaceDir, planArtifactPath })` with
+the canonical planner artifact. For substantial edits to a generated app, use
+`semaphor_update_data_app_contract({ workspaceDir, goal, operationIntent })`;
+for warning cleanup use `operationIntent: { kind: "fix_warnings", targetViewIds }`.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
 option queries, or filter bindings manually. For generated view queries, use
@@ -163,10 +162,14 @@ calls for data-app work are:
 - `semaphor_list_datasets`
 - `semaphor_get_dataset_schema`
 - `semaphor_get_domain_relationships`
-- `semaphor_create_data_app_contract`
-- `semaphor_update_data_app_contract`
 - `semaphor_plan_data_app`
 - `semaphor_plan_data_app_change`
+- `semaphor_generate_data_app_contract`
+- `semaphor_create_data_app_contract`
+- `semaphor_update_data_app_contract`
+
+Use `semaphor_create_data_app_contract` only for eval paths or explicit user
+instructions that skip separate plan review.
 
 If these first-class tools are not exposed in the host session, say that the
 host did not expose Semaphor MCP tools and ask the user to reinstall/reload the

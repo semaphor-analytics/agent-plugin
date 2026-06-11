@@ -28,9 +28,8 @@ Expected agent behavior:
 
 - inspect Semaphor data before editing,
 - inspect local React app structure,
-- call `semaphor_create_data_app_contract` after plan approval for broad
-  builds so the grounded plan and generated contract are produced through the
-  Semaphor tools before UI edits,
+- call `semaphor_plan_data_app` for broad builds, present the visible plan,
+  and stop for approval before generating files or editing source,
 - for broad dashboard creation, request a balanced planner budget, normally
   `preferences.maxViews: 15` and up to 20 for wide coverage; do not treat the
   8-view default as a cap or shrink the plan because the artifact is verbose,
@@ -61,7 +60,9 @@ Expected agent behavior:
   unsupported gaps, and assumptions instead of improvising query specs,
 - if a generated app is changed later, call
   `semaphor_update_data_app_contract` and use its migration report before
-  presentation edits,
+  presentation edits; for Inspector/runtime warning cleanup pass
+  `operationIntent: { kind: "fix_warnings", targetViewIds }` so unrelated
+  views, inputs, and filter scopes are rejected before files are regenerated,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
   builders plus `useSemaphorQuery`,
 - give every runtime query spec a stable explicit `id`,
@@ -270,16 +271,16 @@ Expected validation:
 
 For broad greenfield Data Apps, the normal codegen path is:
 
-1. Resolve project/domain and get user/eval approval to build.
-2. Call `semaphor_create_data_app_contract` with `workspaceDir`, `domainId`,
-   `goal`, and planner `preferences` such as `maxViews: 15`.
-3. Build the React UI from the generated `src/semaphor/generated` exports.
-4. Run `semaphor_validate_data_app_contract` before final handoff.
-
-Use the explicit `semaphor_plan_data_app` ->
-`semaphor_generate_data_app_contract` sequence only when the workflow requires
-a separate accepted plan artifact before generation, or when debugging the
-planner/generator boundary.
+1. Resolve project/domain.
+2. Call `semaphor_plan_data_app` with `workspaceDir`, `domainId`, `goal`,
+   `responseFormat: "codegen_summary"`, and planner `preferences` such as
+   `maxViews: 15`.
+3. Present the visible plan, including view names, visual types, filters,
+   file/component layout, and SDK DevTools setup. Stop for approval.
+4. After approval, call `semaphor_generate_data_app_contract` with the
+   canonical codegen-summary artifact written by planning.
+5. Build the React UI from the generated `src/semaphor/generated` exports.
+6. Run `semaphor_validate_data_app_contract` before final handoff.
 
 Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.

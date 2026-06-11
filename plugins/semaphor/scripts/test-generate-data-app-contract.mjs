@@ -5,6 +5,9 @@ import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  evaluateContractUpdatePolicy,
+} from './data-app-contract-update-policy.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(scriptDir, '..');
@@ -22,6 +25,7 @@ try {
   runFilterBindingScopeConflictFixture();
   runPresentationFilterScopeFixture();
   runMalformedManifestFixture();
+  runContractUpdatePolicyFixture();
   console.log('Semaphor generator fixture tests passed.');
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -271,6 +275,163 @@ function runMalformedManifestFixture() {
   ) {
     throw new Error(`Malformed manifest fixture failed unclearly:\n${result.stdout}\n${result.stderr}`);
   }
+}
+
+function runContractUpdatePolicyFixture() {
+  const beforeSummary = updatePolicySummaryFixture();
+  const afterWarningFixSummary = updatePolicySummaryFixture();
+  afterWarningFixSummary.views[0].fields = [
+    { name: 'sales_value', aggregate: 'SUM' },
+  ];
+  afterWarningFixSummary.views[0].sdkSpec = {
+    builder: 'semaphor.metric',
+    spec: { id: 'sales_kpi', measures: [{ name: 'sales_value', aggregate: 'SUM' }] },
+  };
+
+  const narrowWarningFix = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: afterWarningFixSummary,
+    operationIntent: {
+      kind: 'fix_warnings',
+      targetViewIds: ['sales_kpi'],
+    },
+    migrationReport: {
+      views: {
+        added: [],
+        removed: [],
+        changed: [{ id: 'sales_kpi', reasons: ['fields', 'sdkSpec'] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (!narrowWarningFix.ok) {
+    throw new Error(`Expected narrow warning fix to pass: ${JSON.stringify(narrowWarningFix)}`);
+  }
+
+  const missingTargets = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: afterWarningFixSummary,
+    operationIntent: {
+      kind: 'fix_warnings',
+    },
+    migrationReport: {
+      views: {
+        added: [],
+        removed: [],
+        changed: [{ id: 'sales_kpi', reasons: ['fields', 'sdkSpec'] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (missingTargets.ok) {
+    throw new Error('Expected diagnostic warning fix to require targetViewIds.');
+  }
+
+  const hiddenChecklistChange = updatePolicySummaryFixture();
+  hiddenChecklistChange.views[0].fields = afterWarningFixSummary.views[0].fields;
+  hiddenChecklistChange.views[0].sdkSpec = afterWarningFixSummary.views[0].sdkSpec;
+  hiddenChecklistChange.implementationChecklist.validationCommands = ['npm run something-else'];
+  const hiddenSummaryChange = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: hiddenChecklistChange,
+    operationIntent: {
+      kind: 'fix_warnings',
+      targetViewIds: ['sales_kpi'],
+    },
+    migrationReport: {
+      views: {
+        added: [],
+        removed: [],
+        changed: [{ id: 'sales_kpi', reasons: ['fields', 'sdkSpec'] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (hiddenSummaryChange.ok) {
+    throw new Error('Expected diagnostic warning fix to reject hidden summary changes.');
+  }
+
+  const unrelatedFilterChange = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: afterWarningFixSummary,
+    operationIntent: {
+      kind: 'fix_warnings',
+      targetViewIds: ['sales_kpi'],
+    },
+    migrationReport: {
+      views: {
+        added: [],
+        removed: [],
+        changed: [{ id: 'sales_kpi', reasons: ['fields', 'sdkSpec'] }],
+      },
+      inputs: {
+        added: [],
+        removed: [],
+        changed: [{ id: 'facility', reasons: ['appliesToViewIds'] }],
+      },
+      filterContracts: {
+        added: [],
+        removed: [],
+        changed: [{ id: 'facility', reasons: ['bindings'] }],
+      },
+    },
+  });
+  if (unrelatedFilterChange.ok) {
+    throw new Error('Expected diagnostic warning fix to reject unrelated filter changes.');
+  }
+
+  const explicitGeneralEdit = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: {
+      ...beforeSummary,
+      views: [{ ...beforeSummary.views[0], title: 'New Sales Title' }],
+    },
+    operationIntent: {
+      kind: 'edit',
+      targetViewIds: ['sales_kpi'],
+      change: 'title',
+    },
+    migrationReport: {
+      views: {
+        added: [],
+        removed: [],
+        changed: [{ id: 'sales_kpi', reasons: ['title'] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (!explicitGeneralEdit.ok) {
+    throw new Error(`Expected general edit not to be blocked: ${JSON.stringify(explicitGeneralEdit)}`);
+  }
+}
+
+function updatePolicySummaryFixture() {
+  return {
+    schemaVersion: 'semaphor-data-app-codegen-summary/v1',
+    title: 'Policy fixture',
+    sources: [{ sourceKey: 'sales', kind: 'semantic', domainId: 'domain', datasetName: 'sales' }],
+    inputs: [],
+    views: [
+      {
+        id: 'sales_kpi',
+        title: 'Sales KPI',
+        visual: 'kpi',
+        fields: [{ name: 'sales_value', aggregate: 'AVG' }],
+        sdkSpec: {
+          builder: 'semaphor.metric',
+          spec: { id: 'sales_kpi', measures: [{ name: 'sales_value', aggregate: 'AVG' }] },
+        },
+      },
+    ],
+    filterContracts: [],
+    implementationChecklist: {
+      validationCommands: ['npm run validate'],
+    },
+  };
 }
 
 function runGenerator({ workspaceDir, summaryPath }) {

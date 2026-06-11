@@ -317,7 +317,17 @@ function validateMcpBridge() {
   }
   if (!bridgeText.includes('semaphor_create_data_app_contract')) {
     issues.push(
-      'scripts/semaphor-mcp-remote.mjs: must expose semaphor_create_data_app_contract as the default greenfield local MCP tool',
+      'scripts/semaphor-mcp-remote.mjs: must expose semaphor_create_data_app_contract for eval paths or explicitly approved one-step builds',
+    );
+  }
+  if (!bridgeText.includes('Normal interactive greenfield builds should call semaphor_plan_data_app first')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: create-contract tool description must preserve the plan-first interactive workflow',
+    );
+  }
+  if (!bridgeText.includes('targetViewIds: [...]')) {
+    issues.push(
+      'scripts/semaphor-mcp-remote.mjs: fix_warnings operationIntent description must document required targetViewIds',
     );
   }
   if (!bridgeText.includes('semaphor_update_data_app_contract')) {

@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 import {
   assertValidCodegenSummary,
 } from './data-app-codegen-summary-validation.mjs';
+import {
+  evaluateContractUpdatePolicy,
+} from './data-app-contract-update-policy.mjs';
 
 const MCP_PROTOCOL_VERSION = '2024-11-05';
 const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
@@ -88,7 +91,7 @@ const LOCAL_TOOLS = [
   {
     name: 'semaphor_create_data_app_contract',
     description:
-      'Default greenfield Data App path. Plan a Semaphor-backed React Data App from a selected semantic domain and immediately materialize deterministic local TypeScript analytics contract files under src/semaphor/generated. Use this after project/domain resolution and user approval to build so agents do not manage planner JSON artifacts or hand-roll analytics wiring. For preview-only planning use semaphor_plan_data_app; for existing app changes use semaphor_plan_data_app_change.',
+      'One-step Data App contract creation for eval paths or explicit user-approved builds that skip separate plan review. Normal interactive greenfield builds should call semaphor_plan_data_app first, present the plan, wait for approval, then call semaphor_generate_data_app_contract.',
     annotations: {
       title: 'Create Data App Contract',
       readOnlyHint: false,
@@ -169,7 +172,7 @@ const LOCAL_TOOLS = [
         planArtifactPath: {
           type: 'string',
           description:
-            'Advanced path: canonical semaphor-data-app-codegen-summary/v1 JSON file. Relative paths resolve from workspaceDir. Prefer semaphor_create_data_app_contract for greenfield builds.',
+            'Canonical semaphor-data-app-codegen-summary/v1 JSON file from an accepted semaphor_plan_data_app result. Relative paths resolve from workspaceDir.',
         },
         codegenSummary: {
           type: 'object',
@@ -218,7 +221,7 @@ const LOCAL_TOOLS = [
         operationIntent: {
           type: 'object',
           description:
-            'Structured change intent. Supports add, edit, and remove generated-contract changes; omit to default to { kind: "add" }.',
+            'Structured change intent. Supports add, edit, remove, and deterministic diagnostic fixes. Use { kind: "fix_warnings", targetViewIds: [...] } for Inspector/runtime warning cleanup so unrelated views, inputs, and filter scopes are rejected before files are regenerated.',
           additionalProperties: true,
         },
         domainId: {
@@ -1092,16 +1095,53 @@ async function updateLocalDataAppContract(message) {
     };
   }
 
+  const migrationReport = buildContractMigrationReport({
+    before: currentSummary,
+    after: codegenSummary,
+    changePlan,
+  });
+  const updatePolicy = evaluateContractUpdatePolicy({
+    beforeSummary: currentSummary,
+    afterSummary: codegenSummary,
+    migrationReport,
+    operationIntent: changeArguments.operationIntent,
+  });
+  if (!updatePolicy.ok) {
+    const text = [
+      'Semaphor Data App change plan was rejected by the deterministic update policy. Generated analytics contract was not modified.',
+      JSON.stringify({
+        change: compactChangePlan(changePlan),
+        updatePolicy,
+        migrationReport,
+      }, null, 2),
+    ].join('\n\n');
+
+    return {
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          plannerTool: 'semaphor_plan_data_app_change',
+          changePlan,
+          updatePolicy,
+          migrationReport,
+          plan: compactCodegenSummary(codegenSummary),
+          error:
+            'Change planner proposed updates outside the allowed generated-contract scope. Generated analytics contract was not modified.',
+        },
+        content: [{ type: 'text', text }],
+      },
+    };
+  }
+
   const generation = runDataAppContractGenerator({
     workspaceDir,
     outputDir,
     codegenSummary,
     allowEmptyContract: args.allowEmptyContract === true,
-  });
-  const migrationReport = buildContractMigrationReport({
-    before: currentSummary,
-    after: codegenSummary,
-    changePlan,
   });
   const text = [
     generation.ok
@@ -1127,6 +1167,7 @@ async function updateLocalDataAppContract(message) {
         plannerTool: 'semaphor_plan_data_app_change',
         generatorTool: 'semaphor_generate_data_app_contract',
         changePlan,
+        updatePolicy,
         migrationReport,
         plan: compactCodegenSummary(codegenSummary),
         exitCode: generation.exitCode,
@@ -1325,6 +1366,7 @@ function diffRecords({ before, after, changedReason }) {
 
 function viewChangeReason(before, after) {
   const reasons = [];
+  if (before?.title !== after?.title) reasons.push('title');
   if (before?.sdkBuilder !== after?.sdkBuilder) reasons.push('sdkBuilder');
   if (before?.queryKind !== after?.queryKind) reasons.push('queryKind');
   if (before?.visual !== after?.visual) reasons.push('visual');

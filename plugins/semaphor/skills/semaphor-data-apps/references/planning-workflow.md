@@ -9,11 +9,10 @@ accepts a plan or gives a narrow explicit implementation instruction.
 Use Semaphor planner tools as the source of truth for broad analytical work:
 
 - New app or broad dashboard/app request:
-  after domain approval, call `semaphor_create_data_app_contract` with
-  `workspaceDir`, `domainId`, `goal`, and any known `datasetName`/
-  `datasetNames` or `preferences`. This is the default build path because it
-  plans with `responseFormat: "codegen_summary"` and materializes
-  `src/semaphor/generated` in one step.
+  after domain approval, call `semaphor_plan_data_app` with `workspaceDir`,
+  `domainId`, `goal`, `responseFormat: "codegen_summary"`, and any known
+  `datasetName`/`datasetNames` or `preferences`. Present the returned plan and
+  stop. Generate files only after the user accepts the visible plan.
 - Substantial existing-app analytical edit:
   for generated apps, call `semaphor_update_data_app_contract` with `goal`,
   structured `operationIntent`, and `workspaceDir`; it reads the generated
@@ -103,11 +102,14 @@ Treat the accepted planner response as the codegen contract:
 - every substantial deviation should be shown to the user before codegen or
   captured as a limitation after validation.
 
-For accepted greenfield/broad plans, materialize the contract before UI edits:
+For accepted greenfield/broad plans, materialize the accepted planner artifact
+before UI edits:
 
 ```text
-user/eval accepts the visible plan
--> semaphor_create_data_app_contract(workspaceDir, domainId, goal, preferences)
+semaphor_plan_data_app(responseFormat: "codegen_summary")
+-> present visible plan with views, visual types, filters, file layout, and DevTools setup
+-> user/eval accepts the visible plan
+-> semaphor_generate_data_app_contract(workspaceDir, planArtifactPath)
 -> build UI from src/semaphor/generated imports
 -> semaphor_validate_data_app_contract(workspaceDir)
 ```
@@ -118,17 +120,7 @@ generated query ids and generated input option query ids to appear in DevTools
 traces. It proves registration/execution visibility; still compare traces or
 values after changing filters to prove filter effect.
 
-Use the older explicit sequence only when a human/eval workflow needs a
-separate plan artifact before generation, or when debugging the planner to
-generator boundary:
-
-```text
-semaphor_plan_data_app(responseFormat: "codegen_summary")
--> user accepts the visible plan
--> semaphor_generate_data_app_contract(workspaceDir, planArtifactPath)
-```
-
-In the explicit sequence, `planArtifactPath` must point at the canonical
+`planArtifactPath` must point at the canonical
 top-level `semaphor-data-app-codegen-summary/v1` JSON object. Do not pass a
 full plan, eval `plan.json`, `{ codegenSummary }`, or `{ summary }` wrapper.
 
@@ -147,8 +139,17 @@ For iterative analytics changes to a generated app, call:
 semaphor_update_data_app_contract(workspaceDir, goal, operationIntent)
 -> reads src/semaphor/generated/contract.manifest.json
 -> calls semaphor_plan_data_app_change with the manifest codegenSummary
+-> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
 -> regenerates src/semaphor/generated from the updated summary
 ```
+
+For Inspector/runtime warning cleanup, pass
+`operationIntent: { kind: "fix_warnings", targetViewIds: [...] }`. The update
+tool allows only targeted `fields`/`sdkSpec` corrections and fails before
+writing files if the planner proposes unrelated views, inputs, or filter
+contract changes. For user-requested edits such as visual title changes, use
+`operationIntent.kind: "edit"` with the target view ids so the normal iterative
+update path remains available.
 
 Do not inspect `App.tsx` to reconstruct query specs, filter bindings, source
 refs, or option queries. Inspect UI files only to decide where the changed
