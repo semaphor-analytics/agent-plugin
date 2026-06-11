@@ -188,6 +188,11 @@ const tons = result.measures?.shipped_tons;
 const margin = result.measures?.gross_margin;
 ```
 
+For date-backed single-measure KPI cards, the planner may include
+`comparison: { kind: "previous_period" }`. Render `result.delta`,
+`result.deltaPercent`, and `result.comparisonValue` when present, and keep the
+query as `semaphor.metric(...)`.
+
 Use separate `semaphor.records(...)` queries for companion trends, sparklines,
 tables, or grouped breakdowns. Do not use `records` just to make scalar KPI
 rendering easier. A successful scalar metric query should render from

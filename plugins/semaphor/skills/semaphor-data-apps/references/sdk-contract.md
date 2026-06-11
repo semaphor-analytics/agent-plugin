@@ -448,6 +448,8 @@ across all filtered rows rather than only the current page.
 Shared visible input bound into source-specific fields:
 
 ```tsx
+import { SemaphorDateRangeFilter } from "@/components/semaphor";
+
 const dateRange = semaphor.filter({
   id: "date_range",
   label: "Date Range",
@@ -469,6 +471,8 @@ function Dashboard() {
     ? dateRangeHandle.value
     : [];
   const [start, end] = range;
+
+  return <SemaphorDateRangeFilter handle={dateRangeHandle} />;
 }
 ```
 
@@ -477,6 +481,11 @@ query fields, such as one Date Range filtering `orders.order_date` and
 `invoices.invoice_date`, or one Material Family selector filtering multiple
 facts through source-bearing related dimension fields. Narrow `handle.value`
 with `Array.isArray(...)` before indexing date ranges or multi-select values.
+For starter-derived apps, render `date_range` inputs with
+`SemaphorDateRangeFilter` from `@/components/semaphor` instead of authoring a
+custom date picker. It writes the SDK-compatible `[startDate, endDate]` value
+for `operator: "between"` filters and initializes an empty handle to the
+component's default window so the visible label and executed query match.
 
 ## Derived Fields
 

@@ -179,7 +179,9 @@ Charts should answer one question clearly.
 
 Use shadcn controls that fit the input:
 
-- Date range: app date picker or two date inputs if no picker exists.
+- Date range: when the target app has Semaphor starter components, use
+  `SemaphorDateRangeFilter` from `@/components/semaphor`; otherwise use the
+  app's date picker or two date inputs if no picker exists.
 - Small option set: `ToggleGroup`.
 - Single selection: `Select` or Combobox.
 - Multi-select: `Popover` plus `Command` and checkboxes, or an installed host
@@ -201,7 +203,9 @@ from the controls, such as `Date range`, `Facility`, `Material`, or `Market
 index`; avoid source/table names unless needed for disambiguation.
 
 Prefer the app's installed date-range picker, calendar, popover, or command
-combobox patterns for dashboard controls. Native `<input type="date">` is a
+combobox patterns for dashboard controls. In the Semaphor starter, the
+canonical Semaphor-bound control is `SemaphorDateRangeFilter`; do not cook up a
+one-off date-range UI for generated apps. Native `<input type="date">` is a
 fallback when the app has no date-picker primitive or when the user explicitly
 asks for native controls.
 
