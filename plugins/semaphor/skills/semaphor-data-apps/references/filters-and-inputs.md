@@ -179,6 +179,29 @@ so the scope is obvious to the user. Do not create a top-level "Material",
 every KPI, chart, and table will change when only one or two queries actually
 receive the handle.
 
+When the Semaphor filter-control registry item is installed, use its
+dashboard-level active-filter summary instead of hand-building inline badge
+strips:
+
+```tsx
+import {
+  SemaphorActiveFilterSummaryBadge,
+  getSemaphorActiveFilterSummaries,
+} from "@/components/semaphor/filter-controls";
+
+const activeFilterSummaries = getSemaphorActiveFilterSummaries([
+  dateRangeHandle,
+  regionHandle,
+  facilityHandle,
+]);
+
+<SemaphorActiveFilterSummaryBadge summaries={activeFilterSummaries} />;
+```
+
+Keep the summary compact in the filter bar header or toolbar. Do not render all
+active filters as one long horizontal badge list; that overflows on realistic
+dimension names and hides the filter controls users need to operate.
+
 Cards should also make active filter scope visible from the card side. For
 each data-bearing card, render a compact applied-filter affordance when one or
 more subscribed filters are active:

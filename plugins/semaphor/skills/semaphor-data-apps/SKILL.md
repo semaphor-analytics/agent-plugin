@@ -219,6 +219,7 @@ as a required dashboard quality checklist, not optional inspiration.
   client-side filtering, or raw SQL.
 - Treat visible filter scope as part of the app contract: top bar for
   dashboard-wide filters; place or label scoped filters by affected view.
+- With Semaphor filter controls, use the registry active-filter summary.
 - Do not make a visible input globally active by default. Pass an input handle
   only to queries listed in planner `appliesToViewIds`, queries on the same
   source-bearing field, or queries with an explicit modeled relationship path.
