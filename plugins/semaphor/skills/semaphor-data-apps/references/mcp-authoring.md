@@ -9,6 +9,10 @@ The agent host should expose Semaphor MCP servers as first-class callable
 tools. Use those tools directly. Do not inspect plugin implementation files,
 start the MCP bridge manually, or write JSON-RPC glue.
 
+When available, call `semaphor_get_data_app_sdk_guidance` for current Data App
+SDK authoring guidance before reading bundled fallback SDK prose. The bundled
+plugin SDK reference is offline fallback only.
+
 For Semaphor build, plan, answer, save, and publish workflows, the first
 observable step should be MCP auth/project preflight. Call
 `semaphor_get_access_context` before inspecting the React workspace, package

@@ -157,6 +157,7 @@ When MCP tool discovery is needed, expose the specific Semaphor tools you need
 instead of inspecting plugin files or manually speaking MCP. The normal first
 calls for data-app work are:
 
+- `semaphor_get_data_app_sdk_guidance`
 - `semaphor_get_access_context`
 - `semaphor_list_semantic_domains`
 - `semaphor_list_datasets`
@@ -167,9 +168,6 @@ calls for data-app work are:
 - `semaphor_generate_data_app_contract`
 - `semaphor_create_data_app_contract`
 - `semaphor_update_data_app_contract`
-
-Use `semaphor_create_data_app_contract` only for eval paths or explicit user
-instructions that skip separate plan review.
 
 If these first-class tools are not exposed in the host session, say that the
 host did not expose Semaphor MCP tools and ask the user to reinstall/reload the
@@ -242,7 +240,8 @@ as a required dashboard quality checklist, not optional inspiration.
   variable names only; ask the user to add missing credentials.
 - Do not inspect `node_modules/react-semaphor/dist`, bundled SDK
   implementation files, SDK source files, or SDK validator internals during
-  ordinary app authoring. Use the public SDK contract reference instead.
+  ordinary app authoring. Prefer `semaphor_get_data_app_sdk_guidance`, then
+  canonical docs, then bundled SDK fallback only when offline.
 - Do not use `ReturnType<typeof useSemaphorQuery>` for helper props. Use
   public SDK result types.
 - Use generated `rowValuesForView`/`columnKeysForView` for row access and
@@ -280,7 +279,8 @@ Load the narrow reference needed for the task:
   [onboarding.md](references/onboarding.md)
 - MCP tool selection, direct tool exposure, and fallback wrapper:
   [mcp-authoring.md](references/mcp-authoring.md)
-- SDK imports, provider setup, public result types, query builders, row access:
+- SDK imports, provider setup, public result types, query builders, row access
+  when dynamic guidance and canonical docs are unavailable:
   [sdk-contract.md](references/sdk-contract.md)
 - App-local derived metrics, groups, and calculated fields:
   [derived-fields.md](references/derived-fields.md)
@@ -408,7 +408,9 @@ or `apiBaseUrl` for normal hosted Vite React apps. Use `VITE_SEMAPHOR_SERVER_URL
 or `apiBaseUrl` only when the user explicitly needs self-hosted or local routing
 that intentionally differs from the token's `apiServiceUrl`.
 
-For the full SDK contract, read [sdk-contract.md](references/sdk-contract.md).
+For SDK guidance, call `semaphor_get_data_app_sdk_guidance` when exposed, then
+use canonical docs. Read [sdk-contract.md](references/sdk-contract.md) only as
+bundled offline fallback.
 
 ## Data App UX Baseline
 
@@ -485,15 +487,11 @@ npm run prepare:publish -- --dir <app>
 npm run publish:data-app -- --dir <app> --project-id <project-id> --title "<title>"
 ```
 
-Before reporting completion, run the strongest available checks:
+Before reporting completion, run validation and the target app checks:
 
 ```bash
 node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>
 ```
 
-Also run the target app's package typecheck/build scripts when present and
-reasonable, plus Semaphor MCP query checks for data-bearing analytics when
-credentials are available.
-
-For lifecycle details, read [publish-lifecycle.md](references/publish-lifecycle.md).
-For validation details, read [validation.md](references/validation.md).
+Lifecycle: [publish-lifecycle.md](references/publish-lifecycle.md). Validation:
+[validation.md](references/validation.md).
