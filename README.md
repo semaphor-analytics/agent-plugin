@@ -486,7 +486,8 @@ marketplaces point to the same `plugins/semaphor` package.
 
 - [Installation and auth](plugins/semaphor/docs/INSTALLATION_AND_AUTH.md)
 - [Golden workflows](plugins/semaphor/docs/GOLDEN_WORKFLOWS.md)
-- [Data App SDK reference](plugins/semaphor/docs/DATA_APP_SDK_REFERENCE.md)
-- [Data App SDK examples](plugins/semaphor/docs/SDK_HOOK_EXAMPLES.md)
+- [Canonical Data Apps SDK guide](https://docs.semaphor.cloud/docs/data-apps/agent-builder-guide)
+- [Bundled SDK fallback reference](plugins/semaphor/docs/DATA_APP_SDK_REFERENCE.md)
+- [Bundled SDK fallback examples](plugins/semaphor/docs/SDK_HOOK_EXAMPLES.md)
 - [Publishing to Semaphor](plugins/semaphor/docs/PUBLISHING_TO_SEMAPHOR.md)
 - [Troubleshooting](plugins/semaphor/docs/TROUBLESHOOTING.md)

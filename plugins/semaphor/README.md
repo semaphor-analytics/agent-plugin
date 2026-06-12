@@ -58,7 +58,8 @@ https://github.com/semaphor-analytics/agent-plugin
 
 - [Installation and auth](docs/INSTALLATION_AND_AUTH.md)
 - [Golden workflows](docs/GOLDEN_WORKFLOWS.md)
-- [Data App SDK reference](docs/DATA_APP_SDK_REFERENCE.md)
-- [Data App SDK examples](docs/SDK_HOOK_EXAMPLES.md)
+- [Canonical Data Apps SDK guide](https://docs.semaphor.cloud/docs/data-apps/agent-builder-guide)
+- [Bundled SDK fallback reference](docs/DATA_APP_SDK_REFERENCE.md)
+- [Bundled SDK fallback examples](docs/SDK_HOOK_EXAMPLES.md)
 - [Publishing to Semaphor](docs/PUBLISHING_TO_SEMAPHOR.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)

@@ -1,23 +1,18 @@
-# SDK Contract
+# SDK Contract Fallback
 
-This is the compact public SDK reference for ordinary app authoring. Use it
-before looking anywhere else when a task needs imports, result types, provider
-setup, filters, row/column access, or query builders.
+This bundled page is an offline fallback for Semaphor Data App SDK authoring.
+Prefer the live docs and public TypeScript declarations when available.
 
-Do not search for `docs/DATA_APP_SDK_REFERENCE.md` in the customer repo. The
-customer repo is not expected to contain plugin docs.
+| Field | Value |
+| --- | --- |
+| Canonical docs | `https://docs.semaphor.cloud/docs/data-apps/agent-builder-guide` |
 
-Do not inspect `node_modules/react-semaphor/dist`, bundled implementation
-files, SDK source files, or SDK validator internals during ordinary app
-authoring. If this reference is missing a public contract detail and the app
-cannot be completed without it, inspect only public
-`react-semaphor/data-app-sdk` exported type declarations narrowly, record the
-docs gap, and continue with the public contract rather than implementation
-internals.
+If this page conflicts with the canonical docs or the public
+`react-semaphor/data-app-sdk` declarations, follow the canonical docs and
+declarations. Do not inspect SDK implementation bundles or `dist` internals
+during normal app authoring.
 
 ## Imports
-
-Generated React should import SDK values from:
 
 ```tsx
 import {
@@ -25,113 +20,31 @@ import {
   SemaphorDevtools,
   defineSemaphorDataApp,
   semaphor,
-  useClearInvalidSemaphorInputValue,
   useSemaphorInputs,
   useSemaphorQuery,
 } from "react-semaphor/data-app-sdk";
-```
 
-Reusable helper components can import SDK result types as needed:
-
-```tsx
 import type {
-  SemaphorQueryResult,
+  SemaphorMatrixQueryResult,
   SemaphorMetricQueryResult,
+  SemaphorQueryResult,
   SemaphorRecordsField,
   SemaphorRecordsQueryResult,
   SemaphorResultColumn,
   SemaphorRowsQueryResult,
   SemaphorSourceRef,
   SemaphorSqlQueryResult,
-  SemaphorMatrixQueryResult,
-  SemaphorDerivedFieldDefinition,
 } from "react-semaphor/data-app-sdk";
 ```
 
-## Public Shapes
-
-```ts
-type SemaphorResultColumn = {
-  key: string; // stable row accessor: row[column.key]
-  name: string; // semantic/source field name
-  label: string; // display label
-  role?: "dimension" | "measure" | "date" | string;
-  dataType?: "string" | "number" | "date" | "boolean" | string;
-  aggregate?: string;
-  source?: unknown;
-};
-
-type SemaphorQueryState = {
-  status: "idle" | "loading" | "success" | "error";
-  isLoading: boolean;
-  error: Error | null;
-};
-
-type SemaphorSqlQueryResult<TRecord extends Record<string, unknown>> =
-  SemaphorQueryState & {
-    id?: string;
-    intent?: unknown;
-    records: TRecord[];
-    columns?: SemaphorResultColumn[];
-    rowCount?: number;
-    pagination?: unknown;
-    output?: string;
-    rowLimitExceeded?: boolean;
-    executionResult?: unknown;
-  };
-
-type SemaphorRecordsQueryResult<TRecord extends Record<string, unknown>> =
-  SemaphorQueryState & {
-    id?: string;
-    intent?: unknown;
-    records: TRecord[];
-    columns?: SemaphorResultColumn[];
-    rowCount?: number;
-    pagination?: unknown;
-    executionResult?: unknown;
-  };
-```
-
-Metric, records, SQL, matrix, and analysis results should be rendered from the
-documented public result surface. Do not inspect hidden `dist` declaration files
-or SDK internals. For scalar KPI cards, prefer `semaphor.metric(...)` and render
-from the metric result:
-
-```tsx
-function metricValue(
-  result: SemaphorMetricQueryResult,
-  measureName?: string,
-) {
-  return measureName ? result.measures?.[measureName] : result.value;
-}
-```
-
-Use `semaphor.records(...)` for row-shaped KPI support only when the visual
-requires rows: trend points, sparklines, grouped breakdowns, tables, detail
-lists, or a shape that cannot be expressed as scalar measures.
-
-When typing reusable helper components, use public SDK result types. Do not use
-`ReturnType<typeof useSemaphorQuery>`; TypeScript collapses overloaded hook
-signatures in a way that can produce the wrong result shape.
-
-- Use `SemaphorQueryResult` for generic query status/error helper components.
-- Use `SemaphorMetricQueryResult` for `semaphor.metric(...)` scalar KPI
-  results.
-- Use `SemaphorRecordsQueryResult` for `semaphor.records(...)` results.
-- Use `SemaphorSqlQueryResult` for `semaphor.sql(...)` results.
-- Use `SemaphorRowsQueryResult` for table helpers that accept records-backed
-  or SQL-backed row results.
-- Use `SemaphorMatrixQueryResult` for `semaphor.matrix(...)` results.
-- Use `SemaphorRecordsField` for source-bearing fields passed to
-  `semaphor.records(...)`. `SemaphorFieldRef` is too loose for records queries
-  because the records contract requires every selected field to have a definite
-  `role`.
+Use exported SDK result types for reusable helper components. Do not type
+helpers with `ReturnType<typeof useSemaphorQuery>` because hook overloads can
+collapse to the wrong shape.
 
 ## Provider
 
-Provider setup should be token-only for execution routing. Generated Vite React
-apps should enable SDK DevTools in local development so humans and agents can
-inspect runtime traces:
+Generated Vite React apps should read the project token from the ignored local
+environment and mount one root DevTools instance in local development.
 
 ```tsx
 const runtimeToken = import.meta.env.VITE_SEMAPHOR_PROJECT_TOKEN;
@@ -149,487 +62,130 @@ const enableDevtools =
     buttonPosition="bottom-right"
     panelPosition="right"
   />
-</SemaphorDataAppProvider>
+</SemaphorDataAppProvider>;
 ```
 
-`SemaphorDataAppProvider` accepts `token?: string`, `apiBaseUrl?: string`, an
-optional executor override, `debug?: boolean | object`, and `children`. The
-provider internally reads Semaphor hosted runtime auth when present, so
-generated app code normally does not need to call runtime helpers itself.
+The SDK decodes the Semaphor API URL from the token. Do not pass `apiBaseUrl`
+unless the user explicitly needs local or self-hosted routing that differs from
+the token.
 
-DevTools defaults:
+## Builder Selection
 
-- Always mount one root `<SemaphorDevtools />` in generated local/dev apps when
-  the package exports it.
-- Use the default `panelPosition="right"` dock so vertical analytics space
-  remains available and the app stays visible beside the inspector. Use
-  `panelPosition="bottom"` only when the user asks for a bottom dock.
-- Use `debug={enableDevtools ? { exposeWindowBridge: true } : false}` in
-  local/dev apps so the floating inspector appears and agents can read
-  `window.__SEMAPHOR_DEVTOOLS__?.snapshot()`.
-- Do not enable `debug` or `exposeWindowBridge` in production embeds,
-  published tenant/end-user views, or normal customer runtime code.
-- Do not wrap every card in DevTools boilerplate. `useSemaphorQuery()`
-  registrations populate the global inspector. For broad generated dashboards,
-  use the TanStack-style root DevTools integration only. If traceability needs
-  help, pass hook-level debug metadata/source hints instead of adding per-card
-  DevTools wrapper boilerplate.
-- For generated contracts, prefer
-  `useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles))`
-  over manually composing `{ inputs: inputsForView.someView(inputHandles) }`.
-  `queryOptionsForView` carries the planner's dashboard view title and visual
-  type into DevTools traces.
-- For generated records/analysis rows, map records through `rowValuesForView`
-  or resolve keys with `columnKeysForView`; never treat visual encoding names
-  or semantic field names as runtime row keys.
-- When you can add source metadata without extra component wrappers, pass a
-  hook-level source hint so DevTools and evals can point back to the likely app
-  file:
+- `semaphor.metric`: scalar KPI values. Use `measures` and `primaryMeasure`.
+- `semaphor.records`: charts, trends, tables, grouped breakdowns, and detail
+  rows.
+- `semaphor.matrix`: pivot and hierarchy tables.
+- `semaphor.analysis`: governed analysis and period-change driver views. Use
+  `analysis: { kind: "period_change" }`, not `analysisMode`.
+- `semaphor.sql`: SQL-backed views only when the user explicitly asks for SQL
+  or the semantic builders cannot express the request.
+- `semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control`: runtime
+  inputs.
+
+Metric comparison uses structured objects such as
+`comparison: { kind: "previous_period" }`; do not emit string comparison
+aliases.
+
+## Sources And Fields
+
+Use MCP-discovered metadata. Do not invent domains, datasets, fields,
+connection ids, or table names.
+
+Semantic sources require `domainId` and `datasetName`. Include `datasetId` when
+available because it strengthens identity, but do not omit `datasetName`.
 
 ```tsx
-const result = useSemaphorQuery(salesTrendQuery, {
-  debug: {
-    sourceHint: {
-      file: "src/components/SalesTrendCard.tsx",
-      component: "SalesTrendCard",
-    },
-  },
-});
-```
-
-Source hints are optional and should not replace stable query ids, labels, or
-small query modules. Do not add noisy repeated wrappers just to provide them.
-
-The SDK decodes the Semaphor API URL from the token. Do not generate
-`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or an `apiBaseUrl` prop
-for normal Vite React apps. For other React runtimes, adapt token loading to
-the host app before codegen instead of copying the Vite snippet unchanged. Use
-`apiBaseUrl` only when the user explicitly needs self-hosted or local routing
-that intentionally differs from the token's `apiServiceUrl`.
-
-Do not import `readWindowRuntime` or generate extra token fallback variables
-such as `VITE_SEMAPHOR_TOKEN` for normal customer apps. Use hosted runtime
-helpers only when the target app is explicitly being authored as a
-Semaphor-hosted runtime entrypoint and the user asks for direct runtime access.
-
-## Query Builders
-
-Use source-bearing field refs when the source is known. Define inputs and
-queries as typed module-level specs with `semaphor.*`, then execute those specs
-with `useSemaphorQuery`. Validation, save, and publish use the canonical
-`useSemaphorQuery` contract; do not generate alternate query execution
-patterns.
-
-Every runtime query spec must include a stable, human-readable `id`. This
-includes `semaphor.metric`, `semaphor.records`, `semaphor.analysis`,
-`semaphor.matrix`, `semaphor.sql`, and `semaphor.inputOptions`. Query ids are
-the bridge between the visible app, Semaphor DevTools traces, validation
-output, and reviewer comments. Do not rely on inferred ids or variable names.
-
-Builder selection:
-
-- `semaphor.metric` for scalar KPIs and aggregate KPI cards, including multiple
-  independent scalar measures from the same source. `primaryMeasure` controls
-  `result.value`; all values are available through `result.measures`.
-- `semaphor.records` for row-shaped results, tables, charts, trends,
-  breakdowns, and detail lists, including bounded windows via `dateField` and
-  `timeWindow`; generated contracts provide `rowValuesForView`/`columnKeysForView`
-  for safe row access. For bar, stacked bar, pie/donut, and categorical
-  comparison charts, make the records query grouped/aggregate-shaped for the
-  chart. Do not chart a bounded raw-row detail result unless the user explicitly
-  asked for raw rows.
-- `semaphor.analysis` for insight, driver, spike/drop, and period-change
-  views; also exposes `columns` and `resultSets` for typed row access.
-- `semaphor.sql` for advanced SQL-backed runtime views when semantic queries
-  cannot express the product requirement or the user explicitly asks for raw
-  SQL. Execution must still go through Semaphor SDK and governed server-side
-  execution.
-- `semaphor.matrix` for pivot tables, hierarchy tables, subtotals, grand
-  totals, sparse cells, and matrix display limits.
-- `semaphor.derivedField` for governed app-local calculations used by
-  `semaphor.metric`, `semaphor.records`, `semaphor.analysis`, or
-  `semaphor.inputOptions`.
-- `semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control` for filters
-  and controls.
-
-Execute query specs with:
-
-```tsx
-const inputHandles = useSemaphorInputs([someFilterOrParam]);
-const result = useSemaphorQuery<RowType>(someQuery, { inputs: inputHandles });
-```
-
-The `inputs` option accepts handles returned by `useSemaphorInputs`.
-
-## Copyable Query Patterns
-
-Use these patterns before inspecting SDK type declarations.
-
-Metric KPI:
-
-```tsx
-const source = {
+const orders = {
   kind: "semantic",
-  domainId: "sales",
+  domainId: "domain-id-from-mcp",
   datasetName: "orders",
+  datasetId: "dataset-orders",
+  label: "Orders",
 } satisfies SemaphorSourceRef;
+```
 
-const revenue = {
-  name: "revenue",
-  label: "Revenue",
-  role: "measure",
-  dataType: "number",
-  aggregate: "SUM",
-  source,
-} satisfies SemaphorRecordsField;
+SQL sources use `connectionId`, optional `dialect`, and optional `label`.
 
-const revenueKpi = semaphor.metric({
-  id: "revenue-kpi",
-  source,
-  measures: [revenue],
-  primaryMeasure: revenue,
+```tsx
+const sqlSource = semaphor.source.sql({
+  connectionId: "connection-id-from-mcp",
+  dialect: "postgres",
+  label: "Warehouse",
 });
-
-const result = useSemaphorQuery(revenueKpi);
 ```
 
-Multiple scalar KPIs in one card:
+Rows are keyed by `columns[].key`. Labels and semantic names are display and
+metadata fields, not stable row accessors.
 
 ```tsx
-const salesKpis = semaphor.metric({
-  id: "sales-kpis",
-  source,
-  measures: [revenue, orders, grossMargin],
-  primaryMeasure: revenue,
-});
-
-const result = useSemaphorQuery(salesKpis);
-const revenueValue = result.value;
-const orderCount = result.measures?.orders;
-const grossMarginValue = result.measures?.gross_margin;
+const revenueColumn = result.columns?.find((column) => column.name === "revenue");
+const revenue = revenueColumn ? row[revenueColumn.key] : null;
 ```
 
-If the planner returns `queryKind: "metric"`, implement the view with
-`semaphor.metric(...)` unless the visual is actually row-shaped or the SDK
-cannot express the required metric. Record any `records` fallback as an explicit
-SDK/product limitation.
+## Inputs And Options
 
-Records chart/table:
+Use server-side filters and option queries instead of fetching all data and
+filtering in client code.
 
 ```tsx
-const segment = {
-  name: "segment",
-  label: "Segment",
-  role: "dimension",
-  dataType: "string",
-  source,
-} satisfies SemaphorRecordsField;
-
-const revenueBySegment = semaphor.records({
-  id: "revenue-by-segment",
-  source,
-  fields: [segment, revenue],
-  orderBy: { field: revenue, direction: "desc" },
-  limit: 10,
-});
-
-const result = useSemaphorQuery(revenueBySegment);
-```
-
-Row access:
-
-```tsx
-function RecordsTable({ result }: { result: SemaphorRecordsQueryResult }) {
-  const records = result.records ?? [];
-  const columns = result.columns ?? [];
-
-  return (
-    <table>
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th key={column.key}>{column.label || column.name}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {records.map((row, rowIndex) => (
-          <tr key={rowIndex}>
-            {columns.map((column) => (
-              <td key={column.key}>{String(row[column.key] ?? "")}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-```
-
-Use `column.key` for code access and `column.label` for display. Never read
-`row[column.label]`.
-
-When a helper accepts a broad `SemaphorQueryResult` union, narrow before reading
-records:
-
-```tsx
-function queryRecords(result: SemaphorQueryResult) {
-  return "records" in result && Array.isArray(result.records)
-    ? result.records
-    : [];
-}
-```
-
-Input-options-backed filter:
-
-```tsx
-const segmentFilter = semaphor.filter({
-  id: "segment",
-  label: "Segment",
-  field: segment,
+const regionInput = semaphor.filter({
+  id: "region",
+  label: "Region",
+  field: regionField,
   operator: "in",
 });
 
-const segmentOptions = semaphor.inputOptions({
-  id: "segment-options",
-  source,
-  inputId: "segment",
-  labelField: segment,
-  valueField: segment,
-  dependencies: { mode: "auto" },
+const regionOptions = semaphor.inputOptions({
+  id: "region_options",
+  inputId: "region",
+  source: regions,
+  labelField: regionName,
+  valueField: regionId,
+  searchField: regionName,
   limit: 100,
 });
-
-function SegmentFilter() {
-  const [segmentHandle] = useSemaphorInputs([segmentFilter]);
-  const optionsResult = useSemaphorQuery(segmentOptions, {
-    inputs: [segmentHandle],
-  });
-  useClearInvalidSemaphorInputValue(segmentHandle, optionsResult);
-  const revenueResult = useSemaphorQuery(revenueBySegment, {
-    inputs: [segmentHandle],
-  });
-
-  // Render choices from optionsResult.options and write selected values with
-  // segmentHandle.setValue(nextValue).
-}
 ```
 
-`inputOptions` must use explicit `inputId`, `labelField`, and `valueField`.
-Use `labelField` for the human-readable dropdown text and `valueField` for the
-stable value sent back as the filter value. Do not use the older one-field
-shape. When clearing invalid selections for cascading filters, pass the full
-`optionsResult` to `useClearInvalidSemaphorInputValue`; do not pass
-`optionsResult.options`, because idle/loading query data is also an empty array.
+Normal cascading options may omit `dependencies`; `auto` is the default.
+Do not require `filterFieldRef` on option queries. Active filtering is modeled
+by the input/filter binding.
 
-Server-paginated table:
+## Result Rendering
 
-```tsx
-const page = 1;
-const pageSize = 100;
-const ordersPage = semaphor.records({
-  id: "orders-page",
-  source,
-  fields: [segment, revenue],
-  pagination: { page, pageSize },
-  orderBy: { field: revenue, direction: "desc" },
-});
+Handle state before rendering data:
 
-const pageResult = useSemaphorQuery(ordersPage);
-// Render page controls from pageResult.pagination and pageResult.rowCount.
+- `status`
+- `isLoading`
+- `isStale`
+- `isEmpty`
+- `isPartial`
+- `isFiltered`
+- `error`
+- `executionResult`
+
+During refetch, keep rendering stale data when `isStale` is true. For partial
+responses, render the usable payload with a warning instead of hiding it behind
+an error or empty state.
+
+`executionResult` is the authoritative governed result surface for status,
+coverage, validation, relationship diagnostics, row counts, and typed result
+payloads. Top-level analysis fields are display conveniences. Top-level
+analysis `fieldsUsed` is compact metadata; do not attach or depend on
+`derivedField` there.
+
+Analysis row sets should be read from `result.resultSets?.<name>.records`.
+Common names include `primary`, `contributors`, `segments`, `periodChanges`,
+`changes`, `drivers`, and `absoluteDeltaDrivers`.
+
+## Validation
+
+Before save or publish, run the plugin validator and fix structured issues:
+
+```bash
+npx semaphor validate-data-app
 ```
 
-For bounded client-rendered tables, include sortable headers and a numeric
-footer total for the displayed result set. For server-paginated tables, encode
-sort and page state in the Semaphor query spec, reset to page 1 when filters or
-sort change, and use a separate aggregate query when the UI needs a true total
-across all filtered rows rather than only the current page.
-
-Shared visible input bound into source-specific fields:
-
-```tsx
-import { SemaphorDateRangeFilter } from "@/components/semaphor";
-
-const dateRange = semaphor.filter({
-  id: "date_range",
-  label: "Date Range",
-  field: orderDate,
-  operator: "between",
-});
-
-function Dashboard() {
-  const [dateRangeHandle] = useSemaphorInputs([dateRange]);
-
-  const orderRows = useSemaphorQuery(ordersQuery, {
-    inputs: [semaphor.bindInput(dateRangeHandle, { field: orderDate })],
-  });
-  const invoiceRows = useSemaphorQuery(invoicesQuery, {
-    inputs: [semaphor.bindInput(dateRangeHandle, { field: invoiceDate })],
-  });
-
-  const range = Array.isArray(dateRangeHandle.value)
-    ? dateRangeHandle.value
-    : [];
-  const [start, end] = range;
-
-  return <SemaphorDateRangeFilter handle={dateRangeHandle} />;
-}
-```
-
-Use `semaphor.bindInput(...)` when one visible input should map to different
-query fields, such as one Date Range filtering `orders.order_date` and
-`invoices.invoice_date`, or one Material Family selector filtering multiple
-facts through source-bearing related dimension fields. Narrow `handle.value`
-with `Array.isArray(...)` before indexing date ranges or multi-select values.
-For starter-derived apps, render `date_range` inputs with
-`SemaphorDateRangeFilter` from `@/components/semaphor` instead of authoring a
-custom date picker. It writes the SDK-compatible `[startDate, endDate]` value
-for `operator: "between"` filters and initializes an empty handle to the
-component's default window so the visible label and executed query match.
-
-## Derived Fields
-
-Use `semaphor.derivedField(...)` when a view needs a calculated field that is
-not yet modeled in Semaphor but should still execute through governed Semaphor
-query execution.
-
-```tsx
-const grossMargin = semaphor.derivedField({
-  name: "gross_margin",
-  label: "Gross Margin",
-  resultRole: "measure",
-  dataType: "number",
-  computeStage: "row",
-  expression: "{revenue} - {cost}",
-  inputs: {
-    revenue: { kind: "field", field: revenueField },
-    cost: { kind: "field", field: costField },
-  },
-  defaultAggregate: "SUM",
-  aggregationBehavior: "additive",
-});
-
-const grossMarginQuery = semaphor.metric({
-  id: "gross-margin-by-segment",
-  source,
-  derivedFields: [grossMargin],
-  measures: [
-    { name: "gross_margin", role: "measure", dataType: "number", source },
-  ],
-  dimensions: [segmentField],
-});
-```
-
-Rules:
-
-- every derived field input must reference a visible field from the selected
-  source;
-- derived field names must not collide with source/catalog fields;
-- row-stage derived measures need `defaultAggregate`;
-- use aggregate-stage only for calculations that must happen after grouping;
-- if the calculation is important to analytical correctness, keep it in the
-  SDK query spec instead of computing it only in React.
-
-## Matrix Queries
-
-Use `semaphor.matrix(...)` for pivot-style and hierarchy-style tables.
-
-```tsx
-const revenueMatrix = semaphor.matrix({
-  id: "revenue-matrix",
-  source,
-  rows: [
-    { id: "region", field: regionField, subtotal: { enabled: true, position: "after" } },
-    countryField,
-  ],
-  columns: [{ id: "quarter", field: orderDateField, grain: "quarter" }],
-  values: [{ id: "revenue", field: revenueField, aggregate: "SUM", label: "Revenue" }],
-  totals: { rows: true, columns: true, grandTotal: true },
-  displayLimits: {
-    rows: { limit: 100, by: "value", direction: "top", others: true },
-  },
-});
-```
-
-`useSemaphorQuery(revenueMatrix)` returns matrix payload/grid data, not
-`records`. Render from the matrix result shape or a local matrix projection
-component. Do not fake a matrix by loading all detail rows and pivoting them on
-the client.
-
-## Input Handles
-
-`semaphor.filter`, `semaphor.sqlParam`, and `semaphor.control` define input
-specs. `useSemaphorInputs` binds those specs to runtime state and returns
-handles. UI controls should read and write the handles; queries should receive
-the same handles.
-
-```tsx
-const rowLimit = semaphor.sqlParam({
-  id: "row_limit",
-  label: "Rows",
-  defaultValue: 50,
-});
-
-const latestRowsQuery = semaphor.sql({
-  id: "latest-rows",
-  source: { kind: "sql", connectionId: "connection-id-from-mcp" },
-  sql: `
-    select movement_date, quantity_tons
-    from database_name.table_name
-    order by movement_date desc
-    limit {{ param("row_limit") }}
-  `,
-  inputs: [rowLimit],
-  defaultParameters: { row_limit: 50 },
-  limit: 50,
-});
-
-function LatestRows() {
-  const [rowLimitHandle] = useSemaphorInputs([rowLimit]);
-  const result = useSemaphorQuery(latestRowsQuery, {
-    inputs: [rowLimitHandle],
-  });
-
-  return (
-    <select
-      value={String(rowLimitHandle.value ?? 50)}
-      onChange={(event) => rowLimitHandle.setValue(Number(event.target.value))}
-    >
-      <option value="25">25 rows</option>
-      <option value="50">50 rows</option>
-      <option value="100">100 rows</option>
-    </select>
-  );
-}
-```
-
-Do not pass raw input specs directly to `useSemaphorQuery` after binding them.
-Pass the handles returned by `useSemaphorInputs`. If a filter should affect
-multiple queries, bind it once and pass the same handle to each subscribed
-query.
-
-## Row And Column Access
-
-For record/table rendering, treat `column.key` as the stable code accessor and
-`column.label` as display text:
-
-```tsx
-{
-  result.records.map((row) => (
-    <tr>
-      {result.columns.map((column) => (
-        <td key={column.key}>{row[column.key]}</td>
-      ))}
-    </tr>
-  ));
-}
-```
-
-Do not access records with display labels such as `row[column.label]` or
-`row["Movement Date"]`.
-
-For `semaphor.analysis` query results, prefer
-`insight.resultSets.<name>.columns` and `row[column.key]` over top-level
-analysis arrays when rendering tables or charts. For simple insight views, the
-SDK also exposes the default row-bearing analysis result as `insight.records`
-and `insight.columns`; use those columns rather than `Object.keys(...)`.
+For generated contracts, use the generated helpers (`queries`,
+`queryOptionsForView`, `rowValuesForView`, and `columnKeysForView`) rather than
+manually reconstructing row keys, input bindings, or query options in
+components.
