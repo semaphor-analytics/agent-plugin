@@ -21,6 +21,7 @@ try {
   runNoFilterFixture();
   runTableBehaviorFixture();
   runMalformedSummaryFixture();
+  runRootLevelSummaryIssuePathFixture();
   runMalformedIdentityFixture();
   runDatasetIdOnlySourceFixture();
   runExecutableFieldsOnPresentationViewFixture();
@@ -279,6 +280,35 @@ function runMalformedSummaryFixture() {
   }
 }
 
+function runRootLevelSummaryIssuePathFixture() {
+  const workspaceDir = path.join(tempRoot, "root-level-summary-issue-path");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(null, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected root-level summary issue fixture to fail.");
+  }
+  const parsed = parseGeneratorJson(result);
+  const planIssue = parsed.issues?.find((issue) =>
+    issue.message?.includes("Plan artifact must be a Semaphor codegenSummary object"),
+  );
+  if (!planIssue) {
+    throw new Error(
+      `Expected root-level summary issue fixture to report plan artifact issue:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+  if (planIssue.path !== undefined) {
+    throw new Error(
+      `Root-level plan artifact issue must not report a bogus path:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
 function runMalformedIdentityFixture() {
   const workspaceDir = path.join(tempRoot, "malformed-identities");
   fs.mkdirSync(workspaceDir, { recursive: true });
@@ -415,6 +445,19 @@ function runMalformedSdkSpecFixture() {
       `Malformed SDK spec fixture failed for the wrong reason:\n${result.stdout}\n${result.stderr}`,
     );
   }
+  const parsed = parseGeneratorJson(result);
+  assertIssueCode(
+    parsed,
+    "sdk_builder_query_kind_mismatch",
+    result,
+    "malformed SDK spec generator",
+  );
+  assertIssueCode(
+    parsed,
+    "sdk_builder_declared_builder_mismatch",
+    result,
+    "malformed SDK spec generator",
+  );
 }
 
 function runQueryKindDivergenceFixture() {
@@ -444,6 +487,12 @@ function runQueryKindDivergenceFixture() {
       `Query kind divergence fixture failed for the wrong reason:\n${result.stdout}\n${result.stderr}`,
     );
   }
+  assertIssueCode(
+    parseGeneratorJson(result),
+    "computation_query_kind_mismatch",
+    result,
+    "query-kind divergence generator",
+  );
 }
 
 function runMalformedOptionalSdkFieldRefsFixture() {
@@ -1192,6 +1241,7 @@ function runStructuredValidationFixtures() {
   runMalformedPackageJsonValidationFixture();
   runMissingProviderValidationFixture();
   runMissingGeneratedContractValidationFixture();
+  runGeneratedContractNotImportedValidationFixture();
   runMalformedManifestJsonValidationFixture();
   runFilterEffectValidationFixture();
   runLiveFilterEffectMissingTokenValidationFixture();
@@ -1315,6 +1365,60 @@ function runMissingGeneratedContractValidationFixture() {
     "missing_generated_contract",
     result,
     "missing-generated-contract validation",
+  );
+}
+
+function runGeneratedContractNotImportedValidationFixture() {
+  const workspaceDir = path.join(
+    tempRoot,
+    "validation-generated-contract-not-imported",
+  );
+  fs.mkdirSync(path.join(workspaceDir, "src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify(
+      {
+        type: "module",
+        dependencies: {
+          react: "^19.0.0",
+          "react-semaphor": "^0.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(validSummary(), null, 2));
+  const generatorResult = runGenerator({ workspaceDir, summaryPath });
+  if (generatorResult.status !== 0) {
+    throw new Error(
+      `Expected generated-contract-not-imported fixture generation to pass:\n${generatorResult.stdout}\n${generatorResult.stderr}`,
+    );
+  }
+  fs.writeFileSync(
+    path.join(workspaceDir, "src/App.tsx"),
+    [
+      'import { SemaphorDataAppProvider, SemaphorDevtools, semaphor, useSemaphorQuery } from "react-semaphor/data-app-sdk";',
+      'const query = semaphor.records({ source: { kind: "semantic", domainId: "domain", datasetName: "sales" }, fields: [{ name: "sales_value" }] });',
+      "function Dashboard() { useSemaphorQuery(query); return null; }",
+      "export function App() {",
+      "  return <SemaphorDataAppProvider config={{ projectToken: 'fixture', apiBaseUrl: 'https://example.invalid', exposeWindowBridge: true }}><SemaphorDevtools /><Dashboard /></SemaphorDataAppProvider>;",
+      "}",
+    ].join("\n"),
+  );
+
+  const result = runValidatorJson({ workspaceDir });
+  if (result.status === 0) {
+    throw new Error(
+      "Expected generated-contract-not-imported validation fixture to fail.",
+    );
+  }
+  assertIssueCode(
+    parseValidationJson(result),
+    "generated_contract_not_imported",
+    result,
+    "generated-contract-not-imported validation",
   );
 }
 
@@ -1827,6 +1931,16 @@ function parseValidationJson(result) {
   } catch (error) {
     throw new Error(
       `Validator did not return JSON: ${error.message}\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function parseGeneratorJson(result) {
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error(
+      `Generator did not return JSON: ${error.message}\n${result.stdout}\n${result.stderr}`,
     );
   }
 }
