@@ -5,6 +5,10 @@ Codex, Claude Code, and future coding-agent hosts.
 
 ## Operating Rules
 
+- Before reviewing or changing active Data App contract-generation work, read
+  `ACTIVE_IMPLEMENTATION_CONTEXT.md` in this directory. It contains
+  implementation-slice scope, hard-migration decisions, and reviewer guardrails
+  that may be more current than general package guidance.
 - Keep this package host-neutral. Codex and Claude Code should use the same
   skill, MCP configuration, helper scripts, SDK query hooks, validation route,
   and Data App lifecycle APIs.

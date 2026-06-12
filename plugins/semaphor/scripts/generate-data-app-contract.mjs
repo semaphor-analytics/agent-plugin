@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import {
   assertValidCodegenSummary,
+  CODEGEN_SUMMARY_VALIDATOR_VERSION,
 } from './data-app-codegen-summary-validation.mjs';
 
 const DEFAULT_OUTPUT_DIR = 'src/semaphor/generated';
@@ -348,6 +349,7 @@ function buildContractManifest({ contract, files }) {
       version: readPluginPackageVersion(),
     },
     generatedContentHash: hashGeneratedFiles(files),
+    codegenSummaryValidatorVersion: CODEGEN_SUMMARY_VALIDATOR_VERSION,
     codegenSummaryHash: hashCanonicalJson(contract.summary),
     codegenSummary: contract.summary,
   };

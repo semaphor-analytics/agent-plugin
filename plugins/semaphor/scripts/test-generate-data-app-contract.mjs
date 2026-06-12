@@ -21,6 +21,13 @@ try {
   runNoFilterFixture();
   runMalformedSummaryFixture();
   runMalformedIdentityFixture();
+  runDatasetIdOnlySourceFixture();
+  runMalformedSdkSpecFixture();
+  runQueryKindDivergenceFixture();
+  runMalformedOptionalSdkFieldRefsFixture();
+  runMalformedMatrixSpecFixture();
+  runMalformedAnalysisOptionsFixture();
+  runNumericViewScopeIdsFixture();
   runMissingFilterInputIdFixture();
   runFilterBindingScopeConflictFixture();
   runPresentationFilterScopeFixture();
@@ -49,7 +56,7 @@ function runValidPartialScopeFixture() {
     throw new Error(`Expected valid generator fixture to pass:\n${result.stdout}\n${result.stderr}`);
   }
   const parsed = JSON.parse(result.stdout);
-  if (parsed.ok !== true || parsed.executableViewCount !== 2) {
+  if (parsed.ok !== true || parsed.executableViewCount !== 3) {
     throw new Error(`Unexpected generator result: ${result.stdout}`);
   }
 
@@ -63,6 +70,13 @@ function runValidPartialScopeFixture() {
   }
   const manifestPath = path.join(workspaceDir, 'src/semaphor/generated/contract.manifest.json');
   const firstManifestText = fs.readFileSync(manifestPath, 'utf8');
+  const firstManifest = JSON.parse(firstManifestText);
+  if (
+    firstManifest.codegenSummaryValidatorVersion !==
+    'semaphor-data-app-codegen-summary-validator/v2'
+  ) {
+    throw new Error('Contract manifest must persist the codegenSummary validator version.');
+  }
   const secondResult = runGenerator({
     workspaceDir,
     summaryPath,
@@ -83,12 +97,32 @@ function runNoFilterFixture() {
   const summary = validSummary();
   summary.inputs = [];
   summary.filterContracts = [];
-  summary.views.push({
-    id: 'commentary',
-    title: 'Commentary',
-    visual: 'text_block',
-    computation: { kind: 'presentation_only' },
-  });
+  summary.views.push(
+    {
+      id: 'commentary',
+      title: 'Commentary',
+      visual: 'text_block',
+      computation: { kind: 'presentation_only' },
+    },
+    {
+      id: 'derived_summary',
+      title: 'Derived Summary',
+      computation: {
+        kind: 'derived',
+        upstreamViewId: 'sales_kpi',
+        derivation: 'Read the primary KPI result and render a sentence.',
+      },
+    },
+    {
+      id: 'unsupported_gap',
+      title: 'Unsupported Gap',
+      computation: {
+        kind: 'unsupported',
+        reason: 'missing relationship',
+        suggestedModelingFix: 'Model the relationship before generating.',
+      },
+    },
+  );
   const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
 
@@ -148,6 +182,320 @@ function runMalformedIdentityFixture() {
   ]) {
     if (!result.stdout.includes(expectedIssue)) {
       throw new Error(`Malformed identity fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
+  }
+}
+
+function runDatasetIdOnlySourceFixture() {
+  const workspaceDir = path.join(tempRoot, 'dataset-id-only-source');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.sources[0] = {
+    sourceKey: 'semantic:domain:sales',
+    kind: 'semantic',
+    domainId: 'domain',
+    datasetId: 'dataset-sales',
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected dataset-id-only source fixture to fail.');
+  }
+  if (!result.stdout.includes('sources.0 must include sourceKey or a supported source identity')) {
+    throw new Error(`Dataset-id-only source fixture failed for the wrong reason:\n${result.stdout}\n${result.stderr}`);
+  }
+}
+
+function runMalformedSdkSpecFixture() {
+  const workspaceDir = path.join(tempRoot, 'malformed-sdk-spec');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.views[0].queryKind = 'records';
+  summary.views[0].sdkSpec = {
+    builder: 'semaphor.metric',
+    spec: {
+      source: summary.sources[0],
+      measures: [summary.views[0].fields[0]],
+    },
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected malformed SDK spec fixture to fail.');
+  }
+  if (!result.stdout.includes('views.0.sdkSpec.builder must match queryKind')) {
+    throw new Error(`Malformed SDK spec fixture failed for the wrong reason:\n${result.stdout}\n${result.stderr}`);
+  }
+}
+
+function runQueryKindDivergenceFixture() {
+  const workspaceDir = path.join(tempRoot, 'query-kind-divergence');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.views[0].computation = {
+    kind: 'server_query',
+    queryKind: 'metric',
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected query kind divergence fixture to fail.');
+  }
+  if (!result.stdout.includes('views.0.computation.queryKind must match queryKind')) {
+    throw new Error(`Query kind divergence fixture failed for the wrong reason:\n${result.stdout}\n${result.stderr}`);
+  }
+}
+
+function runMalformedOptionalSdkFieldRefsFixture() {
+  const workspaceDir = path.join(tempRoot, 'malformed-optional-sdk-field-refs');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  const source = summary.sources[0];
+  summary.views[0] = {
+    id: 'sales_kpi',
+    title: 'Sales KPI',
+    visual: 'kpi',
+    queryKind: 'metric',
+    sdkBuilder: 'semaphor.metric',
+    fields: [summary.views[0].fields[0]],
+    sdkSpec: {
+      builder: 'semaphor.metric',
+      spec: {
+        source,
+        measures: [summary.views[0].fields[0]],
+        primaryMeasure: { name: 'sales_value' },
+        dateField: { name: 'order_date' },
+        dimensions: [{ name: 'region' }],
+        orderBy: {
+          field: { name: 'region' },
+          direction: 'asc',
+        },
+      },
+    },
+  };
+  summary.views.push(
+    {
+      id: 'sales_records',
+      title: 'Sales Records',
+      visual: 'table',
+      queryKind: 'records',
+      sdkBuilder: 'semaphor.records',
+      fields: [summary.views[0].fields[0]],
+      sdkSpec: {
+        builder: 'semaphor.records',
+        spec: {
+          source,
+          fields: [summary.views[0].fields[0]],
+          dateField: { name: 'order_date' },
+          orderBy: {
+            field: { name: 'region' },
+            direction: 'asc',
+          },
+        },
+      },
+    },
+    {
+      id: 'sales_matrix',
+      title: 'Sales Matrix',
+      visual: 'matrix',
+      queryKind: 'matrix',
+      sdkBuilder: 'semaphor.matrix',
+      fields: [summary.views[0].fields[0]],
+      sdkSpec: {
+        builder: 'semaphor.matrix',
+        spec: {
+          source,
+          rows: [{ field: { name: 'region', sourceKey: source.sourceKey } }],
+          values: [{ field: summary.views[0].fields[0], aggregate: 'SUM' }],
+          sort: [{ field: { name: 'region' } }],
+        },
+      },
+    },
+  );
+  const sqlSource = {
+    sourceKey: 'sql:conn',
+    kind: 'sql',
+    connectionId: 'conn',
+  };
+  summary.sources.push(sqlSource);
+  summary.views.push({
+    id: 'sql_fallback',
+    title: 'SQL Fallback',
+    visual: 'table',
+    queryKind: 'sql_fallback',
+    sdkBuilder: 'semaphor.sql',
+    fields: [{ name: 'sales_value', sourceKey: sqlSource.sourceKey }],
+    sdkSpec: {
+      builder: 'semaphor.sql',
+      spec: {
+        source: sqlSource,
+        sql: 'select 1 as sales_value',
+        fields: [{ name: 'sales_value' }],
+      },
+    },
+  });
+  summary.filterContracts[0].notAppliedToViewIds = [
+    'margin_kpi',
+    'sales_records',
+    'sales_matrix',
+    'sql_fallback',
+  ];
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected malformed optional SDK field refs fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'views.0.sdkSpec.spec.primaryMeasure must include source or sourceKey',
+    'views.0.sdkSpec.spec.dateField must include source or sourceKey',
+    'views.0.sdkSpec.spec.dimensions.0 must include source or sourceKey',
+    'views.0.sdkSpec.spec.orderBy.field must include source or sourceKey',
+    'views.3.sdkSpec.spec.dateField must include source or sourceKey',
+    'views.3.sdkSpec.spec.orderBy.field must include source or sourceKey',
+    'views.4.sdkSpec.spec.sort.0.field must include source or sourceKey',
+    'views.5.sdkSpec.spec.fields.0 must include source or sourceKey',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Malformed optional SDK field refs fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
+  }
+}
+
+function runMalformedMatrixSpecFixture() {
+  const workspaceDir = path.join(tempRoot, 'malformed-matrix-spec');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.views[0] = {
+    id: 'sales_matrix',
+    title: 'Sales Matrix',
+    visual: 'matrix',
+    queryKind: 'matrix',
+    sdkBuilder: 'semaphor.matrix',
+    fields: [],
+    sdkSpec: {
+      builder: 'semaphor.matrix',
+      spec: {
+        source: summary.sources[0],
+        rows: [{}],
+        columns: [{}],
+        values: [{}],
+      },
+    },
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected malformed matrix spec fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'views.0.sdkSpec.spec.rows.0.field must be an object',
+    'views.0.sdkSpec.spec.columns.0.field must be an object',
+    'views.0.sdkSpec.spec.values.0.field must be an object',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Malformed matrix spec fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
+  }
+}
+
+function runMalformedAnalysisOptionsFixture() {
+  const workspaceDir = path.join(tempRoot, 'malformed-analysis-options');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.views[0] = {
+    id: 'sales_change',
+    title: 'Sales Change',
+    visual: 'table',
+    queryKind: 'analysis',
+    sdkBuilder: 'semaphor.analysis',
+    fields: [summary.views[0].fields[0]],
+    sdkSpec: {
+      builder: 'semaphor.analysis',
+      spec: {
+        source: summary.sources[0],
+        measures: [summary.views[0].fields[0]],
+        driverMode: 'fastest',
+        includePopulation: 'yes',
+        calendarContext: {
+          tz: 123,
+          weekStart: 7,
+          anchor: {},
+        },
+      },
+    },
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected malformed analysis options fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'views.0.sdkSpec.spec.driverMode must be a supported analysis driver mode',
+    'views.0.sdkSpec.spec.includePopulation must be a boolean',
+    'views.0.sdkSpec.spec.calendarContext.tz must be a string',
+    'views.0.sdkSpec.spec.calendarContext.weekStart must be an integer between 0 and 6',
+    'views.0.sdkSpec.spec.calendarContext.anchor must be now or { iso }',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Malformed analysis options fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
+  }
+}
+
+function runNumericViewScopeIdsFixture() {
+  const workspaceDir = path.join(tempRoot, 'numeric-view-scope-ids');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.inputs[0].appliesToViewIds = [123];
+  summary.filterContracts[0].appliesToViewIds = [123];
+  summary.filterContracts[0].notAppliedToViewIds = [456];
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected numeric view scope ids fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'inputs.0.appliesToViewIds must be an array of strings',
+    'filterContracts.0.appliesToViewIds must be an array of strings',
+    'filterContracts.0.notAppliedToViewIds must be an array of strings',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Numeric view scope ids fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
     }
   }
 }
@@ -535,6 +883,20 @@ function validSummary() {
     aggregate: 'SUM',
     sourceKey,
   };
+  const facilityIdField = {
+    name: 'facility_id',
+    label: 'Facility ID',
+    role: 'id',
+    dataType: 'number',
+    sourceKey,
+  };
+  const facilityNameField = {
+    name: 'facility_name',
+    label: 'Facility Name',
+    role: 'dimension',
+    dataType: 'string',
+    sourceKey,
+  };
 
   return {
     schemaVersion: 'semaphor-data-app-codegen-summary/v1',
@@ -548,6 +910,12 @@ function validSummary() {
         type: 'date_range',
         serverSide: true,
         fieldRef: dateField,
+        optionQuery: {
+          builder: 'semaphor.inputOptions',
+          sourceKey,
+          valueFieldRef: facilityIdField,
+          labelFieldRef: facilityNameField,
+        },
         appliesToViewIds: ['sales_kpi'],
         bindings: [
           {
@@ -592,6 +960,24 @@ function validSummary() {
           },
         },
       },
+      {
+        id: 'sales_analysis',
+        title: 'Sales Analysis',
+        visual: 'table',
+        queryKind: 'analysis',
+        sdkBuilder: 'semaphor.analysis',
+        fields: [salesField],
+        sdkSpec: {
+          builder: 'semaphor.analysis',
+          spec: {
+            id: 'sales_analysis',
+            source,
+            measures: [salesField],
+            driverMode: 'all',
+            includePopulation: true,
+          },
+        },
+      },
     ],
     filterContracts: [
       {
@@ -607,7 +993,7 @@ function validSummary() {
           },
         ],
         appliesToViewIds: ['sales_kpi'],
-        notAppliedToViewIds: ['margin_kpi'],
+        notAppliedToViewIds: ['margin_kpi', 'sales_analysis'],
       },
     ],
     implementationChecklist: {

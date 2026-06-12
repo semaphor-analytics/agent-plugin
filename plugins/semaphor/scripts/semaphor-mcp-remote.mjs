@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   assertValidCodegenSummary,
+  CODEGEN_SUMMARY_VALIDATOR_VERSION,
 } from './data-app-codegen-summary-validation.mjs';
 import {
   evaluateContractUpdatePolicy,
@@ -1471,6 +1472,11 @@ function readGeneratedContractManifest({ workspaceDir, outputDir }) {
   if (!Array.isArray(manifest.codegenSummary.filterContracts)) {
     throw new Error(
       `${path.relative(workspaceDir, manifestPath)} was generated from an old summary without filterContracts. Regenerate with semaphor_create_data_app_contract before iterative updates.`,
+    );
+  }
+  if (manifest.codegenSummaryValidatorVersion !== CODEGEN_SUMMARY_VALIDATOR_VERSION) {
+    throw new Error(
+      `${path.relative(workspaceDir, manifestPath)} was generated with an old codegenSummary validator. Regenerate with semaphor_generate_data_app_contract before iterative updates.`,
     );
   }
   assertValidCodegenSummary(manifest.codegenSummary);

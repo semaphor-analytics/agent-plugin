@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
+  CODEGEN_SUMMARY_VALIDATOR_VERSION,
   validateCodegenSummary,
 } from "./data-app-codegen-summary-validation.mjs";
 
@@ -267,6 +268,11 @@ function validateGeneratedContractManifest(root, generatedDir) {
   }
   for (const issue of validateCodegenSummary(manifest?.codegenSummary)) {
     issues.push(`${formatLocation(root, manifestPath)}: codegenSummary.${issue}`);
+  }
+  if (manifest?.codegenSummaryValidatorVersion !== CODEGEN_SUMMARY_VALIDATOR_VERSION) {
+    issues.push(
+      `${formatLocation(root, manifestPath)}: codegenSummaryValidatorVersion must be ${CODEGEN_SUMMARY_VALIDATOR_VERSION}. Regenerate the contract with semaphor_generate_data_app_contract.`,
+    );
   }
   if (typeof manifest?.codegenSummaryHash !== "string") {
     issues.push(`${formatLocation(root, manifestPath)}: codegenSummaryHash is required.`);
