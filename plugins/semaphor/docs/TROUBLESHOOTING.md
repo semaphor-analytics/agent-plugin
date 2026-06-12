@@ -349,7 +349,7 @@ const enableDevtools =
 For agent/browser inspection, check:
 
 ```js
-window.__SEMAPHOR_DEVTOOLS__?.snapshot()
+window.__SEMAPHOR_DEVTOOLS__?.snapshot();
 ```
 
 If the snapshot is undefined in local dev, verify `debug` is enabled with
@@ -461,14 +461,14 @@ Records are keyed by stable `column.key` values, not display labels.
 Correct:
 
 ```tsx
-row[column.key]
+row[column.key];
 ```
 
 Incorrect:
 
 ```tsx
-row[column.label]
-row["Movement Date"]
+row[column.label];
+row["Movement Date"];
 ```
 
 Owner layer: SDK examples/codegen if generated incorrectly; SDK contract if
@@ -592,6 +592,21 @@ Default advisories are not blockers. The plugin-local validator is a
 deterministic preflight for package setup, SDK availability,
 provider/DevTools wiring, generated contract completeness, generated contract
 hygiene, and local typecheck/build.
+
+For agent repair loops, prefer structured output:
+
+```bash
+node <installed-semaphor-plugin>/scripts/validate-semaphor-data-app.mjs --dir <app> --json
+```
+
+The JSON contract is `{ ok, issues, advisories }`. Issues include stable codes
+such as `missing_provider`, `missing_devtools_bridge`,
+`missing_generated_contract`, `generated_contract_not_imported`,
+`invalid_contract_manifest`, `missing_option_traces`, `filter_effect_failed`,
+`typecheck_failed`, and `build_failed`. Use those codes and `repairHint`
+instead of parsing terminal prose. The MCP
+`semaphor_validate_data_app_contract` tool returns the same structured issues
+in `structuredContent`.
 
 It does not prove analytics semantics. Use Semaphor planner/validation,
 execution results, and DevTools traces to prove filter applicability,

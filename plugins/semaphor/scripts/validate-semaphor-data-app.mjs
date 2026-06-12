@@ -10,7 +10,8 @@ import {
 } from "./data-app-codegen-summary-validation.mjs";
 
 const GENERATED_CONTRACT_DIR = path.join("src", "semaphor", "generated");
-const CONTRACT_MANIFEST_SCHEMA_VERSION = "semaphor-generated-data-app-contract-manifest/v1";
+const CONTRACT_MANIFEST_SCHEMA_VERSION =
+  "semaphor-generated-data-app-contract-manifest/v1";
 const REQUIRED_GENERATED_FILES = [
   "sources.ts",
   "fields.ts",
@@ -22,6 +23,7 @@ const REQUIRED_GENERATED_FILES = [
   "index.ts",
   "contract.manifest.json",
 ];
+const SCRIPT_OUTPUT_MAX_BUFFER = 64 * 1024 * 1024;
 
 const SKIPPED_DIRS = new Set([
   "node_modules",
@@ -38,6 +40,7 @@ function parseArgs(argv) {
     dir: process.cwd(),
     runBuild: true,
     strict: false,
+    json: false,
     liveFilterEffect: false,
     filterEffectSamples: 2,
   };
@@ -50,6 +53,8 @@ function parseArgs(argv) {
       args.runBuild = false;
     } else if (arg === "--strict") {
       args.strict = true;
+    } else if (arg === "--json") {
+      args.json = true;
     } else if (arg === "--devtools-snapshot") {
       args.devtoolsSnapshotPath = argv[index + 1];
       index += 1;
@@ -66,6 +71,178 @@ function parseArgs(argv) {
     }
   }
   return args;
+}
+
+function issue(code, message, details = {}) {
+  return diagnostic({ code, severity: "error", message, ...details });
+}
+
+function advisory(code, message, details = {}) {
+  return diagnostic({ code, severity: "advisory", message, ...details });
+}
+
+function diagnostic({
+  code,
+  severity,
+  message,
+  filePath,
+  path: issuePath,
+  repairHint,
+  details,
+}) {
+  return {
+    code,
+    severity,
+    message,
+    ...(filePath ? { filePath } : {}),
+    ...(issuePath ? { path: issuePath } : {}),
+    ...(repairHint ? { repairHint } : {}),
+    ...(details && Object.keys(details).length > 0 ? { details } : {}),
+  };
+}
+
+function normalizeDiagnostic(
+  value,
+  { severity, defaultCode = "validation_issue" } = {},
+) {
+  if (value && typeof value === "object" && typeof value.code === "string") {
+    return {
+      severity,
+      ...value,
+      severity: value.severity || severity,
+      message: String(value.message || value.code),
+    };
+  }
+  const message = String(value || "");
+  return diagnostic({
+    code: inferIssueCode(message, defaultCode),
+    severity,
+    message,
+    ...parseMessageLocation(message),
+    repairHint: inferRepairHint(message),
+  });
+}
+
+function promoteAdvisoryToIssue(value) {
+  const normalized = normalizeDiagnostic(value, {
+    severity: "error",
+    defaultCode: "strict_advisory",
+  });
+  return {
+    ...normalized,
+    code:
+      normalized.code === "validation_advisory"
+        ? "strict_advisory"
+        : normalized.code,
+    severity: "error",
+  };
+}
+
+function dedupeDiagnostics(diagnostics) {
+  const seen = new Set();
+  return diagnostics.filter((diagnostic) => {
+    const key = [
+      diagnostic.severity,
+      diagnostic.code,
+      diagnostic.filePath || "",
+      diagnostic.path || "",
+      diagnostic.message || "",
+    ].join("\u0000");
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function emitValidationOutput(output, args) {
+  if (args.json) {
+    console.log(JSON.stringify(output, null, 2));
+  } else {
+    renderHumanValidationOutput(output);
+  }
+}
+
+function exitWithValidationIssues(args, root, issues) {
+  const output = {
+    ok: false,
+    workspaceDir: root,
+    runBuild: Boolean(args.runBuild),
+    strict: Boolean(args.strict),
+    sourceFileCount: 0,
+    sdkImportFileCount: 0,
+    sdkImportFiles: [],
+    issues: issues.map((item) =>
+      normalizeDiagnostic(item, {
+        severity: "error",
+        defaultCode: "validation_issue",
+      }),
+    ),
+    advisories: [],
+  };
+  emitValidationOutput(output, args);
+  process.exit(1);
+}
+
+function parseMessageLocation(message) {
+  const match = message.match(/^([^:\n]+):(?:\d+:)?\s/);
+  if (!match) return {};
+  return { filePath: match[1] };
+}
+
+function inferIssueCode(message, defaultCode) {
+  const lower = message.toLowerCase();
+  if (lower.includes("semaphordatappprovider")) return "missing_provider";
+  if (
+    lower.includes("semaphordevtools") ||
+    lower.includes("debug window bridge")
+  ) {
+    return "missing_devtools_bridge";
+  }
+  if (lower.includes("generated semaphor contract is incomplete"))
+    return "missing_generated_contract";
+  if (lower.includes("contract.manifest.json"))
+    return "invalid_contract_manifest";
+  if (
+    lower.includes("devtools snapshot is missing generated input option trace")
+  ) {
+    return "missing_option_traces";
+  }
+  if (lower.includes("devtools snapshot is missing generated query trace")) {
+    return "missing_query_traces";
+  }
+  if (lower.includes("filter-effect report")) return "filter_effect_failed";
+  if (lower.includes("missing react dependency"))
+    return "missing_react_dependency";
+  if (lower.includes("missing react-semaphor dependency"))
+    return "missing_react_semaphor_dependency";
+  if (lower.includes("react-semaphor/data-app-sdk"))
+    return "sdk_export_unavailable";
+  return defaultCode;
+}
+
+function inferRepairHint(message) {
+  const lower = message.toLowerCase();
+  if (lower.includes("semaphordatappprovider")) {
+    return "Wrap the app root in SemaphorDataAppProvider from react-semaphor/data-app-sdk.";
+  }
+  if (lower.includes("semaphordevtools")) {
+    return "Mount one root SemaphorDevtools under SemaphorDataAppProvider for local/authoring validation.";
+  }
+  if (lower.includes("debug window bridge")) {
+    return "Enable the provider debug window bridge behind a local or authoring gate.";
+  }
+  if (lower.includes("generated semaphor contract is incomplete")) {
+    return "Regenerate the Data App contract with semaphor_generate_data_app_contract.";
+  }
+  if (lower.includes("contract.manifest.json")) {
+    return "Regenerate the generated contract instead of hand-editing manifest or generated files.";
+  }
+  if (lower.includes("filter-effect report")) {
+    return "Run a browser smoke that selects the generated filter and records rerun or changed subscribed view ids.";
+  }
+  return "";
 }
 
 function readJson(filePath) {
@@ -115,7 +292,9 @@ function sourceMatches(sources, pattern) {
 }
 
 function isGeneratedFile(root, filePath) {
-  return formatLocation(root, filePath).startsWith(`${GENERATED_CONTRACT_DIR}/`);
+  return formatLocation(root, filePath).startsWith(
+    `${GENERATED_CONTRACT_DIR}/`,
+  );
 }
 
 function scanDataAppPreflight(root, sources) {
@@ -140,28 +319,57 @@ function scanDataAppPreflight(root, sources) {
     );
 
   if (!usesSdk) {
-    advisories.push("No imports from react-semaphor/data-app-sdk were found.");
+    advisories.push(
+      advisory(
+        "no_sdk_imports",
+        "No imports from react-semaphor/data-app-sdk were found.",
+      ),
+    );
     if (hasGeneratedContract) {
       issues.push(...scanGeneratedContract(root, generatedDir));
     }
     return { issues, advisories, sdkSources, hasGeneratedContract };
   }
 
-  if (usesDataAppRuntime && !sourceContains(sources, "SemaphorDataAppProvider")) {
+  if (
+    usesDataAppRuntime &&
+    !sourceContains(sources, "SemaphorDataAppProvider")
+  ) {
     issues.push(
-      "Data App SDK usage was found, but no SemaphorDataAppProvider usage was found.",
+      issue(
+        "missing_provider",
+        "Data App SDK usage was found, but no SemaphorDataAppProvider usage was found.",
+        {
+          repairHint:
+            "Wrap the app root in SemaphorDataAppProvider from react-semaphor/data-app-sdk.",
+        },
+      ),
     );
   }
 
   if (usesDataAppRuntime && !sourceContains(sources, "SemaphorDevtools")) {
     issues.push(
-      "Generated local/dev Data Apps should mount one root <SemaphorDevtools /> under SemaphorDataAppProvider.",
+      issue(
+        "missing_devtools_bridge",
+        "Generated local/dev Data Apps should mount one root <SemaphorDevtools /> under SemaphorDataAppProvider.",
+        {
+          repairHint:
+            "Mount one root SemaphorDevtools under SemaphorDataAppProvider for local/authoring validation.",
+        },
+      ),
     );
   }
 
   if (usesDataAppRuntime && !sourceContains(sources, "exposeWindowBridge")) {
     issues.push(
-      "Generated local/dev Data Apps should enable the provider debug window bridge behind a local/authoring gate.",
+      issue(
+        "missing_devtools_bridge",
+        "Generated local/dev Data Apps should enable the provider debug window bridge behind a local/authoring gate.",
+        {
+          repairHint:
+            "Enable the provider debug window bridge behind a local or authoring gate.",
+        },
+      ),
     );
   }
 
@@ -169,12 +377,27 @@ function scanDataAppPreflight(root, sources) {
     issues.push(...scanGeneratedContract(root, generatedDir));
     if (!importsGeneratedContract(root, sources)) {
       issues.push(
-        "src/semaphor/generated exists, but app UI files do not import it. Import generated sources, fields, inputs, queries, and bindings instead of hand-rolling analytics wiring.",
+        issue(
+          "generated_contract_not_imported",
+          "src/semaphor/generated exists, but app UI files do not import it. Import generated sources, fields, inputs, queries, and bindings instead of hand-rolling analytics wiring.",
+          {
+            repairHint:
+              "Import generated sources, fields, inputs, queries, and bindings from src/semaphor/generated in UI code.",
+          },
+        ),
       );
     }
-  } else if (sourceMatches(sdkSources, /\bsemaphor\.(?:metric|records|analysis|matrix|sql|filter|inputOptions)\s*\(/)) {
+  } else if (
+    sourceMatches(
+      sdkSources,
+      /\bsemaphor\.(?:metric|records|analysis|matrix|sql|filter|inputOptions)\s*\(/,
+    )
+  ) {
     advisories.push(
-      "Semaphor SDK builders were found without src/semaphor/generated. For broad planner-generated apps, prefer semaphor_generate_data_app_contract and import the generated contract.",
+      advisory(
+        "manual_sdk_specs",
+        "Semaphor SDK builders were found without src/semaphor/generated. For broad planner-generated apps, prefer semaphor_generate_data_app_contract and import the generated contract.",
+      ),
     );
   }
 
@@ -187,7 +410,10 @@ function scanDataAppPreflight(root, sources) {
   );
   if (manualSpecFiles.length > 2 && hasGeneratedContract) {
     advisories.push(
-      `Found Semaphor specs outside ${GENERATED_CONTRACT_DIR} in ${manualSpecFiles.length} files. Keep broad generated app analytics specs in the generated contract and keep UI files focused on rendering.`,
+      advisory(
+        "manual_specs_outside_generated_contract",
+        `Found Semaphor specs outside ${GENERATED_CONTRACT_DIR} in ${manualSpecFiles.length} files. Keep broad generated app analytics specs in the generated contract and keep UI files focused on rendering.`,
+      ),
     );
   }
 
@@ -197,16 +423,17 @@ function scanDataAppPreflight(root, sources) {
 function importsGeneratedContract(root, sources) {
   return sources
     .filter((source) => !isGeneratedFile(root, source.filePath))
-    .some((source) =>
-      /from\s+["'][^"']*(?:src\/)?semaphor\/generated(?:\/index)?["']/.test(
-        source.content,
-      ) ||
-      /from\s+["'][^"']*\/semaphor\/generated(?:\/index)?["']/.test(
-        source.content,
-      ) ||
-      /from\s+["'][.@/][^"']*semaphor\/generated(?:\/index)?["']/.test(
-        source.content,
-      ),
+    .some(
+      (source) =>
+        /from\s+["'][^"']*(?:src\/)?semaphor\/generated(?:\/index)?["']/.test(
+          source.content,
+        ) ||
+        /from\s+["'][^"']*\/semaphor\/generated(?:\/index)?["']/.test(
+          source.content,
+        ) ||
+        /from\s+["'][.@/][^"']*semaphor\/generated(?:\/index)?["']/.test(
+          source.content,
+        ),
     );
 }
 
@@ -215,7 +442,17 @@ function scanGeneratedContract(root, generatedDir) {
   for (const fileName of REQUIRED_GENERATED_FILES) {
     const filePath = path.join(generatedDir, fileName);
     if (!fs.existsSync(filePath)) {
-      issues.push(`Generated Semaphor contract is incomplete: missing ${GENERATED_CONTRACT_DIR}/${fileName}.`);
+      issues.push(
+        issue(
+          "missing_generated_contract",
+          `Generated Semaphor contract is incomplete: missing ${GENERATED_CONTRACT_DIR}/${fileName}.`,
+          {
+            filePath: `${GENERATED_CONTRACT_DIR}/${fileName}`,
+            repairHint:
+              "Regenerate the Data App contract with semaphor_generate_data_app_contract.",
+          },
+        ),
+      );
     }
   }
   issues.push(...validateGeneratedContractManifest(root, generatedDir));
@@ -228,20 +465,49 @@ function scanGeneratedContract(root, generatedDir) {
       const line = lines[index];
       if (/\bany\b|@ts-(?:ignore|expect-error)\b/.test(line)) {
         issues.push(
-          `${location}:${index + 1}: generated contract files must be fully typed; regenerate instead of using any or TypeScript suppression comments.`,
+          issue(
+            "generated_contract_hygiene",
+            `${location}:${index + 1}: generated contract files must be fully typed; regenerate instead of using any or TypeScript suppression comments.`,
+            {
+              filePath: location,
+              path: `${location}:${index + 1}`,
+              repairHint:
+                "Regenerate generated contract files instead of hand-editing them.",
+            },
+          ),
         );
       }
       if (
-        /semaphor\.(?:metric|records|analysis|matrix|sql)\s*\(\s*\{\s*["']id["']\s*:/.test(line) &&
+        /semaphor\.(?:metric|records|analysis|matrix|sql)\s*\(\s*\{\s*["']id["']\s*:/.test(
+          line,
+        ) &&
         /["']id["']\s*:[^,\n]+,\s*["']kind["']\s*:/.test(line)
       ) {
         issues.push(
-          `${location}:${index + 1}: generated query specs must not include top-level kind inside semaphor.* builder options.`,
+          issue(
+            "generated_contract_hygiene",
+            `${location}:${index + 1}: generated query specs must not include top-level kind inside semaphor.* builder options.`,
+            {
+              filePath: location,
+              path: `${location}:${index + 1}`,
+              repairHint:
+                "Regenerate generated query specs from the accepted codegenSummary.",
+            },
+          ),
         );
       }
       if (/relationshipsUsed\s*:/.test(line)) {
         issues.push(
-          `${location}:${index + 1}: generated runtime bindings must not pass relationshipsUsed into the SDK. Emit relationshipHint for semaphor.bindInput and keep relationshipsUsed as metadata/evidence only.`,
+          issue(
+            "generated_contract_hygiene",
+            `${location}:${index + 1}: generated runtime bindings must not pass relationshipsUsed into the SDK. Emit relationshipHint for semaphor.bindInput and keep relationshipsUsed as metadata/evidence only.`,
+            {
+              filePath: location,
+              path: `${location}:${index + 1}`,
+              repairHint:
+                "Regenerate runtime bindings so relationship evidence stays in metadata.",
+            },
+          ),
         );
       }
     }
@@ -255,59 +521,147 @@ function validateGeneratedContractManifest(root, generatedDir) {
   if (!fs.existsSync(manifestPath)) {
     return issues;
   }
-  let manifest;
-  try {
-    manifest = readJson(manifestPath);
-  } catch (error) {
-    return [`${formatLocation(root, manifestPath)}: could not parse generated contract manifest: ${error.message}`];
+  const manifestRead = readGeneratedContractManifest(root, manifestPath);
+  if (manifestRead.issues.length > 0) {
+    return manifestRead.issues;
   }
+  const manifest = manifestRead.manifest;
   if (manifest?.schemaVersion !== CONTRACT_MANIFEST_SCHEMA_VERSION) {
     issues.push(
-      `${formatLocation(root, manifestPath)}: schemaVersion must be ${CONTRACT_MANIFEST_SCHEMA_VERSION}. Regenerate the contract with semaphor_create_data_app_contract.`,
+      issue(
+        "invalid_contract_manifest",
+        `${formatLocation(root, manifestPath)}: schemaVersion must be ${CONTRACT_MANIFEST_SCHEMA_VERSION}. Regenerate the contract with semaphor_create_data_app_contract.`,
+        {
+          filePath: formatLocation(root, manifestPath),
+          path: "schemaVersion",
+          repairHint:
+            "Regenerate the contract with semaphor_create_data_app_contract.",
+        },
+      ),
     );
   }
   for (const issue of validateCodegenSummary(manifest?.codegenSummary)) {
-    issues.push(`${formatLocation(root, manifestPath)}: codegenSummary.${issue}`);
-  }
-  if (manifest?.codegenSummaryValidatorVersion !== CODEGEN_SUMMARY_VALIDATOR_VERSION) {
     issues.push(
-      `${formatLocation(root, manifestPath)}: codegenSummaryValidatorVersion must be ${CODEGEN_SUMMARY_VALIDATOR_VERSION}. Regenerate the contract with semaphor_generate_data_app_contract.`,
+      diagnostic({
+        code: "invalid_contract_manifest",
+        severity: "error",
+        message: `${formatLocation(root, manifestPath)}: codegenSummary.${issue}`,
+        filePath: formatLocation(root, manifestPath),
+        path: `codegenSummary.${issue}`,
+        repairHint:
+          "Regenerate the generated contract from a valid Data App codegenSummary.",
+      }),
+    );
+  }
+  if (
+    manifest?.codegenSummaryValidatorVersion !==
+    CODEGEN_SUMMARY_VALIDATOR_VERSION
+  ) {
+    issues.push(
+      issue(
+        "invalid_contract_manifest",
+        `${formatLocation(root, manifestPath)}: codegenSummaryValidatorVersion must be ${CODEGEN_SUMMARY_VALIDATOR_VERSION}. Regenerate the contract with semaphor_generate_data_app_contract.`,
+        {
+          filePath: formatLocation(root, manifestPath),
+          path: "codegenSummaryValidatorVersion",
+          repairHint:
+            "Regenerate the contract with semaphor_generate_data_app_contract.",
+        },
+      ),
     );
   }
   if (typeof manifest?.codegenSummaryHash !== "string") {
-    issues.push(`${formatLocation(root, manifestPath)}: codegenSummaryHash is required.`);
-  } else if (manifest?.codegenSummary && typeof manifest.codegenSummary === "object") {
+    issues.push(
+      issue(
+        "invalid_contract_manifest",
+        `${formatLocation(root, manifestPath)}: codegenSummaryHash is required.`,
+        {
+          filePath: formatLocation(root, manifestPath),
+          path: "codegenSummaryHash",
+          repairHint:
+            "Regenerate the generated contract so manifest hashes are written deterministically.",
+        },
+      ),
+    );
+  } else if (
+    manifest?.codegenSummary &&
+    typeof manifest.codegenSummary === "object"
+  ) {
     const expectedSummaryHash = hashCanonicalJson(manifest.codegenSummary);
     if (manifest.codegenSummaryHash !== expectedSummaryHash) {
       issues.push(
-        `${formatLocation(root, manifestPath)}: codegenSummaryHash does not match codegenSummary. Regenerate the contract instead of editing the manifest.`,
+        issue(
+          "invalid_contract_manifest",
+          `${formatLocation(root, manifestPath)}: codegenSummaryHash does not match codegenSummary. Regenerate the contract instead of editing the manifest.`,
+          {
+            filePath: formatLocation(root, manifestPath),
+            path: "codegenSummaryHash",
+            repairHint:
+              "Regenerate the generated contract instead of editing the manifest.",
+          },
+        ),
       );
     }
   }
-  const inputIds = new Set((manifest?.codegenSummary?.inputs || [])
-    .map((input) => input?.id)
-    .filter((id) => typeof id === "string" && id.length > 0));
-  const viewIds = new Set((manifest?.codegenSummary?.views || [])
-    .map((view) => view?.id)
-    .filter((id) => typeof id === "string" && id.length > 0));
-  for (const [index, filterContract] of (manifest?.codegenSummary?.filterContracts || []).entries()) {
+  const inputIds = new Set(
+    (manifest?.codegenSummary?.inputs || [])
+      .map((input) => input?.id)
+      .filter((id) => typeof id === "string" && id.length > 0),
+  );
+  const viewIds = new Set(
+    (manifest?.codegenSummary?.views || [])
+      .map((view) => view?.id)
+      .filter((id) => typeof id === "string" && id.length > 0),
+  );
+  for (const [index, filterContract] of (
+    manifest?.codegenSummary?.filterContracts || []
+  ).entries()) {
     if (!filterContract?.inputId || !inputIds.has(filterContract.inputId)) {
       issues.push(
-        `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.inputId must reference a generated input.`,
+        issue(
+          "invalid_contract_manifest",
+          `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.inputId must reference a generated input.`,
+          {
+            filePath: formatLocation(root, manifestPath),
+            path: `codegenSummary.filterContracts.${index}.inputId`,
+            repairHint:
+              "Regenerate the generated contract from a valid planner output.",
+          },
+        ),
       );
     }
     if (!Array.isArray(filterContract?.bindings)) {
       continue;
     }
-    for (const [bindingIndex, binding] of (filterContract?.bindings || []).entries()) {
+    for (const [bindingIndex, binding] of (
+      filterContract?.bindings || []
+    ).entries()) {
       if (!binding?.viewId || !viewIds.has(binding.viewId)) {
         issues.push(
-          `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.viewId must reference a generated view.`,
+          issue(
+            "invalid_contract_manifest",
+            `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.viewId must reference a generated view.`,
+            {
+              filePath: formatLocation(root, manifestPath),
+              path: `codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.viewId`,
+              repairHint:
+                "Regenerate the generated contract from a valid planner output.",
+            },
+          ),
         );
       }
       if (!binding?.fieldRef?.name) {
         issues.push(
-          `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.fieldRef is required.`,
+          issue(
+            "invalid_contract_manifest",
+            `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.fieldRef is required.`,
+            {
+              filePath: formatLocation(root, manifestPath),
+              path: `codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.fieldRef`,
+              repairHint:
+                "Regenerate the generated contract from a valid planner output.",
+            },
+          ),
         );
       }
     }
@@ -315,17 +669,47 @@ function validateGeneratedContractManifest(root, generatedDir) {
   const expectedHash = hashGeneratedFiles(generatedDir);
   if (manifest?.generatedContentHash !== expectedHash) {
     issues.push(
-      `${formatLocation(root, manifestPath)}: generatedContentHash does not match generated TypeScript files. Regenerate the contract instead of hand-editing generated files.`,
+      issue(
+        "invalid_contract_manifest",
+        `${formatLocation(root, manifestPath)}: generatedContentHash does not match generated TypeScript files. Regenerate the contract instead of hand-editing generated files.`,
+        {
+          filePath: formatLocation(root, manifestPath),
+          path: "generatedContentHash",
+          repairHint:
+            "Regenerate the contract instead of hand-editing generated files.",
+        },
+      ),
     );
   }
   return issues;
 }
 
+function readGeneratedContractManifest(root, manifestPath) {
+  try {
+    return { manifest: readJson(manifestPath), issues: [] };
+  } catch (error) {
+    return {
+      manifest: null,
+      issues: [
+        issue(
+          "invalid_contract_manifest",
+          `${formatLocation(root, manifestPath)}: could not parse generated contract manifest: ${error instanceof Error ? error.message : String(error)}`,
+          {
+            filePath: formatLocation(root, manifestPath),
+            repairHint:
+              "Regenerate the generated contract instead of hand-editing the manifest.",
+          },
+        ),
+      ],
+    };
+  }
+}
+
 function hashGeneratedFiles(generatedDir) {
   const hash = crypto.createHash("sha256");
-  const fileNames = REQUIRED_GENERATED_FILES
-    .filter((fileName) => fileName.endsWith(".ts"))
-    .sort();
+  const fileNames = REQUIRED_GENERATED_FILES.filter((fileName) =>
+    fileName.endsWith(".ts"),
+  ).sort();
   for (const fileName of fileNames) {
     const filePath = path.join(generatedDir, fileName);
     if (!fs.existsSync(filePath)) {
@@ -360,7 +744,12 @@ function canonicalJson(value) {
 function checkReactSemaphorCompatibility(root) {
   const issues = [];
   const advisories = [];
-  const packagePath = path.join(root, "node_modules", "react-semaphor", "package.json");
+  const packagePath = path.join(
+    root,
+    "node_modules",
+    "react-semaphor",
+    "package.json",
+  );
   if (!fs.existsSync(packagePath)) {
     advisories.push(
       "react-semaphor is listed as a dependency, but node_modules/react-semaphor was not found. Run install before relying on SDK export compatibility checks.",
@@ -377,13 +766,18 @@ function checkReactSemaphorCompatibility(root) {
       );
     } else {
       advisories.push(
-        `Installed react-semaphor${pkg.version ? `@${pkg.version}` : ""} exposes react-semaphor/data-app-sdk.`,
+        advisory(
+          "sdk_export_available",
+          `Installed react-semaphor${pkg.version ? `@${pkg.version}` : ""} exposes react-semaphor/data-app-sdk.`,
+        ),
       );
     }
     advisories.push(...detectDuplicateReactCopies(root));
     advisories.push(...detectViteReactDedupeAdvisories(root));
   } catch (error) {
-    issues.push(`Could not inspect installed react-semaphor package: ${error.message}`);
+    issues.push(
+      `Could not inspect installed react-semaphor package: ${error.message}`,
+    );
   }
   return { issues, advisories };
 }
@@ -394,12 +788,31 @@ function detectDuplicateReactCopies(root) {
     {
       packageName: "react",
       appPackagePath: path.join(root, "node_modules", "react", "package.json"),
-      linkedPackagePath: path.join(root, "node_modules", "react-semaphor", "node_modules", "react", "package.json"),
+      linkedPackagePath: path.join(
+        root,
+        "node_modules",
+        "react-semaphor",
+        "node_modules",
+        "react",
+        "package.json",
+      ),
     },
     {
       packageName: "react-dom",
-      appPackagePath: path.join(root, "node_modules", "react-dom", "package.json"),
-      linkedPackagePath: path.join(root, "node_modules", "react-semaphor", "node_modules", "react-dom", "package.json"),
+      appPackagePath: path.join(
+        root,
+        "node_modules",
+        "react-dom",
+        "package.json",
+      ),
+      linkedPackagePath: path.join(
+        root,
+        "node_modules",
+        "react-semaphor",
+        "node_modules",
+        "react-dom",
+        "package.json",
+      ),
     },
   ];
 
@@ -417,7 +830,7 @@ function detectDuplicateReactCopies(root) {
         `App ${check.packageName}${appVersion ? `@${appVersion}` : ""}: ${path.dirname(appRealPath)}.`,
         `react-semaphor nested ${check.packageName}${linkedVersion ? `@${linkedVersion}` : ""}: ${path.dirname(linkedRealPath)}.`,
         "This usually happens with npm link/local repo development and can cause invalid hook call or useMemo dispatcher errors in published bundles.",
-        "For Vite apps, add resolve.alias for react/react-dom to the app root node_modules and resolve.dedupe: [\"react\", \"react-dom\"].",
+        'For Vite apps, add resolve.alias for react/react-dom to the app root node_modules and resolve.dedupe: ["react", "react-dom"].',
       ].join(" "),
     );
   }
@@ -444,7 +857,11 @@ function detectViteReactDedupeAdvisories(root) {
     return [];
   }
   const config = fs.readFileSync(configPath, "utf8");
-  if (config.includes("dedupe") && config.includes("react") && config.includes("react-dom")) {
+  if (
+    config.includes("dedupe") &&
+    config.includes("react") &&
+    config.includes("react-dom")
+  ) {
     return [];
   }
   return [
@@ -468,7 +885,57 @@ function readPackageVersion(packagePath) {
   }
 }
 
-function runScript(root, packageManager, scriptName) {
+function redactSensitiveText(value) {
+  return String(value || "")
+    .replace(
+      /(VITE_SEMAPHOR_PROJECT_TOKEN|SEMAPHOR_PROJECT_TOKEN)=([^\s]+)/g,
+      "$1=[REDACTED]",
+    )
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [REDACTED]")
+    .replace(
+      /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+      "[REDACTED_JWT]",
+    );
+}
+
+function renderHumanValidationOutput(output) {
+  console.log(`Checked ${output.sourceFileCount} source files.`);
+  console.log(`SDK import files: ${output.sdkImportFileCount}`);
+  for (const filePath of output.sdkImportFiles) {
+    console.log(`- ${filePath}`);
+  }
+
+  if (output.advisories.length > 0) {
+    console.log("");
+    console.log(
+      output.strict
+        ? "Validation strict advisories:"
+        : "Validation advisories:",
+    );
+    for (const item of output.advisories) {
+      console.log(`- [${item.code}] ${item.message}`);
+      if (item.repairHint) {
+        console.log(`  Repair: ${item.repairHint}`);
+      }
+    }
+  }
+
+  if (output.issues.length > 0) {
+    console.log("");
+    console.log("Validation issues:");
+    for (const item of output.issues) {
+      console.log(`- [${item.code}] ${item.message}`);
+      if (item.repairHint) {
+        console.log(`  Repair: ${item.repairHint}`);
+      }
+    }
+    return;
+  }
+
+  console.log("Semaphor data app preflight passed.");
+}
+
+function runScript(root, packageManager, scriptName, { echo = true } = {}) {
   const command =
     packageManager === "pnpm"
       ? ["pnpm", [scriptName]]
@@ -478,37 +945,104 @@ function runScript(root, packageManager, scriptName) {
           ? ["bun", ["run", scriptName]]
           : ["npm", ["run", scriptName]];
 
-  console.log(`Running ${command[0]} ${command[1].join(" ")}...`);
+  const commandText = `${command[0]} ${command[1].join(" ")}`;
+  if (echo) {
+    console.log(`Running ${commandText}...`);
+  }
   const result = spawnSync(command[0], command[1], {
     cwd: root,
-    stdio: "inherit",
+    encoding: "utf8",
+    stdio: echo ? "inherit" : ["ignore", "pipe", "pipe"],
     shell: false,
+    maxBuffer: SCRIPT_OUTPUT_MAX_BUFFER,
   });
-  return result.status === 0;
+  const ok = result.status === 0;
+  return {
+    ok,
+    diagnostic: ok
+      ? null
+      : issue(
+          scriptName === "typecheck" ? "typecheck_failed" : "build_failed",
+          `${scriptName} script failed: ${commandText}`,
+          {
+            repairHint:
+              scriptName === "typecheck"
+                ? "Fix TypeScript errors reported by the target app typecheck script."
+                : "Fix build errors reported by the target app build script.",
+            details: {
+              command: commandText,
+              exitCode: result.status,
+              signal: result.signal || null,
+              stdout: redactSensitiveText(result.stdout || ""),
+              stderr: redactSensitiveText(result.stderr || ""),
+            },
+          },
+        ),
+  };
 }
 
 async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
-    console.log("Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict] [--devtools-snapshot <path>] [--filter-effect-report <path>] [--live-filter-effect] [--filter-effect-samples <n>]");
+    console.log(
+      "Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict] [--json] [--devtools-snapshot <path>] [--filter-effect-report <path>] [--live-filter-effect] [--filter-effect-samples <n>]",
+    );
     process.exit(0);
   }
 
   const root = path.resolve(args.dir);
   const packageJsonPath = path.join(root, "package.json");
   if (!fs.existsSync(packageJsonPath)) {
-    console.error(`No package.json found at ${packageJsonPath}`);
-    process.exit(1);
+    exitWithValidationIssues(args, root, [
+      issue("missing_package_json", "No package.json found.", {
+        filePath: "package.json",
+        repairHint:
+          "Run validation from the Data App workspace root or create package.json for the app.",
+        details: { expectedPath: packageJsonPath },
+      }),
+    ]);
   }
 
-  const pkg = readJson(packageJsonPath);
+  let pkg;
+  try {
+    pkg = readJson(packageJsonPath);
+  } catch (error) {
+    exitWithValidationIssues(args, root, [
+      issue("invalid_package_json", "package.json is not valid JSON.", {
+        filePath: "package.json",
+        repairHint: "Fix package.json so it parses as valid JSON.",
+        details: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }),
+    ]);
+  }
+
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   const scripts = pkg.scripts || {};
   const issues = [];
   const advisories = [];
 
-  if (!deps.react) issues.push("Missing react dependency.");
-  if (!deps["react-semaphor"]) issues.push("Missing react-semaphor dependency.");
+  if (!deps.react) {
+    issues.push(
+      issue("missing_react_dependency", "Missing react dependency.", {
+        filePath: "package.json",
+        repairHint: "Install react in the target app.",
+      }),
+    );
+  }
+  if (!deps["react-semaphor"]) {
+    issues.push(
+      issue(
+        "missing_react_semaphor_dependency",
+        "Missing react-semaphor dependency.",
+        {
+          filePath: "package.json",
+          repairHint: "Install react-semaphor in the target app.",
+        },
+      ),
+    );
+  }
 
   const sourceFiles = collectSourceFiles(root);
   const sources = readSources(sourceFiles);
@@ -520,16 +1054,20 @@ async function main() {
   issues.push(...preflight.issues, ...sdkCompatibility.issues);
   advisories.push(...preflight.advisories, ...sdkCompatibility.advisories);
   if (args.devtoolsSnapshotPath) {
-    issues.push(...validateDevtoolsSnapshot({
-      root,
-      snapshotPath: args.devtoolsSnapshotPath,
-    }));
+    issues.push(
+      ...validateDevtoolsSnapshot({
+        root,
+        snapshotPath: args.devtoolsSnapshotPath,
+      }),
+    );
   }
   if (args.filterEffectReportPath) {
-    issues.push(...validateFilterEffectReport({
-      root,
-      reportPath: args.filterEffectReportPath,
-    }));
+    issues.push(
+      ...validateFilterEffectReport({
+        root,
+        reportPath: args.filterEffectReportPath,
+      }),
+    );
   }
   if (args.liveFilterEffect) {
     const liveFilterResult = await validateLiveFilterEffects({
@@ -542,46 +1080,70 @@ async function main() {
     advisories.push(...liveFilterResult.advisories);
   }
 
-  console.log(`Checked ${sourceFiles.length} source files.`);
-  console.log(`SDK import files: ${preflight.sdkSources.length}`);
-  for (const source of preflight.sdkSources.slice(0, 20)) {
-    console.log(`- ${formatLocation(root, source.filePath)}`);
-  }
+  const normalizedAdvisories = dedupeDiagnostics(
+    advisories.map((item) =>
+      normalizeDiagnostic(item, {
+        severity: "advisory",
+        defaultCode: "validation_advisory",
+      }),
+    ),
+  );
+  const normalizedIssues = dedupeDiagnostics(
+    issues.map((item) =>
+      normalizeDiagnostic(item, {
+        severity: "error",
+        defaultCode: "validation_issue",
+      }),
+    ),
+  );
+  const finalIssues = dedupeDiagnostics(
+    args.strict
+      ? [
+          ...normalizedIssues,
+          ...normalizedAdvisories.map(promoteAdvisoryToIssue),
+        ]
+      : [...normalizedIssues],
+  );
 
-  if (advisories.length > 0) {
-    console.log("");
-    console.log(args.strict ? "Validation strict issues:" : "Validation advisories:");
-    for (const advisory of advisories) {
-      console.log(`- ${advisory}`);
-    }
-  }
-  if (args.strict) {
-    issues.push(...advisories);
-  }
-
-  if (issues.length > 0) {
-    console.log("");
-    console.log("Validation issues:");
-    for (const issue of issues) {
-      console.log(`- ${issue}`);
-    }
-  }
-
-  let scriptsOk = true;
   if (args.runBuild) {
     const packageManager = detectPackageManager(root);
     if (scripts.typecheck) {
-      scriptsOk = runScript(root, packageManager, "typecheck") && scriptsOk;
+      const result = runScript(root, packageManager, "typecheck", {
+        echo: !args.json,
+      });
+      if (!result.ok && result.diagnostic) {
+        finalIssues.push(result.diagnostic);
+      }
     }
     if (scripts.build) {
-      scriptsOk = runScript(root, packageManager, "build") && scriptsOk;
+      const result = runScript(root, packageManager, "build", {
+        echo: !args.json,
+      });
+      if (!result.ok && result.diagnostic) {
+        finalIssues.push(result.diagnostic);
+      }
     }
   }
 
-  if (issues.length > 0 || !scriptsOk) {
+  const output = {
+    ok: finalIssues.length === 0,
+    workspaceDir: root,
+    runBuild: Boolean(args.runBuild),
+    strict: Boolean(args.strict),
+    sourceFileCount: sourceFiles.length,
+    sdkImportFileCount: preflight.sdkSources.length,
+    sdkImportFiles: preflight.sdkSources
+      .slice(0, 20)
+      .map((source) => formatLocation(root, source.filePath)),
+    issues: finalIssues,
+    advisories: normalizedAdvisories,
+  };
+
+  emitValidationOutput(output, args);
+
+  if (!output.ok) {
     process.exit(1);
   }
-  console.log("Semaphor data app preflight passed.");
 }
 
 main().catch((error) => {
@@ -591,23 +1153,59 @@ main().catch((error) => {
 
 function validateDevtoolsSnapshot({ root, snapshotPath }) {
   const issues = [];
-  const manifestPath = path.join(root, GENERATED_CONTRACT_DIR, "contract.manifest.json");
+  const manifestPath = path.join(
+    root,
+    GENERATED_CONTRACT_DIR,
+    "contract.manifest.json",
+  );
   if (!fs.existsSync(manifestPath)) {
     return [
-      "DevTools snapshot validation requires src/semaphor/generated/contract.manifest.json.",
+      issue(
+        "missing_generated_contract",
+        "DevTools snapshot validation requires src/semaphor/generated/contract.manifest.json.",
+        {
+          filePath: `${GENERATED_CONTRACT_DIR}/contract.manifest.json`,
+          repairHint:
+            "Generate the Data App contract before validating DevTools traces.",
+        },
+      ),
     ];
   }
   const resolvedSnapshotPath = path.resolve(root, snapshotPath);
   if (!fs.existsSync(resolvedSnapshotPath)) {
-    return [`DevTools snapshot file was not found: ${formatLocation(root, resolvedSnapshotPath)}.`];
+    return [
+      issue(
+        "missing_devtools_snapshot",
+        `DevTools snapshot file was not found: ${formatLocation(root, resolvedSnapshotPath)}.`,
+        {
+          filePath: formatLocation(root, resolvedSnapshotPath),
+          repairHint:
+            "Capture window.__SEMAPHOR_DEVTOOLS__?.snapshot() during a browser smoke run and pass its path.",
+        },
+      ),
+    ];
   }
   let snapshot;
   try {
     snapshot = readJson(resolvedSnapshotPath);
   } catch (error) {
-    return [`DevTools snapshot file could not be parsed: ${error.message}`];
+    return [
+      issue(
+        "invalid_devtools_snapshot",
+        `DevTools snapshot file could not be parsed: ${error.message}`,
+        {
+          filePath: formatLocation(root, resolvedSnapshotPath),
+          repairHint:
+            "Write the DevTools snapshot as valid JSON before validation.",
+        },
+      ),
+    ];
   }
-  const manifest = readJson(manifestPath);
+  const manifestRead = readGeneratedContractManifest(root, manifestPath);
+  if (manifestRead.issues.length > 0) {
+    return manifestRead.issues;
+  }
+  const manifest = manifestRead.manifest;
   const expectedQueryIds = (manifest.codegenSummary?.views || [])
     .filter((view) => view?.sdkSpec?.builder && view?.sdkSpec?.spec)
     .map((view) => view.id)
@@ -619,12 +1217,32 @@ function validateDevtoolsSnapshot({ root, snapshotPath }) {
   const observedIds = collectDevtoolsTraceIds(snapshot);
   for (const queryId of expectedQueryIds) {
     if (!observedIds.has(queryId)) {
-      issues.push(`DevTools snapshot is missing generated query trace "${queryId}".`);
+      issues.push(
+        issue(
+          "missing_query_traces",
+          `DevTools snapshot is missing generated query trace "${queryId}".`,
+          {
+            path: `queries.${queryId}`,
+            repairHint:
+              "Render the generated view in the browser and capture a fresh Semaphor DevTools snapshot.",
+          },
+        ),
+      );
     }
   }
   for (const queryId of expectedOptionQueryIds) {
     if (!observedIds.has(queryId)) {
-      issues.push(`DevTools snapshot is missing generated input option trace "${queryId}".`);
+      issues.push(
+        issue(
+          "missing_option_traces",
+          `DevTools snapshot is missing generated input option trace "${queryId}".`,
+          {
+            path: `inputOptions.${queryId}`,
+            repairHint:
+              "Render the generated filter control and capture a fresh Semaphor DevTools snapshot.",
+          },
+        ),
+      );
     }
   }
   return issues;
@@ -643,7 +1261,10 @@ function collectDevtoolsTraceIds(value, ids = new Set()) {
   if (typeof value.queryId === "string" && value.queryId.trim()) {
     ids.add(value.queryId.trim());
   }
-  if (typeof value.inputOptionQueryId === "string" && value.inputOptionQueryId.trim()) {
+  if (
+    typeof value.inputOptionQueryId === "string" &&
+    value.inputOptionQueryId.trim()
+  ) {
     ids.add(value.inputOptionQueryId.trim());
   }
   for (const item of Object.values(value)) {
@@ -653,32 +1274,69 @@ function collectDevtoolsTraceIds(value, ids = new Set()) {
 }
 
 function validateFilterEffectReport({ root, reportPath }) {
-  const manifestPath = path.join(root, GENERATED_CONTRACT_DIR, "contract.manifest.json");
+  const manifestPath = path.join(
+    root,
+    GENERATED_CONTRACT_DIR,
+    "contract.manifest.json",
+  );
   if (!fs.existsSync(manifestPath)) {
     return [
-      "Filter-effect report validation requires src/semaphor/generated/contract.manifest.json.",
+      issue(
+        "missing_generated_contract",
+        "Filter-effect report validation requires src/semaphor/generated/contract.manifest.json.",
+        {
+          filePath: `${GENERATED_CONTRACT_DIR}/contract.manifest.json`,
+          repairHint:
+            "Generate the Data App contract before validating filter-effect reports.",
+        },
+      ),
     ];
   }
   const resolvedReportPath = path.resolve(root, reportPath);
   if (!fs.existsSync(resolvedReportPath)) {
-    return [`Filter-effect report file was not found: ${formatLocation(root, resolvedReportPath)}.`];
+    return [
+      issue(
+        "filter_effect_failed",
+        `Filter-effect report file was not found: ${formatLocation(root, resolvedReportPath)}.`,
+        {
+          filePath: formatLocation(root, resolvedReportPath),
+          repairHint:
+            "Run the browser filter-effect smoke and pass the generated report path.",
+        },
+      ),
+    ];
   }
   let report;
   try {
     report = readJson(resolvedReportPath);
   } catch (error) {
-    return [`Filter-effect report file could not be parsed: ${error.message}`];
+    return [
+      issue(
+        "filter_effect_failed",
+        `Filter-effect report file could not be parsed: ${error.message}`,
+        {
+          filePath: formatLocation(root, resolvedReportPath),
+          repairHint: "Write the filter-effect report as valid JSON.",
+        },
+      ),
+    ];
   }
-  const manifest = readJson(manifestPath);
+  const manifestRead = readGeneratedContractManifest(root, manifestPath);
+  if (manifestRead.issues.length > 0) {
+    return manifestRead.issues;
+  }
+  const manifest = manifestRead.manifest;
   const filterContracts = manifest.codegenSummary?.filterContracts || [];
   const checks = Array.isArray(report?.checks)
     ? report.checks
     : Array.isArray(report?.filterEffects)
       ? report.filterEffects
       : [];
-  const checksByInputId = new Map(checks
-    .filter((check) => typeof check?.inputId === "string")
-    .map((check) => [check.inputId, check]));
+  const checksByInputId = new Map(
+    checks
+      .filter((check) => typeof check?.inputId === "string")
+      .map((check) => [check.inputId, check]),
+  );
   const issues = [];
   for (const filterContract of filterContracts) {
     const appliesToViewIds = Array.isArray(filterContract?.appliesToViewIds)
@@ -690,7 +1348,15 @@ function validateFilterEffectReport({ root, reportPath }) {
     const check = checksByInputId.get(filterContract.inputId);
     if (!check) {
       issues.push(
-        `Filter-effect report is missing generated input "${filterContract.inputId}".`,
+        issue(
+          "filter_effect_failed",
+          `Filter-effect report is missing generated input "${filterContract.inputId}".`,
+          {
+            path: `filterContracts.${filterContract.inputId}`,
+            repairHint:
+              "Select this generated filter in the browser smoke and include its effect evidence in the report.",
+          },
+        ),
       );
       continue;
     }
@@ -701,31 +1367,65 @@ function validateFilterEffectReport({ root, reportPath }) {
       ...arrayStrings(check.changedViewIds),
     ]);
     const hasSubscribedEvidence = appliesToViewIds.some((viewId) =>
-      evidenceViewIds.has(viewId)
+      evidenceViewIds.has(viewId),
     );
     if (check.passed !== true && !hasSubscribedEvidence) {
       issues.push(
-        `Filter-effect report for "${filterContract.inputId}" must show a subscribed generated query reran or changed.`,
+        issue(
+          "filter_effect_failed",
+          `Filter-effect report for "${filterContract.inputId}" must show a subscribed generated query reran or changed.`,
+          {
+            path: `filterContracts.${filterContract.inputId}`,
+            repairHint:
+              "The report must include changedQueryIds, reranQueryIds, affectedViewIds, or changedViewIds for at least one subscribed view.",
+          },
+        ),
       );
     }
   }
   return issues;
 }
 
+function liveFilterEffectIssue(message, details = {}) {
+  return issue("filter_effect_failed", message, {
+    repairHint:
+      "Fix live filter-effect validation setup, generated option queries, or generated filter bindings, then rerun --live-filter-effect.",
+    ...details,
+  });
+}
+
 async function validateLiveFilterEffects({ root, sampleCount }) {
-  const manifestPath = path.join(root, GENERATED_CONTRACT_DIR, "contract.manifest.json");
+  const manifestPath = path.join(
+    root,
+    GENERATED_CONTRACT_DIR,
+    "contract.manifest.json",
+  );
   if (!fs.existsSync(manifestPath)) {
     return {
       issues: [
-        "Live filter-effect validation requires src/semaphor/generated/contract.manifest.json.",
+        issue(
+          "missing_generated_contract",
+          "Live filter-effect validation requires src/semaphor/generated/contract.manifest.json.",
+          {
+            filePath: `${GENERATED_CONTRACT_DIR}/contract.manifest.json`,
+            repairHint:
+              "Generate the Data App contract before validating live filter effects.",
+          },
+        ),
       ],
       advisories: [],
     };
   }
 
-  const manifest = readJson(manifestPath);
+  const manifestRead = readGeneratedContractManifest(root, manifestPath);
+  if (manifestRead.issues.length > 0) {
+    return { issues: manifestRead.issues, advisories: [] };
+  }
+  const manifest = manifestRead.manifest;
   const summary = manifest.codegenSummary || {};
-  const optionInputs = (summary.inputs || []).filter((input) => input?.optionQuery);
+  const optionInputs = (summary.inputs || []).filter(
+    (input) => input?.optionQuery,
+  );
   const filterContracts = summary.filterContracts || [];
   if (optionInputs.length === 0 || filterContracts.length === 0) {
     return {
@@ -745,7 +1445,13 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
   if (!token) {
     return {
       issues: [
-        "Live filter-effect validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
+        liveFilterEffectIssue(
+          "Live filter-effect validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
+          {
+            repairHint:
+              "Set VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN before running --live-filter-effect.",
+          },
+        ),
       ],
       advisories: [],
     };
@@ -754,7 +1460,13 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
   if (!executeUrl) {
     return {
       issues: [
-        "Live filter-effect validation could not resolve the Semaphor execute URL. Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
+        liveFilterEffectIssue(
+          "Live filter-effect validation could not resolve the Semaphor execute URL. Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
+          {
+            repairHint:
+              "Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
+          },
+        ),
       ],
       advisories: [],
     };
@@ -763,15 +1475,19 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
   const context = {
     executeUrl,
     token,
-    sourcesByKey: new Map((summary.sources || [])
-      .filter((source) => typeof source?.sourceKey === "string")
-      .map((source) => [source.sourceKey, stripSourceKey(source)])),
+    sourcesByKey: new Map(
+      (summary.sources || [])
+        .filter((source) => typeof source?.sourceKey === "string")
+        .map((source) => [source.sourceKey, stripSourceKey(source)]),
+    ),
   };
   const issues = [];
   const advisories = [];
 
   for (const filterContract of filterContracts) {
-    const input = optionInputs.find((candidate) => candidate.id === filterContract.inputId);
+    const input = optionInputs.find(
+      (candidate) => candidate.id === filterContract.inputId,
+    );
     const appliesToViewIds = Array.isArray(filterContract.appliesToViewIds)
       ? filterContract.appliesToViewIds
       : [];
@@ -780,7 +1496,16 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
     }
     const optionIntent = buildInputOptionIntent(input, filterContract, context);
     if (!optionIntent) {
-      issues.push(`Live filter-effect validation could not build option query for "${filterContract.inputId}".`);
+      issues.push(
+        liveFilterEffectIssue(
+          `Live filter-effect validation could not build option query for "${filterContract.inputId}".`,
+          {
+            path: `filterContracts.${filterContract.inputId}`,
+            repairHint:
+              "Regenerate the Data App contract so this option-backed input has a valid option query and binding.",
+          },
+        ),
+      );
       continue;
     }
 
@@ -791,13 +1516,28 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
     });
     if (!optionsResult.ok) {
       issues.push(
-        `Input "${filterContract.inputId}" option query failed${formatExecutionFailureClassification(optionsResult.error)}: ${optionsResult.error}`,
+        liveFilterEffectIssue(
+          `Input "${filterContract.inputId}" option query failed${formatExecutionFailureClassification(optionsResult.error)}: ${optionsResult.error}`,
+          {
+            path: `inputOptions.${filterContract.inputId}`,
+            details: { error: String(optionsResult.error || "") },
+          },
+        ),
       );
       continue;
     }
     const options = extractOptions(optionsResult.data).slice(0, sampleCount);
     if (options.length === 0) {
-      issues.push(`Input "${filterContract.inputId}" option query returned no usable options.`);
+      issues.push(
+        liveFilterEffectIssue(
+          `Input "${filterContract.inputId}" option query returned no usable options.`,
+          {
+            path: `inputOptions.${filterContract.inputId}`,
+            repairHint:
+              "Check that the generated option query returns option objects with non-null value fields for sampled data.",
+          },
+        ),
+      );
       continue;
     }
 
@@ -805,11 +1545,16 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
     const usefulViewIds = [];
     const errors = [];
     const bindings = (filterContract.bindings || [])
-      .filter((binding) => binding?.viewId && appliesToViewIds.includes(binding.viewId))
+      .filter(
+        (binding) =>
+          binding?.viewId && appliesToViewIds.includes(binding.viewId),
+      )
       .slice(0, 3);
 
     for (const binding of bindings) {
-      const view = (summary.views || []).find((candidate) => candidate?.id === binding.viewId);
+      const view = (summary.views || []).find(
+        (candidate) => candidate?.id === binding.viewId,
+      );
       const viewIntent = buildViewIntent(view, context);
       if (!viewIntent) {
         continue;
@@ -849,7 +1594,12 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
           continue;
         }
         const filteredSummary = summarizeResultData(filtered.data);
-        if (filterEffectLooksUseful({ baseline: baselineSummary, filtered: filteredSummary })) {
+        if (
+          filterEffectLooksUseful({
+            baseline: baselineSummary,
+            filtered: filteredSummary,
+          })
+        ) {
           usefulViewIds.push(binding.viewId);
           break;
         }
@@ -857,12 +1607,30 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
     }
 
     if (checkedViewIds.length === 0) {
-      issues.push(`Input "${filterContract.inputId}" has no executable subscribed views for live filter-effect validation.`);
+      issues.push(
+        liveFilterEffectIssue(
+          `Input "${filterContract.inputId}" has no executable subscribed views for live filter-effect validation.`,
+          {
+            path: `filterContracts.${filterContract.inputId}`,
+            repairHint:
+              "Bind this generated filter to at least one executable generated view before running live filter-effect validation.",
+          },
+        ),
+      );
       continue;
     }
     if (usefulViewIds.length === 0) {
       issues.push(
-        `Input "${filterContract.inputId}" did not produce a non-empty/non-zero result for sampled subscribed views (${checkedViewIds.join(", ")}). ${errors.join(" ")}`.trim(),
+        liveFilterEffectIssue(
+          `Input "${filterContract.inputId}" did not produce a non-empty/non-zero result for sampled subscribed views (${checkedViewIds.join(", ")}). ${errors.join(" ")}`.trim(),
+          {
+            path: `filterContracts.${filterContract.inputId}`,
+            details: {
+              checkedViewIds,
+              errors,
+            },
+          },
+        ),
       );
     }
   }
@@ -1021,7 +1789,8 @@ function expandGeneratedRefs(value, context) {
   if (
     typeof value.sourceKey === "string" &&
     typeof value.kind === "string" &&
-    (typeof value.datasetName === "string" || typeof value.datasetId === "string")
+    (typeof value.datasetName === "string" ||
+      typeof value.datasetId === "string")
   ) {
     return stripSourceKey(value);
   }
@@ -1085,7 +1854,10 @@ function buildViewIntent(view, context) {
 }
 
 function buildActiveInput({ input, filterContract, binding, option, context }) {
-  const field = expandGeneratedRefs(binding.fieldRef || filterContract.fieldRef || input.fieldRef, context);
+  const field = expandGeneratedRefs(
+    binding.fieldRef || filterContract.fieldRef || input.fieldRef,
+    context,
+  );
   const operator = filterContract.operator || input.operator || "in";
   const relationshipHint = relationshipHintForBinding(binding);
   return {
@@ -1120,22 +1892,40 @@ function activeInputValueForOperator(operator, value) {
 }
 
 async function executeDataAppIntent({ context, intent, activeInputs }) {
-  const response = await fetch(context.executeUrl, {
-    method: "POST",
-    headers: {
-      "authorization": `Bearer ${context.token}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      intent,
-      activeInputs,
-      resultShape: intent.kind,
-    }),
-  });
+  let response;
+  try {
+    response = await fetch(context.executeUrl, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${context.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        intent,
+        activeInputs,
+        resultShape: intent.kind,
+      }),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: error instanceof Error ? error.message : String(error),
+      data: null,
+    };
+  }
   let data;
   try {
     data = await response.json();
-  } catch {
+  } catch (error) {
+    if (response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: `Invalid JSON response: ${error instanceof Error ? error.message : String(error)}`,
+        data: null,
+      };
+    }
     data = {};
   }
   if (!response.ok || data?.error) {
@@ -1151,12 +1941,13 @@ async function executeDataAppIntent({ context, intent, activeInputs }) {
 
 function extractOptions(data) {
   return Array.isArray(data?.options)
-    ? data.options.filter((option) =>
-      option &&
-      Object.prototype.hasOwnProperty.call(option, "value") &&
-      option.value !== null &&
-      option.value !== undefined
-    )
+    ? data.options.filter(
+        (option) =>
+          option &&
+          Object.prototype.hasOwnProperty.call(option, "value") &&
+          option.value !== null &&
+          option.value !== undefined,
+      )
     : [];
 }
 

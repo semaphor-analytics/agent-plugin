@@ -7,8 +7,8 @@ bridge behavior.
 
 ## Current Hardening Slice
 
-The active cross-repo hardening work is Slice 5: Typed Data App Codegen
-Summary from the Semaphor App hardening tracker at
+The active cross-repo hardening work is Slice 8: Structured Agent Plugin
+Validation from the Semaphor App hardening tracker at
 `docs/implementation-plans/data-apps/analytics-spine-public-launch-hardening.md`.
 
 Relevant repos and ownership:
@@ -20,8 +20,40 @@ Relevant repos and ownership:
 - This plugin package mirrors the shared codegen summary validation in local
   generator/validator scripts and must not invent a plugin-only codegen
   contract.
+- This plugin package owns the local app preflight transport contract for agent
+  hosts. `validate-semaphor-data-app.mjs --json` and
+  `semaphor_validate_data_app_contract` must return machine-repairable
+  `{ ok, issues, advisories }` objects with stable issue codes.
 
-## Slice 5 Review Contract
+## Slice 8 Review Contract
+
+- `validate-semaphor-data-app.mjs --json` is the machine contract for local
+  Data App preflight. Human stdout is secondary and must not be the only way to
+  detect or classify validation failures.
+- `semaphor_validate_data_app_contract` must parse the validator JSON and
+  return the parsed `issues` and `advisories` in MCP `structuredContent`.
+- Structured issues must include stable `code`, `severity`, `message`, and,
+  when useful, `filePath`, `path`, `repairHint`, or diagnostic `details`.
+- Required issue codes include `missing_provider`, `missing_devtools_bridge`,
+  `missing_generated_contract`, `generated_contract_not_imported`,
+  `invalid_contract_manifest`, `missing_option_traces`,
+  `filter_effect_failed`, `typecheck_failed`, and `build_failed`.
+- All validation failures that can occur before, during, or after generated
+  contract inspection must preserve structured JSON in `--json` mode. Do not
+  allow early exits, JSON parse failures, manifest reads, DevTools validation,
+  static filter-effect reports, live filter-effect checks, typecheck, or build
+  failures to fall back to plain stderr as the only contract. Manifest parse
+  failures must surface as `invalid_contract_manifest`. Static and live
+  filter-effect failures must surface as `filter_effect_failed` with useful
+  `path`, `repairHint`, or redacted `details` when available.
+- Any bridge or fixture that invokes the validator or generator in JSON mode
+  must set an explicit child-process output budget large enough for structured
+  diagnostics. Tests that claim to cover build/typecheck JSON behavior must run
+  the validator with builds enabled rather than implicitly passing `--no-run`.
+- The validator may preserve human-readable terminal output, but agents and
+  evals should key off structured issue codes.
+
+## Slice 5 Codegen Summary Contract Still Applies
 
 - Data App `codegenSummary` is a typed shared public contract. Plugin scripts
   should validate the accepted planner artifact before writing generated files
@@ -65,6 +97,10 @@ Relevant repos and ownership:
 
 Raise findings for:
 
+- validator or MCP bridge changes that require agents to parse stdout/stderr
+  instead of structured issue codes;
+- missing stable issue codes for provider, DevTools, generated-contract,
+  manifest, option-trace, filter-effect, typecheck, or build failures;
 - accepting or silently migrating old generated manifests without the current
   validator version;
 - plugin-only validation rules that contradict the shared

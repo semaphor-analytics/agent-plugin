@@ -333,10 +333,9 @@ const latestMovementsQuery = semaphor.sql({
 
 function LatestMovementsTable() {
   const [rowLimitHandle] = useSemaphorInputs([rowLimit]);
-  const result =
-    useSemaphorQuery<MovementRow>(latestMovementsQuery, {
-      inputs: [rowLimitHandle],
-    });
+  const result = useSemaphorQuery<MovementRow>(latestMovementsQuery, {
+    inputs: [rowLimitHandle],
+  });
 
   if (result.isLoading) return <TableSkeleton />;
   if (result.error) return <ErrorState message={result.error.message} />;
@@ -509,8 +508,14 @@ After editing:
 
 ```bash
 node <installed-semaphor-plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>
+node <installed-semaphor-plugin>/scripts/validate-semaphor-data-app.mjs --dir <app> --json
 npm run typecheck
 npm run build
 ```
 
 Use the customer app's own package manager and scripts when they differ.
+Use `--json` or MCP `semaphor_validate_data_app_contract` when an agent needs
+machine-repairable output. The structured contract is
+`{ ok, issues, advisories }`; each issue has a stable `code`, `severity`,
+`message`, and optional `filePath`, `path`, `repairHint`, and diagnostic
+`details`.

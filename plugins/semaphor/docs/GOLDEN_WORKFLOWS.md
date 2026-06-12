@@ -104,7 +104,6 @@ Expected validation:
   subscribed queries, affected cards show applied-filter affordances, and no
   card hides Semaphor execution errors.
 
-
 ## 1A. Add A Derived Metric
 
 Customer prompt:
@@ -136,7 +135,6 @@ Expected validation:
 - local typecheck/build passes,
 - Semaphor validation/execution accepts the derived field when available.
 
-
 ## 1B. Build A Matrix Or Pivot Table
 
 Customer prompt:
@@ -166,7 +164,6 @@ Expected validation:
 - local typecheck/build passes,
 - browser smoke check shows a server-shaped matrix result.
 
-
 ## 2. Explore Available Data
 
 Customer prompt:
@@ -188,7 +185,6 @@ Expected validation:
 
 - no file changes,
 - answer cites concrete Semaphor domains/datasets/fields.
-
 
 ## 3. Answer A BI Question
 
@@ -212,7 +208,6 @@ Expected validation:
 - no app build required,
 - answer includes the dataset and fields used,
 - uncertainty is explicit when the data cannot answer the question.
-
 
 ## 3A. Use Advanced SQL When Needed
 
@@ -243,7 +238,6 @@ Expected validation:
   inputs, and `useSemaphorQuery` rather than static fixture rows,
 - no invented connection/table identifiers,
 - no token or credential leakage.
-
 
 ## 4. Ask First, Then Add To App
 
@@ -296,7 +290,6 @@ and ask for a better domain, clearer business goal, or semantic-model
 improvement unless the user explicitly requested a model-gap report. The local
 contract generator rejects zero-executable-view plans by default.
 
-
 ## 4A. Productize A Driver Or Period-Change Insight
 
 Customer prompt:
@@ -323,7 +316,6 @@ Expected validation:
   analysis intent,
 - local typecheck/build passes.
 
-
 ## 5. Add A Filter Or Control
 
 Customer prompt:
@@ -347,7 +339,6 @@ Expected validation:
 - typecheck/build passes,
 - no hardcoded option values unless the user explicitly asked for fixed values.
 
-
 ## 6. Fix A Runtime Or Typecheck Error
 
 Customer prompt:
@@ -370,7 +361,6 @@ Expected validation:
 - rerun the failed command,
 - rerun `validate:data-app`,
 - browser smoke test when the issue was runtime-visible.
-
 
 ## 7. Prepare For Save Or Publish
 
@@ -404,7 +394,6 @@ Expected validation:
 - publish failures are classified by failing stage: auth/API, validation,
   build, upload, or complete/fail session.
 
-
 ## 8. Open Existing Semaphor Data App
 
 Customer prompt:
@@ -432,7 +421,6 @@ Expected validation:
   path,
 - typecheck/build passes after restore or edits.
 
-
 ## Workflow Rules
 
 - Conversation, exploration, and planning turns should not edit files.
@@ -447,3 +435,7 @@ Expected validation:
 - Keep customer app structure intact.
 - Treat plugin validation advisories as guidance unless running explicit
   `--strict` quality gates.
+- When automating validation repairs, consume
+  `semaphor_validate_data_app_contract.structuredContent` or
+  `validate-semaphor-data-app.mjs --json`. Use stable issue codes and
+  `repairHint`; do not parse human terminal output to decide the repair.
