@@ -19,12 +19,18 @@ const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'semaphor-generator-fixtu
 try {
   runValidPartialScopeFixture();
   runNoFilterFixture();
+  runTableBehaviorFixture();
   runMalformedSummaryFixture();
   runMalformedIdentityFixture();
   runDatasetIdOnlySourceFixture();
+  runExecutableFieldsOnPresentationViewFixture();
   runMalformedSdkSpecFixture();
   runQueryKindDivergenceFixture();
+  runUnsupportedMetricSpecKeysFixture();
   runMalformedOptionalSdkFieldRefsFixture();
+  runMalformedSdkFiltersFixture();
+  runMalformedSortDirectionsFixture();
+  runSqlMatrixSourceFixture();
   runMalformedMatrixSpecFixture();
   runMalformedAnalysisOptionsFixture();
   runNumericViewScopeIdsFixture();
@@ -133,7 +139,81 @@ function runNoFilterFixture() {
   if (result.status !== 0) {
     throw new Error(`Expected no-filter generator fixture to pass:\n${result.stdout}\n${result.stderr}`);
   }
+  const parsed = JSON.parse(result.stdout);
+  if (parsed.warnings?.some((warning) => warning.includes('derived_summary') || warning.includes('unsupported_gap'))) {
+    throw new Error(`Derived and unsupported non-executable views must not be skipped:\n${result.stdout}`);
+  }
+  const metadataText = fs.readFileSync(
+    path.join(workspaceDir, 'src/semaphor/generated/metadata.ts'),
+    'utf8',
+  );
+  if (
+    !metadataText.includes('"id": "derived_summary"') ||
+    !metadataText.includes('"kind": "derived"') ||
+    !metadataText.includes('"id": "unsupported_gap"') ||
+    !metadataText.includes('"kind": "unsupported"')
+  ) {
+    throw new Error('Generated metadata must preserve derived and unsupported non-executable views.');
+  }
   typecheckGeneratedFilesIfAvailable({ workspaceDir });
+}
+
+function runTableBehaviorFixture() {
+  const workspaceDir = path.join(tempRoot, 'table-behavior');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.views[0].visual = 'table';
+  summary.views[0].visualSpec = {
+    visualType: 'table',
+    tableBehavior: {
+      tableMode: 'server_paginated',
+      height: {
+        maxPx: 560,
+        scroll: 'both',
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: 'server',
+        pageSize: 100,
+        readsFrom: 'result.pagination',
+      },
+      sorting: {
+        mode: 'server',
+        defaultField: 'order_date',
+        defaultDirection: 'desc',
+        resetPageOnChange: true,
+      },
+      totals: {
+        displayedRows: true,
+        allFilteredRows: 'separate_aggregate_query_required',
+      },
+      serverSideRequired: true,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status !== 0) {
+    throw new Error(`Expected table behavior fixture to pass:\n${result.stdout}\n${result.stderr}`);
+  }
+  const manifest = JSON.parse(
+    fs.readFileSync(
+      path.join(workspaceDir, 'src/semaphor/generated/contract.manifest.json'),
+      'utf8',
+    ),
+  );
+  const tableBehavior = manifest.codegenSummary.views[0].visualSpec.tableBehavior;
+  if (
+    tableBehavior?.pagination?.readsFrom !== 'result.pagination' ||
+    tableBehavior?.sorting?.defaultDirection !== 'desc' ||
+    tableBehavior?.totals?.allFilteredRows !== 'separate_aggregate_query_required'
+  ) {
+    throw new Error('Generated manifest must preserve full table behavior guidance.');
+  }
 }
 
 function runMalformedSummaryFixture() {
@@ -208,6 +288,45 @@ function runDatasetIdOnlySourceFixture() {
   }
   if (!result.stdout.includes('sources.0 must include sourceKey or a supported source identity')) {
     throw new Error(`Dataset-id-only source fixture failed for the wrong reason:\n${result.stdout}\n${result.stderr}`);
+  }
+}
+
+function runExecutableFieldsOnPresentationViewFixture() {
+  const workspaceDir = path.join(tempRoot, 'executable-fields-on-presentation-view');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  const executableSdkSpec = summary.views[0].sdkSpec;
+  summary.views.push({
+    id: 'derived_summary',
+    title: 'Derived Summary',
+    fields: [],
+    queryKind: 'metric',
+    sdkBuilder: 'semaphor.metric',
+    sdkSpec: executableSdkSpec,
+    computation: {
+      kind: 'derived',
+      upstreamViewId: 'sales_kpi',
+      derivation: 'Read the primary KPI result and render a sentence.',
+    },
+  });
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected executable fields on presentation view fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'views.3.queryKind is not allowed for non-executable views',
+    'views.3.sdkBuilder is not allowed for non-executable views',
+    'views.3.sdkSpec is not allowed for non-executable views',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Executable fields on presentation view fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
   }
 }
 
@@ -322,7 +441,13 @@ function runMalformedOptionalSdkFieldRefsFixture() {
           source,
           rows: [{ field: { name: 'region', sourceKey: source.sourceKey } }],
           values: [{ field: summary.views[0].fields[0], aggregate: 'SUM' }],
-          sort: [{ field: { name: 'region' } }],
+          sort: [
+            {
+              axis: 'row',
+              direction: 'asc',
+              by: { kind: 'field', field: { name: 'region' } },
+            },
+          ],
         },
       },
     },
@@ -372,11 +497,292 @@ function runMalformedOptionalSdkFieldRefsFixture() {
     'views.0.sdkSpec.spec.orderBy.field must include source or sourceKey',
     'views.3.sdkSpec.spec.dateField must include source or sourceKey',
     'views.3.sdkSpec.spec.orderBy.field must include source or sourceKey',
-    'views.4.sdkSpec.spec.sort.0.field must include source or sourceKey',
+    'views.4.sdkSpec.spec.sort.0.by.field must include source or sourceKey',
     'views.5.sdkSpec.spec.fields.0 must include source or sourceKey',
   ]) {
     if (!result.stdout.includes(expectedIssue)) {
       throw new Error(`Malformed optional SDK field refs fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
+  }
+}
+
+function runUnsupportedMetricSpecKeysFixture() {
+  const workspaceDir = path.join(tempRoot, 'unsupported-metric-spec-keys');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.views[0].queryKind = 'metric';
+  summary.views[0].sdkBuilder = 'semaphor.metric';
+  summary.views[0].sdkSpec = {
+    builder: 'semaphor.metric',
+    spec: {
+      source: summary.sources[0],
+      measures: [summary.views[0].fields[0]],
+      filters: [],
+      timeWindow: { unit: 'day', value: 30 },
+      analysis: { kind: 'period_change' },
+    },
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected unsupported metric spec keys fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'views.0.sdkSpec.spec.timeWindow is not supported for this SDK builder',
+    'views.0.sdkSpec.spec.analysis is not supported for this SDK builder',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Unsupported metric spec keys fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
+  }
+}
+
+function runMalformedSdkFiltersFixture() {
+  const workspaceDir = path.join(tempRoot, 'malformed-sdk-filters');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  const source = summary.sources[0];
+  const measure = summary.views[0].fields[0];
+  summary.views = [
+    {
+      id: 'sales_metric',
+      title: 'Sales Metric',
+      visual: 'kpi',
+      queryKind: 'metric',
+      sdkBuilder: 'semaphor.metric',
+      fields: [measure],
+      sdkSpec: {
+        builder: 'semaphor.metric',
+        spec: {
+          source,
+          measures: [measure],
+          filters: [{ field: { name: 'segment' }, values: ['Enterprise'] }],
+        },
+      },
+    },
+    {
+      id: 'sales_change',
+      title: 'Sales Change',
+      visual: 'table',
+      queryKind: 'analysis',
+      sdkBuilder: 'semaphor.analysis',
+      fields: [measure],
+      sdkSpec: {
+        builder: 'semaphor.analysis',
+        spec: {
+          source,
+          measures: [measure],
+          filters: [{ field: { name: 'segment' }, values: ['Enterprise'] }],
+        },
+      },
+    },
+    {
+      id: 'sales_records',
+      title: 'Sales Records',
+      visual: 'table',
+      queryKind: 'records',
+      sdkBuilder: 'semaphor.records',
+      fields: [measure],
+      sdkSpec: {
+        builder: 'semaphor.records',
+        spec: {
+          source,
+          fields: [measure],
+          filters: [{ field: { name: 'segment' }, values: ['Enterprise'] }],
+        },
+      },
+    },
+    {
+      id: 'sales_matrix',
+      title: 'Sales Matrix',
+      visual: 'matrix',
+      queryKind: 'matrix',
+      sdkBuilder: 'semaphor.matrix',
+      fields: [measure],
+      sdkSpec: {
+        builder: 'semaphor.matrix',
+        spec: {
+          source,
+          rows: [{ field: { name: 'segment', sourceKey: source.sourceKey } }],
+          values: [{ field: measure, aggregate: 'SUM' }],
+          filters: [{ field: { name: 'segment' }, values: ['Enterprise'] }],
+        },
+      },
+    },
+  ];
+  summary.filterContracts[0].notAppliedToViewIds = [
+    'margin_kpi',
+    'sales_analysis',
+    'sales_matrix_missing_direction',
+    'sales_records',
+    'sales_matrix',
+  ];
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected malformed SDK filters fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'views.0.sdkSpec.spec.filters.0.field must include source or sourceKey',
+    'views.1.sdkSpec.spec.filters.0.field must include source or sourceKey',
+    'views.2.sdkSpec.spec.filters.0.field must include source or sourceKey',
+    'views.3.sdkSpec.spec.filters.0.field must include source or sourceKey',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Malformed SDK filters fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
+    }
+  }
+}
+
+function runMalformedSortDirectionsFixture() {
+  const workspaceDir = path.join(tempRoot, 'malformed-sort-directions');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  const source = summary.sources[0];
+  const measure = summary.views[0].fields[0];
+  const dimension = {
+    name: 'region',
+    role: 'dimension',
+    dataType: 'string',
+    sourceKey: source.sourceKey,
+  };
+  summary.views = [
+    {
+      id: 'sales_kpi',
+      title: 'Sales KPI',
+      visual: 'kpi',
+      queryKind: 'metric',
+      sdkBuilder: 'semaphor.metric',
+      fields: [measure, dimension],
+      sdkSpec: {
+        builder: 'semaphor.metric',
+        spec: {
+          source,
+          measures: [measure],
+          orderBy: {
+            field: dimension,
+            direction: 'sideways',
+          },
+        },
+      },
+    },
+    {
+      id: 'sales_records',
+      title: 'Sales Records',
+      visual: 'table',
+      queryKind: 'records',
+      sdkBuilder: 'semaphor.records',
+      fields: [measure, dimension],
+      sdkSpec: {
+        builder: 'semaphor.records',
+        spec: {
+          source,
+          fields: [measure, dimension],
+          orderBy: {
+            field: dimension,
+            direction: 'later',
+          },
+        },
+      },
+    },
+    {
+      id: 'sales_analysis',
+      title: 'Sales Analysis',
+      visual: 'table',
+      queryKind: 'analysis',
+      sdkBuilder: 'semaphor.analysis',
+      fields: [measure, dimension],
+      sdkSpec: {
+        builder: 'semaphor.analysis',
+        spec: {
+          source,
+          measures: [measure],
+          orderBy: {
+            field: dimension,
+          },
+        },
+      },
+    },
+    {
+      id: 'sales_matrix_missing_direction',
+      title: 'Sales Matrix Missing Direction',
+      visual: 'matrix',
+      queryKind: 'matrix',
+      sdkBuilder: 'semaphor.matrix',
+      fields: [measure, dimension],
+      sdkSpec: {
+        builder: 'semaphor.matrix',
+        spec: {
+          source,
+          rows: [{ field: dimension }],
+          values: [{ field: measure, aggregate: 'SUM' }],
+          sort: [
+            {
+              axis: 'row',
+              by: { kind: 'field', field: dimension },
+            },
+          ],
+        },
+      },
+    },
+    {
+      id: 'sales_matrix',
+      title: 'Sales Matrix',
+      visual: 'matrix',
+      queryKind: 'matrix',
+      sdkBuilder: 'semaphor.matrix',
+      fields: [measure, dimension],
+      sdkSpec: {
+        builder: 'semaphor.matrix',
+        spec: {
+          source,
+          rows: [{ field: dimension }],
+          values: [{ field: measure, aggregate: 'SUM' }],
+          sort: [
+            {
+              axis: 'row',
+              direction: 'sideways',
+              by: { kind: 'field', field: dimension },
+            },
+          ],
+        },
+      },
+    },
+  ];
+  summary.filterContracts[0].notAppliedToViewIds = [
+    'margin_kpi',
+    'sales_records',
+    'sales_matrix',
+  ];
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected malformed sort directions fixture to fail.');
+  }
+  for (const expectedIssue of [
+    'views.0.sdkSpec.spec.orderBy.direction must be asc or desc',
+    'views.1.sdkSpec.spec.orderBy.direction must be asc or desc',
+    'views.2.sdkSpec.spec.orderBy.direction must be asc or desc',
+    'views.3.sdkSpec.spec.sort.0.direction must be asc or desc',
+    'views.4.sdkSpec.spec.sort.0.direction must be asc or desc',
+  ]) {
+    if (!result.stdout.includes(expectedIssue)) {
+      throw new Error(`Malformed sort directions fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
     }
   }
 }
@@ -420,6 +826,55 @@ function runMalformedMatrixSpecFixture() {
     if (!result.stdout.includes(expectedIssue)) {
       throw new Error(`Malformed matrix spec fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
     }
+  }
+}
+
+function runSqlMatrixSourceFixture() {
+  const workspaceDir = path.join(tempRoot, 'sql-matrix-source');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  const measure = summary.views[0].fields[0];
+  const dimension = {
+    name: 'region',
+    role: 'dimension',
+    dataType: 'string',
+    sourceKey: summary.sources[0].sourceKey,
+  };
+  const sqlSource = {
+    sourceKey: 'sql:conn',
+    kind: 'sql',
+    connectionId: 'conn',
+  };
+  summary.sources.push(sqlSource);
+  summary.views[0] = {
+    id: 'sql_matrix',
+    title: 'SQL Matrix',
+    visual: 'matrix',
+    queryKind: 'matrix',
+    sdkBuilder: 'semaphor.matrix',
+    fields: [measure, dimension],
+    sdkSpec: {
+      builder: 'semaphor.matrix',
+      spec: {
+        source: sqlSource,
+        rows: [{ field: dimension }],
+        values: [{ field: measure, aggregate: 'SUM' }],
+      },
+    },
+  };
+  const summaryPath = path.join(workspaceDir, 'codegen-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error('Expected SQL matrix source fixture to fail.');
+  }
+  const expectedIssue = 'views.0.sdkSpec.spec.source.kind must be semantic or physical';
+  if (!result.stdout.includes(expectedIssue)) {
+    throw new Error(`SQL matrix source fixture did not report ${expectedIssue}:\n${result.stdout}\n${result.stderr}`);
   }
 }
 
@@ -809,12 +1264,37 @@ function typecheckGeneratedFilesIfAvailable({ workspaceDir }) {
   const stubPath = path.join(workspaceDir, 'react-semaphor-data-app-sdk.d.ts');
   fs.writeFileSync(stubPath, [
     'declare module "react-semaphor/data-app-sdk" {',
-    '  export const semaphor: any;',
+    '  type SemaphorSemanticSourceRef = { kind: "semantic"; domainId?: string; datasetId?: string; datasetName?: string; connectionId?: string; [key: string]: unknown };',
+    '  type SemaphorPhysicalSourceRef = { kind: "physical"; connectionId?: string; databaseName?: string; schemaName?: string; tableName?: string; [key: string]: unknown };',
+    '  type SemaphorSqlSourceRef = { kind: "sql"; connectionId?: string; [key: string]: unknown };',
+    '  type SemaphorSourceRef = SemaphorSemanticSourceRef | SemaphorPhysicalSourceRef | SemaphorSqlSourceRef;',
+    '  export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: string; aggregate?: string; [key: string]: unknown };',
+    '  type SemaphorFilter = { field: SemaphorFieldRef; operator?: string; values?: unknown[]; scope?: string };',
+    '  type SemaphorOrderBy = { field: SemaphorFieldRef; direction: "asc" | "desc" };',
+    '  type MetricSpec = { source: SemaphorSourceRef; id?: string; label?: string; measures: SemaphorFieldRef[]; primaryMeasure?: SemaphorFieldRef; dateField?: SemaphorFieldRef; timeGrain?: string; dimensions?: SemaphorFieldRef[]; comparison?: unknown; orderBy?: SemaphorOrderBy; filters?: SemaphorFilter[]; relationshipHint?: unknown; limit?: number; derivedFields?: unknown[] };',
+    '  type AnalysisSpec = MetricSpec & { analysis?: unknown; timeWindow?: unknown; driverMode?: string; includePopulation?: boolean; calendarContext?: unknown; chartTitle?: string; chartType?: string };',
+    '  type RecordsSpec = { source: SemaphorSourceRef; id?: string; label?: string; fields: SemaphorFieldRef[]; dateField?: SemaphorFieldRef; timeGrain?: string; timeWindow?: unknown; filters?: SemaphorFilter[]; orderBy?: SemaphorOrderBy; relationshipHint?: unknown; limit?: number; pagination?: unknown; derivedFields?: unknown[] };',
+    '  type MatrixAxis = SemaphorFieldRef | { id?: string; field: SemaphorFieldRef; grain?: string; label?: string; subtotal?: boolean | { enabled?: boolean; label?: string } };',
+    '  type MatrixValue = SemaphorFieldRef | { id?: string; field: SemaphorFieldRef; aggregate?: string; label?: string };',
+    '  type MatrixSort = { axis: "row" | "column"; targetId?: string; direction: "asc" | "desc"; by: { kind: "label" } | { kind: "field"; field: SemaphorFieldRef; aggregate?: string } | { kind: "value"; valueId: string; rowPath?: unknown[]; columnPath?: unknown[] }; nulls?: string; scope?: string };',
+    '  type MatrixSpec = { source: SemaphorSourceRef; id?: string; label?: string; filters?: SemaphorFilter[]; relationshipHint?: unknown; rows: MatrixAxis[]; columns?: MatrixAxis[]; values: MatrixValue[]; totals?: unknown; sort?: MatrixSort[]; expansion?: unknown; layout?: unknown; displayLimits?: unknown };',
+    '  type SqlSpec = { source: SemaphorSourceRef; id?: string; label?: string; sql: string; defaultParameters?: Record<string, unknown>; pythonCode?: string; fields?: SemaphorFieldRef[]; limit?: number; pagination?: unknown; rationale?: string };',
+    '  export const semaphor: {',
+    '    source: { semantic<T extends Record<string, unknown>>(spec: T): T & { kind: "semantic" }; sql<T extends Record<string, unknown>>(spec: T): T & { kind: "sql" } };',
+    '    field: { measure<T extends Record<string, unknown>>(name: string, spec?: T): T & { name: string; role: "measure" }; dimension<T extends Record<string, unknown>>(name: string, spec?: T): T & { name: string; role: "dimension" }; date<T extends Record<string, unknown>>(name: string, spec?: T): T & { name: string; role: "date" }; id<T extends Record<string, unknown>>(name: string, spec?: T): T & { name: string; role: "id" } };',
+    '    filter(spec: Record<string, unknown>): unknown;',
+    '    bindInput(input: SemaphorInputReference, binding: Record<string, unknown>): SemaphorInputReference;',
+    '    metric<T extends MetricSpec>(spec: T): T & { queryKind: "metric" };',
+    '    analysis<T extends AnalysisSpec>(spec: T): T & { queryKind: "analysis" };',
+    '    records<T extends RecordsSpec>(spec: T): T & { queryKind: "records" };',
+    '    matrix<T extends MatrixSpec>(spec: T): T & { queryKind: "matrix" };',
+    '    sql<T extends SqlSpec>(spec: T): T & { queryKind: "sql" };',
+    '    inputOptions(spec: Record<string, unknown>): unknown;',
+    '  };',
     '  export type SemaphorInputReference = any;',
     '  export type SemaphorQueryRuntimeOptions = any;',
     '  export type SemaphorInputHandle = any;',
-    '  export type SemaphorFieldRef = any;',
-    '  export type SemaphorResultColumn = any;',
+    '  export type SemaphorResultColumn = { key: string; name?: string; label?: string; aggregate?: string; source?: SemaphorSourceRef };',
     '}',
     '',
   ].join('\n'));

@@ -1048,6 +1048,8 @@ function collectMatrixAxisField(fields, level) {
 function isPresentationView(view) {
   return (
     view?.computation?.kind === 'presentation_only' ||
+    view?.computation?.kind === 'derived' ||
+    view?.computation?.kind === 'unsupported' ||
     view?.visual === 'text_block' ||
     view?.visualSpec?.visualType === 'text_block'
   );

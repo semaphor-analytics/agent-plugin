@@ -26,6 +26,80 @@ const CODEGEN_ANALYSIS_DRIVER_MODES = new Set([
   'all',
 ]);
 
+const CODEGEN_METRIC_SPEC_KEYS = new Set([
+  'source',
+  'id',
+  'label',
+  'measures',
+  'primaryMeasure',
+  'dateField',
+  'timeGrain',
+  'dimensions',
+  'comparison',
+  'orderBy',
+  'filters',
+  'relationshipHint',
+  'limit',
+  'derivedFields',
+]);
+
+const CODEGEN_ANALYSIS_SPEC_KEYS = new Set([
+  ...CODEGEN_METRIC_SPEC_KEYS,
+  'analysis',
+  'timeWindow',
+  'filters',
+  'driverMode',
+  'includePopulation',
+  'calendarContext',
+  'chartTitle',
+  'chartType',
+]);
+
+const CODEGEN_RECORDS_SPEC_KEYS = new Set([
+  'source',
+  'id',
+  'label',
+  'fields',
+  'dateField',
+  'timeGrain',
+  'timeWindow',
+  'filters',
+  'orderBy',
+  'relationshipHint',
+  'limit',
+  'pagination',
+  'derivedFields',
+]);
+
+const CODEGEN_MATRIX_SPEC_KEYS = new Set([
+  'source',
+  'id',
+  'label',
+  'filters',
+  'relationshipHint',
+  'rows',
+  'columns',
+  'values',
+  'totals',
+  'sort',
+  'expansion',
+  'layout',
+  'displayLimits',
+]);
+
+const CODEGEN_SQL_SPEC_KEYS = new Set([
+  'source',
+  'id',
+  'label',
+  'sql',
+  'defaultParameters',
+  'pythonCode',
+  'fields',
+  'limit',
+  'pagination',
+  'rationale',
+]);
+
 const CODEGEN_VISUAL_TYPES = new Set([
   'kpi',
   'line_chart',
@@ -244,10 +318,29 @@ function validateView(value, path) {
   if (view.computation !== undefined) {
     issues.push(...validateComputation(view.computation, `${path}.computation`));
   }
-  if (!Array.isArray(view.fields)) {
-    if (!isPresentationCodegenView(view)) {
-      issues.push(`${path}.fields must be an array.`);
+  if (isPresentationCodegenView(view)) {
+    if (view.fields !== undefined) {
+      if (!Array.isArray(view.fields)) {
+        issues.push(`${path}.fields must be an array.`);
+      } else {
+        view.fields.forEach((field, index) => {
+          issues.push(...validateFieldRef(field, `${path}.fields.${index}`));
+        });
+      }
     }
+    if (view.queryKind !== undefined) {
+      issues.push(`${path}.queryKind is not allowed for non-executable views.`);
+    }
+    if (view.sdkBuilder !== undefined) {
+      issues.push(`${path}.sdkBuilder is not allowed for non-executable views.`);
+    }
+    if (view.sdkSpec !== undefined) {
+      issues.push(`${path}.sdkSpec is not allowed for non-executable views.`);
+    }
+    return issues;
+  }
+  if (!Array.isArray(view.fields)) {
+    issues.push(`${path}.fields must be an array.`);
     if (view.sdkSpec !== undefined || view.sdkBuilder !== undefined) {
       issues.push(`${path}.fields must be an array for executable views.`);
     }
@@ -256,9 +349,6 @@ function validateView(value, path) {
   view.fields.forEach((field, index) => {
     issues.push(...validateFieldRef(field, `${path}.fields.${index}`));
   });
-  if (isPresentationCodegenView(view) && view.sdkSpec === undefined) {
-    return issues;
-  }
   if (!CODEGEN_QUERY_KINDS.has(view.queryKind)) {
     issues.push(`${path}.queryKind must be a supported codegen query kind.`);
   }
@@ -443,44 +533,55 @@ function validateSdkSpec({ value, path, queryKind, sdkBuilder }) {
   switch (sdkSpec.builder) {
     case 'semaphor.metric':
       issues.push(
+        ...validateAllowedKeys(spec, CODEGEN_METRIC_SPEC_KEYS, `${path}.spec`),
         ...validateSdkSourceBearingSpec(spec, path),
         ...validateFieldRefArray(spec.measures, `${path}.spec.measures`),
         ...validateOptionalFieldRef(spec.primaryMeasure, `${path}.spec.primaryMeasure`),
         ...validateOptionalFieldRef(spec.dateField, `${path}.spec.dateField`),
         ...validateOptionalFieldRefArray(spec.dimensions, `${path}.spec.dimensions`),
         ...validateOptionalOrderBy(spec.orderBy, `${path}.spec.orderBy`),
+        ...validateOptionalFilters(spec.filters, `${path}.spec.filters`),
       );
       break;
     case 'semaphor.analysis':
       issues.push(
+        ...validateAllowedKeys(spec, CODEGEN_ANALYSIS_SPEC_KEYS, `${path}.spec`),
         ...validateSdkSourceBearingSpec(spec, path),
         ...validateFieldRefArray(spec.measures, `${path}.spec.measures`),
         ...validateOptionalFieldRef(spec.primaryMeasure, `${path}.spec.primaryMeasure`),
         ...validateOptionalFieldRef(spec.dateField, `${path}.spec.dateField`),
         ...validateOptionalFieldRefArray(spec.dimensions, `${path}.spec.dimensions`),
         ...validateOptionalOrderBy(spec.orderBy, `${path}.spec.orderBy`),
+        ...validateOptionalFilters(spec.filters, `${path}.spec.filters`),
         ...validateAnalysisOptions(spec, `${path}.spec`),
       );
       break;
     case 'semaphor.records':
       issues.push(
+        ...validateAllowedKeys(spec, CODEGEN_RECORDS_SPEC_KEYS, `${path}.spec`),
         ...validateSdkSourceBearingSpec(spec, path),
         ...validateFieldRefArray(spec.fields, `${path}.spec.fields`),
         ...validateOptionalFieldRef(spec.dateField, `${path}.spec.dateField`),
         ...validateOptionalOrderBy(spec.orderBy, `${path}.spec.orderBy`),
+        ...validateOptionalFilters(spec.filters, `${path}.spec.filters`),
       );
       break;
     case 'semaphor.matrix':
       issues.push(
-        ...validateSdkSourceBearingSpec(spec, path),
+        ...validateAllowedKeys(spec, CODEGEN_MATRIX_SPEC_KEYS, `${path}.spec`),
+        ...validateMatrixSourceBearingSpec(spec, path),
         ...validateMatrixAxisLevels(spec.rows, `${path}.spec.rows`),
         ...validateOptionalMatrixAxisLevels(spec.columns, `${path}.spec.columns`),
         ...validateMatrixValueFields(spec.values, `${path}.spec.values`),
         ...validateOptionalMatrixSort(spec.sort, `${path}.spec.sort`),
+        ...validateOptionalFilters(spec.filters, `${path}.spec.filters`),
       );
       break;
     case 'semaphor.sql':
-      issues.push(...validateSdkSourceBearingSpec(spec, path));
+      issues.push(
+        ...validateAllowedKeys(spec, CODEGEN_SQL_SPEC_KEYS, `${path}.spec`),
+        ...validateSdkSourceBearingSpec(spec, path),
+      );
       if (asRecord(spec.source)?.kind !== 'sql') {
         issues.push(`${path}.spec.source.kind must be sql.`);
       }
@@ -536,11 +637,33 @@ function validateAnalysisOptions(spec, path) {
   return issues;
 }
 
+function validateAllowedKeys(value, allowedKeys, path) {
+  const issues = [];
+  Object.keys(value).forEach((key) => {
+    if (!allowedKeys.has(key)) {
+      issues.push(`${path}.${key} is not supported for this SDK builder.`);
+    }
+  });
+  return issues;
+}
+
 function validateSdkSourceBearingSpec(spec, path) {
   if (!asRecord(spec.source)) {
     return [`${path}.spec.source must be an object.`];
   }
   return validateSource(spec.source, `${path}.spec.source`);
+}
+
+function validateMatrixSourceBearingSpec(spec, path) {
+  const source = asRecord(spec.source);
+  if (!source) {
+    return [`${path}.spec.source must be an object.`];
+  }
+  const issues = validateSource(spec.source, `${path}.spec.source`);
+  if (source.kind !== 'semantic' && source.kind !== 'physical') {
+    issues.push(`${path}.spec.source.kind must be semantic or physical.`);
+  }
+  return issues;
 }
 
 function validateFieldRefArray(value, path) {
@@ -575,7 +698,10 @@ function validateOptionalOrderBy(value, path) {
   if (!orderBy) {
     return [`${path} must be an object.`];
   }
-  return validateFieldRef(orderBy.field, `${path}.field`);
+  return [
+    ...validateFieldRef(orderBy.field, `${path}.field`),
+    ...validateRequiredSortDirection(orderBy.direction, `${path}.direction`),
+  ];
 }
 
 function validateMatrixAxisLevels(value, path) {
@@ -641,7 +767,59 @@ function validateOptionalMatrixSort(value, path) {
       issues.push(`${path}.${index} must be an object.`);
       return;
     }
-    issues.push(...validateOptionalFieldRef(sortRecord.field, `${path}.${index}.field`));
+    if (sortRecord.axis !== 'row' && sortRecord.axis !== 'column') {
+      issues.push(`${path}.${index}.axis must be row or column.`);
+    }
+    issues.push(
+      ...validateRequiredSortDirection(sortRecord.direction, `${path}.${index}.direction`),
+      ...validateMatrixSortBy(sortRecord.by, `${path}.${index}.by`),
+    );
+  });
+  return issues;
+}
+
+function validateMatrixSortBy(value, path) {
+  const by = asRecord(value);
+  if (!by) {
+    return [`${path} must be an object.`];
+  }
+  switch (by.kind) {
+    case 'label':
+      return [];
+    case 'field':
+      return validateFieldRef(by.field, `${path}.field`);
+    case 'value':
+      if (typeof by.valueId !== 'string' || !by.valueId.trim()) {
+        return [`${path}.valueId is required.`];
+      }
+      return [];
+    default:
+      return [`${path}.kind must be label, field, or value.`];
+  }
+}
+
+function validateRequiredSortDirection(value, path) {
+  if (value === 'asc' || value === 'desc') {
+    return [];
+  }
+  return [`${path} must be asc or desc.`];
+}
+
+function validateOptionalFilters(value, path) {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    return [`${path} must be an array.`];
+  }
+  const issues = [];
+  value.forEach((filter, index) => {
+    const filterRecord = asRecord(filter);
+    if (!filterRecord) {
+      issues.push(`${path}.${index} must be an object.`);
+      return;
+    }
+    issues.push(...validateFieldRef(filterRecord.field, `${path}.${index}.field`));
   });
   return issues;
 }
@@ -715,6 +893,139 @@ function validateVisualSpec(value, path) {
       visualSpec.limit <= 0)
   ) {
     issues.push(`${path}.limit must be a positive integer.`);
+  }
+  if (visualSpec.tableBehavior !== undefined) {
+    issues.push(...validateTableBehavior(visualSpec.tableBehavior, `${path}.tableBehavior`));
+  }
+  return issues;
+}
+
+function validateTableBehavior(value, path) {
+  const tableBehavior = asRecord(value);
+  if (!tableBehavior) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  if (
+    tableBehavior.tableMode !== 'bounded' &&
+    tableBehavior.tableMode !== 'server_paginated' &&
+    tableBehavior.tableMode !== 'server_windowed'
+  ) {
+    issues.push(`${path}.tableMode must be a supported table mode.`);
+  }
+  issues.push(
+    ...validateTableHeight(tableBehavior.height, `${path}.height`),
+    ...validateTablePagination(tableBehavior.pagination, `${path}.pagination`),
+    ...validateTableSorting(tableBehavior.sorting, `${path}.sorting`),
+    ...validateTableTotals(tableBehavior.totals, `${path}.totals`),
+  );
+  if (typeof tableBehavior.serverSideRequired !== 'boolean') {
+    issues.push(`${path}.serverSideRequired must be a boolean.`);
+  }
+  return issues;
+}
+
+function validateTableHeight(value, path) {
+  const height = asRecord(value);
+  if (!height) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  if (
+    typeof height.maxPx !== 'number' ||
+    !Number.isInteger(height.maxPx) ||
+    height.maxPx <= 0
+  ) {
+    issues.push(`${path}.maxPx must be a positive integer.`);
+  }
+  if (height.scroll !== 'vertical' && height.scroll !== 'both') {
+    issues.push(`${path}.scroll must be vertical or both.`);
+  }
+  if (typeof height.stickyHeader !== 'boolean') {
+    issues.push(`${path}.stickyHeader must be a boolean.`);
+  }
+  return issues;
+}
+
+function validateTablePagination(value, path) {
+  const pagination = asRecord(value);
+  if (!pagination) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  if (
+    pagination.mode !== 'none' &&
+    pagination.mode !== 'server' &&
+    pagination.mode !== 'client_for_bounded_rows'
+  ) {
+    issues.push(`${path}.mode must be a supported pagination mode.`);
+  }
+  if (
+    pagination.pageSize !== undefined &&
+    (typeof pagination.pageSize !== 'number' ||
+      !Number.isInteger(pagination.pageSize) ||
+      pagination.pageSize <= 0)
+  ) {
+    issues.push(`${path}.pageSize must be a positive integer.`);
+  }
+  if (
+    pagination.readsFrom !== undefined &&
+    pagination.readsFrom !== 'result.pagination'
+  ) {
+    issues.push(`${path}.readsFrom must be result.pagination.`);
+  }
+  return issues;
+}
+
+function validateTableSorting(value, path) {
+  const sorting = asRecord(value);
+  if (!sorting) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  if (
+    sorting.mode !== 'server' &&
+    sorting.mode !== 'client_for_bounded_rows'
+  ) {
+    issues.push(`${path}.mode must be a supported sorting mode.`);
+  }
+  if (
+    sorting.defaultField !== undefined &&
+    (typeof sorting.defaultField !== 'string' || !sorting.defaultField.trim())
+  ) {
+    issues.push(`${path}.defaultField must be a non-empty string.`);
+  }
+  if (
+    sorting.defaultDirection !== undefined &&
+    sorting.defaultDirection !== 'asc' &&
+    sorting.defaultDirection !== 'desc'
+  ) {
+    issues.push(`${path}.defaultDirection must be asc or desc.`);
+  }
+  if (
+    sorting.resetPageOnChange !== undefined &&
+    typeof sorting.resetPageOnChange !== 'boolean'
+  ) {
+    issues.push(`${path}.resetPageOnChange must be a boolean.`);
+  }
+  return issues;
+}
+
+function validateTableTotals(value, path) {
+  const totals = asRecord(value);
+  if (!totals) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  if (typeof totals.displayedRows !== 'boolean') {
+    issues.push(`${path}.displayedRows must be a boolean.`);
+  }
+  if (
+    totals.allFilteredRows !== 'not_needed' &&
+    totals.allFilteredRows !== 'server_provided' &&
+    totals.allFilteredRows !== 'separate_aggregate_query_required'
+  ) {
+    issues.push(`${path}.allFilteredRows must be a supported totals mode.`);
   }
   return issues;
 }
