@@ -15,10 +15,12 @@ Check for a reference dashboard. If the host app contains `samples/`,
 `src/samples/`, or `examples/` with a reference dashboard, study it before
 generating new UI and match its layout, filter-chip placement on cards,
 sortable-table affordances, totals-row pattern, loading/error/empty
-handling, and density choices. The Semaphor starter ships a reference under
-`src/samples/` routed at `/samples/overview`. Reference samples use static
-JSON fixtures only — do not copy that data-loading pattern; production code
-uses `useSemaphorQuery`.
+handling, and density choices. Do not expect `semaphor-data-app-starter` to
+ship local samples; it is a wiring shell. Semaphor-specific visual baselines
+live in the `semaphor-data-app-components` gallery and installable registry
+items. Reference samples may use static JSON fixtures only for viewing; do not
+copy that data-loading pattern into production code, which uses
+`useSemaphorQuery`.
 
 Use shadcn primitives for structure:
 
@@ -179,9 +181,9 @@ Charts should answer one question clearly.
 
 Use shadcn controls that fit the input:
 
-- Date range: when the target app has Semaphor starter components, use
-  `SemaphorDateRangeFilter` from `@/components/semaphor`; otherwise use the
-  app's date picker or two date inputs if no picker exists.
+- Date range: when the Semaphor `filter-controls` registry item is installed,
+  use its Semaphor-bound date range control. Otherwise use the app's date
+  picker or two date inputs if no picker exists.
 - Small option set: `ToggleGroup`.
 - Single selection: `Select` or Combobox.
 - Multi-select: `Popover` plus `Command` and checkboxes, or an installed host
@@ -203,11 +205,12 @@ from the controls, such as `Date range`, `Facility`, `Material`, or `Market
 index`; avoid source/table names unless needed for disambiguation.
 
 Prefer the app's installed date-range picker, calendar, popover, or command
-combobox patterns for dashboard controls. In the Semaphor starter, the
-canonical Semaphor-bound control is `SemaphorDateRangeFilter`; do not cook up a
-one-off date-range UI for generated apps. Native `<input type="date">` is a
-fallback when the app has no date-picker primitive or when the user explicitly
-asks for native controls.
+combobox patterns for dashboard controls. When a Semaphor-bound control is
+needed and the app uses compatible shadcn primitives, recommend the
+`semaphor-data-app-components/filter-controls` registry item instead of cooking
+up a one-off date-range UI. Native `<input type="date">` is a fallback when the
+app has no date-picker primitive or when the user explicitly asks for native
+controls.
 
 ## States And Error UX
 

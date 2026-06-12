@@ -436,11 +436,11 @@ and then paginate, sort, filter, pivot, or group it only in React.
 
 Infer server-backed table needs from the planned experience. Operational,
 drill-through, exploratory, paginated, sortable, complete, or large tables are
-server-side candidates. In `semaphor-data-app-starter`, use the local
-`src/components/semaphor/server-data-table` exports. Otherwise, after presenting
-the plan, ask to install, use, or adapt the Semaphor shadcn server table
-registry unless the target app already has an equivalent server-backed table
-abstraction.
+server-side candidates. After presenting the plan, ask to install, use, or
+adapt the Semaphor shadcn server table registry unless the target app already
+has an equivalent server-backed table abstraction. The Semaphor starter is only
+an app wiring shell; Semaphor-specific table, KPI, filter, state, and matrix
+components are distributed through `semaphor-data-app-components`.
 
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips
@@ -467,14 +467,15 @@ When the host uses another design system, preserve that system while applying
 the same dashboard usability rules.
 
 Before generating dashboard UI, check whether the host app has a `samples/`,
-`src/samples/`, or `examples/` directory containing a reference dashboard
-(the Semaphor starter ships one at `src/samples/` routed under `/samples`).
-If one exists, read its layout, component composition, filter-chip placement
-on affected cards, sortable-table affordances, totals-row pattern,
+`src/samples/`, or `examples/` directory containing customer-owned reference
+screens. If one exists, read its layout, component composition, filter-chip
+placement on affected cards, sortable-table affordances, totals-row pattern,
 loading/error/empty handling, and density choices, and match them in the
-generated app. Reference samples use static fixtures for self-contained
-viewing; the data-loading pattern there must not be copied — production code
-uses `useSemaphorQuery` per [sdk-contract.md](references/sdk-contract.md).
+generated app. Do not expect `semaphor-data-app-starter` to contain local
+samples or reusable Semaphor presentation components. For Semaphor-specific
+visual baselines, use the `semaphor-data-app-components` gallery and registry
+items; production data-loading code still uses `useSemaphorQuery` per
+[sdk-contract.md](references/sdk-contract.md).
 
 ## Save, Publish, And Validation
 

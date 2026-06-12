@@ -260,10 +260,6 @@ Use the registry reference when:
 - the target app does not already have an equivalent high-quality server table
   component.
 
-If the target app is `semaphor-data-app-starter`, do not install the registry
-item. Import `SemaphorServerDataTable` or `ServerDataTableView` from the local
-`src/components/semaphor/server-data-table` component instead.
-
 Do not install the registry item blindly. First inspect the target app and put
 the recommendation in the visible plan when the inferred table behavior needs
 server-side mechanics:
