@@ -27,8 +27,9 @@ domain/operation/current state, ask the user or inspect the app instead of
 guessing.
 
 For broad dashboard-style creation, pass a view budget large enough for a
-balanced first proposal. Use `preferences.maxViews: 15` by default, or up to
-20 for wider coverage. The default 8-view single-source plan is not a hard cap.
+balanced first proposal while keeping the generated app reviewable. Use
+`preferences.maxViews: 12` by default, or up to 20 for user-requested wider
+coverage. The default 8-view single-source plan is not a hard cap.
 For broad dashboard planning, pass `responseFormat: "codegen_summary"` exactly.
 Do not pass `responseFormat: "compact_summary"` or another invented compact
 format; the supported planner response formats are `full` and

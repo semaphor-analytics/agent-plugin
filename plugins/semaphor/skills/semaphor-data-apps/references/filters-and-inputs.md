@@ -195,7 +195,7 @@ const activeFilterSummaries = getSemaphorActiveFilterSummaries([
   facilityHandle,
 ]);
 
-<SemaphorActiveFilterSummaryBadge summaries={activeFilterSummaries} />;
+<SemaphorActiveFilterSummaryBadge filters={activeFilterSummaries} />;
 ```
 
 Keep the summary compact in the filter bar header or toolbar. Do not render all
@@ -214,6 +214,33 @@ more subscribed filters are active:
 - truncate long values with a tooltip or popover for full values;
 - omit the affordance when no subscribed filter is active, unless the app needs
   to show always-on default context such as "Latest 12 months".
+
+When the Semaphor `view-card` registry item is installed, prefer it over
+hand-built card affordances:
+
+```tsx
+import {
+  SemaphorViewCard,
+  getSemaphorViewFilterSummaries,
+} from "@/components/semaphor/view-card";
+
+const filtersForRevenueTrend = getSemaphorViewFilterSummaries({
+  filters: activeFilterSummaries,
+  viewId: "revenue_trend",
+  filterScope: {
+    date_range: ["revenue_trend", "sales_table"],
+    region: ["revenue_trend"],
+  },
+});
+
+<SemaphorViewCard
+  title="Revenue trend"
+  filters={filtersForRevenueTrend}
+  state={revenueTrendResult}
+>
+  <RevenueTrendChart />
+</SemaphorViewCard>;
+```
 
 Do not show a filter chip on a card merely because a filter exists elsewhere
 on the page. The chip is a contract that this card's query was executed with

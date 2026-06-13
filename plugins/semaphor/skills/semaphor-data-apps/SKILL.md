@@ -132,9 +132,11 @@ asked for a model-readiness report. Ask the user to choose a better domain,
 provide a concrete business goal, or improve the semantic model. The contract
 generator intentionally rejects zero-executable-view plans by default.
 
-For broad dashboard-style app creation, prefer `preferences.maxViews` around 15
-or 20. Use `responseFormat: "codegen_summary"` exactly; do not shrink to the
-8-view default or invent formats such as `"compact_summary"`.
+For broad dashboard-style app creation, prefer `preferences.maxViews` around
+12 so the generated app remains reviewable. Use a larger explicit budget up to
+20 only when the user asks for wider coverage. Use
+`responseFormat: "codegen_summary"` exactly; do not shrink to the 8-view
+single-source default or invent formats such as `"compact_summary"`.
 
 The visible planning response must include:
 
@@ -219,7 +221,10 @@ as a required dashboard quality checklist, not optional inspiration.
   client-side filtering, or raw SQL.
 - Treat visible filter scope as part of the app contract: top bar for
   dashboard-wide filters; place or label scoped filters by affected view.
-- With Semaphor filter controls, use the registry active-filter summary.
+- With Semaphor filter controls, use the registry active-filter summary. When
+  the Semaphor component registry is installed, wrap generated views in
+  `SemaphorViewCard` or use `SemaphorViewFilterBadge` in existing card headers
+  so active subscribed filters are visible on the affected cards.
 - Do not make a visible input globally active by default. Pass an input handle
   only to queries listed in planner `appliesToViewIds`, queries on the same
   source-bearing field, or queries with an explicit modeled relationship path.

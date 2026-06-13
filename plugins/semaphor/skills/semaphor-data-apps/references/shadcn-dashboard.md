@@ -135,6 +135,13 @@ scrolling, TanStack Virtual. Ask before adding dependencies unless the user has
 already approved installing table libraries.
 
 When the app uses compatible shadcn/base UI primitives and lacks an equivalent
+view card shell, prefer the Semaphor registry item for generated cards:
+
+```bash
+npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/view-card
+```
+
+When the app uses compatible shadcn/base UI primitives and lacks an equivalent
 server table, prefer the Semaphor registry item documented in
 [tables.md](tables.md):
 
@@ -198,11 +205,13 @@ labels unique; when labels duplicate, add a meaningful secondary label or
 disambiguator.
 
 Cards should show active subscribed filters without turning the dashboard into
-a debug panel. Use `Badge`, muted inline text, `Tooltip`, or `Popover` for a
-compact "filtered by" affordance in the card header or footer. Show only
-filters actually passed to that card's query. Prefer labels users recognize
-from the controls, such as `Date range`, `Facility`, `Material`, or `Market
-index`; avoid source/table names unless needed for disambiguation.
+a debug panel. When available, use `SemaphorViewCard` or
+`SemaphorViewFilterBadge`; otherwise use `Badge`, muted inline text, `Tooltip`,
+or `Popover` for a compact "filtered by" affordance in the card header or
+footer. Show only filters actually passed to that card's query. Prefer labels
+users recognize from the controls, such as `Date range`, `Facility`,
+`Material`, or `Market index`; avoid source/table names unless needed for
+disambiguation.
 
 Prefer the app's installed date-range picker, calendar, popover, or command
 combobox patterns for dashboard controls. When a Semaphor-bound control is
