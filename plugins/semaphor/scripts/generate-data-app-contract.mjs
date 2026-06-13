@@ -887,10 +887,14 @@ function resolveColumn(
     return undefined;
   }
   return (
-    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, true)) ||
-    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, false)) ||
-    findUniqueColumn(columns, (column) => column.label === field.label && columnMatchesField(column, field, true)) ||
-    findUniqueColumn(columns, (column) => column.label === field.label && columnMatchesField(column, field, false))
+    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, true, false)) ||
+    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, false, false)) ||
+    findUniqueColumn(columns, (column) => columnLabelMatchesField(column, field) && columnMatchesField(column, field, true, false)) ||
+    findUniqueColumn(columns, (column) => columnLabelMatchesField(column, field) && columnMatchesField(column, field, false, false)) ||
+    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, true, true)) ||
+    findUniqueColumn(columns, (column) => column.name === field.name && columnMatchesField(column, field, false, true)) ||
+    findUniqueColumn(columns, (column) => columnLabelMatchesField(column, field) && columnMatchesField(column, field, true, true)) ||
+    findUniqueColumn(columns, (column) => columnLabelMatchesField(column, field) && columnMatchesField(column, field, false, true))
   );
 }
 
@@ -902,21 +906,37 @@ function findUniqueColumn(
   return matches.length === 1 ? matches[0] : undefined;
 }
 
+function columnLabelMatchesField(
+  column: SemaphorResultColumn,
+  field: SemaphorFieldRef,
+): boolean {
+  return Boolean(field.label && column.label === field.label);
+}
+
 function columnMatchesField(
   column: SemaphorResultColumn,
   field: SemaphorFieldRef,
   requireComparableSource: boolean,
+  allowImplicitAggregate: boolean,
 ): boolean {
-  if (field.aggregate && column.aggregate && field.aggregate !== column.aggregate) {
+  if (field.aggregate && column.aggregate && normalizeAggregate(field.aggregate) !== normalizeAggregate(column.aggregate)) {
     return false;
   }
-  if (!field.aggregate && column.aggregate) {
+  if (
+    !field.aggregate &&
+    column.aggregate &&
+    (!allowImplicitAggregate || field.role !== "measure")
+  ) {
     return false;
   }
   if (requireComparableSource && !column.source) {
     return false;
   }
   return sourcesReferToSameDataset(column.source, field.source);
+}
+
+function normalizeAggregate(aggregate: string): string {
+  return aggregate.trim().toLowerCase();
 }
 
 function sourcesReferToSameDataset(

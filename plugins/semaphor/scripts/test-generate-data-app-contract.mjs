@@ -18,6 +18,7 @@ const tempRoot = fs.mkdtempSync(
 
 try {
   runValidPartialScopeFixture();
+  runAggregateRecordsAccessorFixture();
   runNoFilterFixture();
   runTableBehaviorFixture();
   runMalformedSummaryFixture();
@@ -188,6 +189,41 @@ function runNoFilterFixture() {
     );
   }
   typecheckGeneratedFilesIfAvailable({ workspaceDir });
+}
+
+function runAggregateRecordsAccessorFixture() {
+  const workspaceDir = path.join(tempRoot, "aggregate-records-accessor");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  const measureWithoutAggregate = {
+    ...summary.views[0].fields[0],
+  };
+  delete measureWithoutAggregate.aggregate;
+  summary.views[0] = {
+    ...summary.views[0],
+    fields: [measureWithoutAggregate],
+    sdkSpec: {
+      ...summary.views[0].sdkSpec,
+      spec: {
+        ...summary.views[0].sdkSpec.spec,
+        fields: [measureWithoutAggregate],
+      },
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `Expected aggregate records accessor fixture to pass:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+  typecheckGeneratedFilesIfAvailable({ workspaceDir });
+  assertAggregateRecordsAccessorBehavior({ workspaceDir });
 }
 
 function runTableBehaviorFixture() {
@@ -2034,6 +2070,129 @@ function typecheckGeneratedFilesIfAvailable({ workspaceDir }) {
   if (result.status !== 0) {
     throw new Error(
       `Generated TypeScript did not typecheck:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function assertAggregateRecordsAccessorBehavior({ workspaceDir }) {
+  const tscPath = findTypeScriptCompiler();
+  if (!tscPath) {
+    console.warn(
+      "Skipping generated accessor behavior fixture; no local TypeScript compiler was found.",
+    );
+    return;
+  }
+  const sdkStubDir = path.join(
+    workspaceDir,
+    "node_modules/react-semaphor",
+  );
+  fs.mkdirSync(sdkStubDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(sdkStubDir, "package.json"),
+    JSON.stringify(
+      {
+        name: "react-semaphor",
+        type: "commonjs",
+      },
+      null,
+      2,
+    ),
+  );
+  fs.writeFileSync(
+    path.join(sdkStubDir, "data-app-sdk.js"),
+    [
+      "exports.semaphor = {",
+      "  source: {",
+      "    semantic: (spec) => ({ ...spec, kind: 'semantic' }),",
+      "    sql: (spec) => ({ ...spec, kind: 'sql' }),",
+      "  },",
+      "};",
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(
+    path.join(sdkStubDir, "data-app-sdk.d.ts"),
+    [
+      'export type SemaphorSemanticSourceRef = { kind: "semantic"; domainId?: string; datasetId?: string; datasetName?: string; connectionId?: string; [key: string]: unknown };',
+      'export type SemaphorPhysicalSourceRef = { kind: "physical"; connectionId?: string; databaseName?: string; schemaName?: string; tableName?: string; [key: string]: unknown };',
+      'export type SemaphorSqlSourceRef = { kind: "sql"; connectionId?: string; [key: string]: unknown };',
+      "export type SemaphorSourceRef = SemaphorSemanticSourceRef | SemaphorPhysicalSourceRef | SemaphorSqlSourceRef;",
+      "export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: string; aggregate?: string; [key: string]: unknown };",
+      "export type SemaphorResultColumn = { key: string; name?: string; label?: string; aggregate?: string; source?: SemaphorSourceRef };",
+      "export const semaphor: { source: { semantic<T extends Record<string, unknown>>(spec: T): T & { kind: 'semantic' }; sql<T extends Record<string, unknown>>(spec: T): T & { kind: 'sql' } } };",
+      "",
+    ].join("\n"),
+  );
+
+  const runnerPath = path.join(workspaceDir, "accessor-behavior.ts");
+  fs.writeFileSync(
+    runnerPath,
+    [
+      'import { fieldsForView, readCell, rowValuesForView } from "./src/semaphor/generated/accessors";',
+      "",
+      "const aggregateColumn = {",
+      '  key: "sum_sales_value",',
+      '  name: "sales_value",',
+      '  label: "Sales Value",',
+      '  aggregate: "SUM",',
+      "  source: {",
+      '    kind: "semantic",',
+      '    domainId: "domain",',
+      '    datasetName: "sales",',
+      "  },",
+      "} as const;",
+      "",
+      "const row = { sum_sales_value: 15420 };",
+      "const columns = [aggregateColumn];",
+      "const values = rowValuesForView.salesKpi(row, columns);",
+      "const direct = readCell(row, columns, fieldsForView.salesKpi.salesValue);",
+      "if (values.salesValue !== 15420 || direct !== 15420) {",
+      "  throw new Error(`Expected aggregate result column to resolve to 15420, got rowValues=${String(values.salesValue)} direct=${String(direct)}`);",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  const outDir = path.join(workspaceDir, "accessor-behavior-dist");
+  const result = spawnSync(
+    process.execPath,
+    [
+      tscPath,
+      "--target",
+      "ES2020",
+      "--module",
+      "CommonJS",
+      "--moduleResolution",
+      "Node",
+      "--esModuleInterop",
+      "--strict",
+      "--outDir",
+      outDir,
+      runnerPath,
+      path.join(workspaceDir, "src/semaphor/generated/sources.ts"),
+      path.join(workspaceDir, "src/semaphor/generated/fields.ts"),
+      path.join(workspaceDir, "src/semaphor/generated/accessors.ts"),
+    ],
+    {
+      cwd: workspaceDir,
+      encoding: "utf8",
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `Generated accessor behavior fixture did not compile:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+  const runResult = spawnSync(
+    process.execPath,
+    [path.join(outDir, "accessor-behavior.js")],
+    {
+      cwd: workspaceDir,
+      encoding: "utf8",
+    },
+  );
+  if (runResult.status !== 0) {
+    throw new Error(
+      `Generated accessor behavior fixture failed:\n${runResult.stdout}\n${runResult.stderr}`,
     );
   }
 }
