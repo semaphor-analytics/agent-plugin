@@ -18,8 +18,11 @@ sortable-table affordances, totals-row pattern, loading/error/empty
 handling, and density choices. Do not expect `semaphor-data-app-starter` to
 ship local samples; it is a wiring shell. Semaphor-specific visual baselines
 live in the `semaphor-data-app-components` gallery and installable registry
-items. Reference samples may use static JSON fixtures only for viewing; do not
-copy that data-loading pattern into production code, which uses
+items as default examples. They are not a required customer design system:
+replace or adapt them when the host app has equivalent components that preserve
+Semaphor SDK bindings, query state, active-filter affordances, and server-owned
+table/matrix semantics. Reference samples may use static JSON fixtures only for
+viewing; do not copy that data-loading pattern into production code, which uses
 `useSemaphorQuery`.
 
 Use shadcn primitives for structure:
@@ -205,21 +208,24 @@ labels unique; when labels duplicate, add a meaningful secondary label or
 disambiguator.
 
 Cards should show active subscribed filters without turning the dashboard into
-a debug panel. When available, use `SemaphorViewCard` or
-`SemaphorViewFilterBadge`; otherwise use `Badge`, muted inline text, `Tooltip`,
-or `Popover` for a compact "filtered by" affordance in the card header or
-footer. Show only filters actually passed to that card's query. Prefer labels
-users recognize from the controls, such as `Date range`, `Facility`,
-`Material`, or `Market index`; avoid source/table names unless needed for
-disambiguation.
+a debug panel. In generated starter/eval apps, use `SemaphorViewCard` or
+`SemaphorViewFilterBadge` when available because they provide the structured
+view-shell marker and filter affordance. In customer apps with existing card
+primitives, use `Badge`, muted inline text, `Tooltip`, or `Popover` for a
+compact "filtered by" affordance in the card header or footer, and preserve the
+structured marker when running Semaphor evals. Show only filters actually
+passed to that card's query. Prefer labels users recognize from the controls,
+such as `Date range`, `Facility`, `Material`, or `Market index`; avoid
+source/table names unless needed for disambiguation.
 
 Prefer the app's installed date-range picker, calendar, popover, or command
 combobox patterns for dashboard controls. When a Semaphor-bound control is
-needed and the app uses compatible shadcn primitives, recommend the
-`semaphor-data-app-components/filter-controls` registry item instead of cooking
-up a one-off date-range UI. Native `<input type="date">` is a fallback when the
-app has no date-picker primitive or when the user explicitly asks for native
-controls.
+needed and the app uses compatible shadcn primitives, the
+`semaphor-data-app-components/filter-controls` registry item is the default
+implementation. A host-owned control is also valid when it is backed by the
+generated input handle and `semaphor.inputOptions(...)`. Native
+`<input type="date">` is a fallback when the app has no date-picker primitive
+or when the user explicitly asks for native controls.
 
 ## States And Error UX
 

@@ -215,8 +215,10 @@ more subscribed filters are active:
 - omit the affordance when no subscribed filter is active, unless the app needs
   to show always-on default context such as "Latest 12 months".
 
-When the Semaphor `view-card` registry item is installed, prefer it over
-hand-built card affordances:
+When the Semaphor `view-card` registry item is installed and the host app has
+no equivalent card affordance, prefer it for generated starter/eval views. A
+host-owned card is valid when it shows only filters actually applied to the
+view query and, for evals, exposes the same structured view-shell marker:
 
 ```tsx
 import {

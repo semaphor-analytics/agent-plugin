@@ -221,10 +221,10 @@ as a required dashboard quality checklist, not optional inspiration.
   client-side filtering, or raw SQL.
 - Treat visible filter scope as part of the app contract: top bar for
   dashboard-wide filters; place or label scoped filters by affected view.
-- With Semaphor filter controls, use the registry active-filter summary. When
-  the Semaphor component registry is installed, wrap generated views in
-  `SemaphorViewCard` or use `SemaphorViewFilterBadge` in existing card headers
-  so active subscribed filters are visible on the affected cards.
+- With Semaphor filter controls, use the registry active-filter summary when no
+  host equivalent exists. Prefer `SemaphorViewCard`/`SemaphorViewFilterBadge`
+  for generated starter/eval apps; customer cards are valid when active scoped
+  filters stay visible and eval shells expose the expected structured markers.
 - Do not make a visible input globally active by default. Pass an input handle
   only to queries listed in planner `appliesToViewIds`, queries on the same
   source-bearing field, or queries with an explicit modeled relationship path.
@@ -442,11 +442,9 @@ and then paginate, sort, filter, pivot, or group it only in React.
 
 Infer server-backed table needs from the planned experience. Operational,
 drill-through, exploratory, paginated, sortable, complete, or large tables are
-server-side candidates. After presenting the plan, ask to install, use, or
-adapt the Semaphor shadcn server table registry unless the target app already
-has an equivalent server-backed table abstraction. The Semaphor starter is only
-an app wiring shell; Semaphor-specific table, KPI, filter, state, and matrix
-components are distributed through `semaphor-data-app-components`.
+server-side candidates. Ask to install, use, or adapt the Semaphor shadcn server
+table registry unless the target app has an equivalent abstraction. The starter
+is only wiring; reusable Semaphor UI lives in `semaphor-data-app-components`.
 
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips
@@ -472,15 +470,12 @@ numeric alignment, missing states, or decorative icons competing with metrics.
 When the host uses another design system, preserve that system while applying
 the same dashboard usability rules.
 
-Before generating dashboard UI, check whether the host app has a `samples/`,
-`src/samples/`, or `examples/` directory containing customer-owned reference
-screens. If one exists, read its layout, component composition, filter-chip
-placement on affected cards, sortable-table affordances, totals-row pattern,
-loading/error/empty handling, and density choices, and match them in the
-generated app. Do not expect `semaphor-data-app-starter` to contain local
-samples or reusable Semaphor presentation components. For Semaphor-specific
-visual baselines, use the `semaphor-data-app-components` gallery and registry
-items; production data-loading code still uses `useSemaphorQuery` per
+Before generating dashboard UI, check the host app for customer-owned examples
+under `samples/`, `src/samples/`, or `examples/`, then match their layout,
+filter-chip placement, table affordances, states, and density. The starter is a
+wiring shell, not a samples library. Use `semaphor-data-app-components` as
+default visual examples, and adapt or replace them for the host design system.
+Production data-loading still uses `useSemaphorQuery` per
 [sdk-contract.md](references/sdk-contract.md).
 
 ## Save, Publish, And Validation
