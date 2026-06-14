@@ -19,10 +19,11 @@ Codex, Claude Code, and future coding-agent hosts.
 - Generate runtime React code with public `react-semaphor/data-app-sdk` hooks.
 - Save and publish through Semaphor Data App lifecycle APIs when requested.
 - Infer server-backed table needs from user intent and the planned UX, not only
-  literal wording. Ask before installing registry items or table dependencies
-  unless the user has already approved them; adapt server-backed table mechanics
-  into the host app when the planned experience needs pagination, sorting,
-  drill-through, or large/complete result sets.
+  literal wording. Use starter-included Semaphor components in starter/eval
+  apps. In existing apps, ask before copying starter component source or adding
+  table dependencies unless the user has already approved them; adapt
+  server-backed table mechanics into the host app when the planned experience
+  needs pagination, sorting, drill-through, or large/complete result sets.
 - If the customer app contains a `samples/`, `src/samples/`, `examples/`, or
   documented design-reference directory with a reference dashboard, study it
   before generating Data App UI. Match its layout patterns, filter-chip

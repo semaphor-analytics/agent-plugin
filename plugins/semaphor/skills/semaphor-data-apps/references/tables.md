@@ -230,26 +230,17 @@ field name, follow the installed public SDK contract. The important behavior is
 that large-table sort, filter, and pagination are represented in the Semaphor
 query, not applied only after fetching a large result set.
 
-## Semaphor Table Registry Reference
+## Semaphor Starter Table Reference
 
 When the target app uses shadcn and the table needs server-side pagination,
 server-side sorting, bounded height, sticky headers, loading/error/empty states,
-or displayed totals, use Semaphor's reusable table registry item as the source
-of truth for the hard mechanics:
+or displayed totals, use the Semaphor starter table component as the reference
+implementation for the hard mechanics. In starter/eval apps, import the
+starter-included component directly. In existing customer apps, prefer the
+host's table/grid abstraction and adapt the starter mechanics only when the
+host does not already provide them.
 
-```bash
-npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/server-data-table
-```
-
-The registry can be used in two ways:
-
-- install the full component when the host app uses compatible shadcn/base UI
-  primitives and the user approves the dependency/source additions;
-- inspect or install the core/reference files and adapt the presentation shell
-  to the host app's existing table/grid/design system when the full component
-  does not fit.
-
-Use the registry reference when:
+Use the starter table reference when:
 
 - the planner returns `view.visualSpec.tableBehavior.serverSideRequired`;
 - the user asks for a large table, paginated table, sortable table, operational
@@ -260,15 +251,18 @@ Use the registry reference when:
 - the target app does not already have an equivalent high-quality server table
   component.
 
-Do not install the registry item blindly. First inspect the target app and put
-the recommendation in the visible plan when the inferred table behavior needs
+Do not copy starter table code blindly. First inspect the target app and put the
+recommendation in the visible plan when the inferred table behavior needs
 server-side mechanics:
 
 - if it already has a durable table/grid abstraction, adapt to that;
+- if it is the Semaphor starter or eval workspace, use
+  `src/components/semaphor/server-data-table`;
 - if it uses compatible shadcn/base UI primitives but lacks a server table, ask
-  before adding the registry item and its `@tanstack/react-table` dependency;
+  before copying/adapting the starter component or adding
+  `@tanstack/react-table`;
 - if the app does not use shadcn, preserve the host design system and use the
-  registry component as implementation reference rather than forcing the UI
+  starter component as implementation reference rather than forcing the UI
   stack.
 
 For broad app builds, this is an approval checkpoint once the agent infers that
@@ -277,21 +271,21 @@ sortable, or drill-through/detail. The planning response should say:
 
 ```text
 This plan includes a server-side table. The recommended implementation is the
-Semaphor server table registry reference. It contains the server pagination,
+Semaphor starter server-table reference. It contains the server pagination,
 sorting, state, and formatting mechanics. Your app uses <design system>, so I
-can either install the full compatible registry component, adapt the mechanics
-into your existing table/grid, or build a minimal server-backed table without
-new dependencies. Which do you prefer?
+can either adapt those mechanics into your existing table/grid, copy the
+starter component source if it fits this app, or build a minimal server-backed
+table without new dependencies. Which do you prefer?
 ```
 
-Wait for the user's choice before running `npx shadcn@latest add ...` or
+Wait for the user's choice before copying starter component source or
 installing table dependencies, unless the user already explicitly authorized
-server-side tables, the Semaphor table registry, or dependency changes for the
-session. If the table behavior calls for server-side mechanics, do not fall
-back to a client-only table to avoid the install; either install/adapt the
-registry mechanics or report the concrete incompatibility that prevents it.
+server-side tables or dependency changes for the session. If the table behavior
+calls for server-side mechanics, do not fall back to a client-only table to
+avoid the extra work; either use/adapt the starter mechanics or report the
+concrete incompatibility that prevents it.
 
-The registry item installs source under:
+The starter table source lives under:
 
 ```text
 components/semaphor/server-data-table/
@@ -327,7 +321,7 @@ Map `sort.key` back to the SDK field/order contract in app code. Do not assume
 the result key is always a valid SDK `orderBy.field` without checking the
 installed SDK contract and planner-provided field refs.
 
-When adapting the registry instead of installing it whole, preserve these
+When adapting the starter component instead of using it whole, preserve these
 mechanics:
 
 - use `core.ts` as the reference for SDK column mapping, pagination metadata,

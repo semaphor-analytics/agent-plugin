@@ -46,8 +46,9 @@ public SDK builders/hooks, validate, then save or publish when requested.
 7. Existing generated app: use `semaphor_update_data_app_contract` so the
    generated manifest drives change planning and regeneration; preserve
    existing views by default.
-8. Dependencies: ask before installing registry items, TanStack, chart
-   libraries, or starter scaffolds unless already approved.
+8. Dependencies: ask before installing TanStack/chart libraries, copying
+   starter source, or starter scaffolds. Starter/eval apps already include
+   Semaphor components; existing apps use host UI first.
 9. SQL: use governed metric, records, analysis, matrix, and derived-field paths
    before SQL unless the user explicitly asks for SQL.
 10. Completion: run typecheck/build, Semaphor validation, and browser smoke when
@@ -299,7 +300,8 @@ Load the narrow reference needed for the task:
 - Filters, controls, SQL params, shared/top-level filter subscriptions:
   [filters-and-inputs.md](references/filters-and-inputs.md)
 - Data-app UX baseline, loading/error/empty states, tables, totals,
-  pagination, large result sets, Semaphor table registry item, table libraries:
+  pagination, large result sets, starter-included table components, table
+  libraries:
   [tables.md](references/tables.md)
 - Required shadcn dashboard checklist, component choices, layout, charts,
   tables, states, and host design-system adaptation:
@@ -440,11 +442,10 @@ empty state, and include totals for displayed numeric columns. Semaphor data
 tables are server-backed BI views. Do not fetch broad or complete table data
 and then paginate, sort, filter, pivot, or group it only in React.
 
-Infer server-backed table needs from the planned experience. Operational,
-drill-through, exploratory, paginated, sortable, complete, or large tables are
-server-side candidates. Ask to install, use, or adapt the Semaphor shadcn server
-table registry unless the target app has an equivalent abstraction. The starter
-is only wiring; reusable Semaphor UI lives in `semaphor-data-app-components`.
+Operational, drill-through, exploratory, paginated, sortable, complete, or
+large tables are server-side candidates. Starter/eval apps should use
+`src/components/semaphor/server-data-table`; existing apps should use the host
+table/grid first and ask before copying starter source or adding dependencies.
 
 Do not add user-facing implementation badges such as "Governed SDK queries",
 "Token configured", "MCP connected", "SQL fallback", or domain/debug chips
@@ -470,13 +471,11 @@ numeric alignment, missing states, or decorative icons competing with metrics.
 When the host uses another design system, preserve that system while applying
 the same dashboard usability rules.
 
-Before generating dashboard UI, check the host app for customer-owned examples
-under `samples/`, `src/samples/`, or `examples/`, then match their layout,
-filter-chip placement, table affordances, states, and density. The starter is a
-wiring shell, not a samples library. Use `semaphor-data-app-components` as
-default visual examples, and adapt or replace them for the host design system.
-Production data-loading still uses `useSemaphorQuery` per
-[sdk-contract.md](references/sdk-contract.md).
+Before generating dashboard UI, check `samples/`, `src/samples/`, or
+`examples/`, then match layout, filter-chip placement, table affordances,
+states, and density. Starter/eval apps use the included samples and guidelines;
+existing apps adapt those mechanics into the host design system. Production
+data-loading still uses `useSemaphorQuery` per [sdk-contract.md](references/sdk-contract.md).
 
 ## Save, Publish, And Validation
 

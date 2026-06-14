@@ -15,15 +15,14 @@ Check for a reference dashboard. If the host app contains `samples/`,
 `src/samples/`, or `examples/` with a reference dashboard, study it before
 generating new UI and match its layout, filter-chip placement on cards,
 sortable-table affordances, totals-row pattern, loading/error/empty
-handling, and density choices. Do not expect `semaphor-data-app-starter` to
-ship local samples; it is a wiring shell. Semaphor-specific visual baselines
-live in the `semaphor-data-app-components` gallery and installable registry
-items as default examples. They are not a required customer design system:
-replace or adapt them when the host app has equivalent components that preserve
-Semaphor SDK bindings, query state, active-filter affordances, and server-owned
-table/matrix semantics. Reference samples may use static JSON fixtures only for
-viewing; do not copy that data-loading pattern into production code, which uses
-`useSemaphorQuery`.
+handling, and density choices. The Semaphor starter ships Data App guidelines,
+samples, and Semaphor-specific components under `src/components/semaphor/`.
+Use those as the default reference for starter/eval workspaces. They are not a
+required customer design system: replace or adapt them when the host app has
+equivalent components that preserve Semaphor SDK bindings, query state,
+active-filter affordances, and server-owned table/matrix semantics. Reference
+samples may use static JSON fixtures only for viewing; do not copy that
+data-loading pattern into production code, which uses `useSemaphorQuery`.
 
 Use shadcn primitives for structure:
 
@@ -137,34 +136,17 @@ For large or server-paginated tables, prefer TanStack Table and, for virtual
 scrolling, TanStack Virtual. Ask before adding dependencies unless the user has
 already approved installing table libraries.
 
-When the app uses compatible shadcn/base UI primitives and lacks an equivalent
-view card shell, prefer the Semaphor registry item for generated cards:
-
-```bash
-npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/view-card
-```
-
-When the app uses compatible shadcn/base UI primitives and lacks an equivalent
-server table, prefer the Semaphor registry item documented in
-[tables.md](tables.md):
-
-```bash
-npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/server-data-table
-```
+When the workspace is the Semaphor starter, use the starter-included components
+for view shells, query states, metric KPIs, filter controls, server tables, and
+matrix tables. When the host app is an existing customer app, prefer its
+installed components and design tokens. If it lacks equivalent mechanics, ask
+before copying or adapting the starter component source into the app.
 
 For governed matrix, pivot, or hierarchical views backed by
-`semaphor.matrix(...)`, prefer the Semaphor matrix registry item documented in
-[matrix.md](matrix.md):
-
-```bash
-npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/matrix-table
-```
-
-If the host app uses another design system, use the Semaphor registry files as
-reference implementations for payload parsing, server pagination/sorting,
-state handling, totals, sticky headers, sparse matrix cells, and hierarchy
-projection. Adapt those mechanics into the host UI instead of forcing shadcn
-or inventing the hard table mechanics from scratch.
+`semaphor.matrix(...)`, preserve the matrix payload mechanics from the starter
+matrix component or the host app's equivalent component. Adapt the visible
+shell to the host UI instead of forcing starter styling or inventing the hard
+table mechanics from scratch.
 
 Do not fetch large result sets only to paginate, sort, or filter in React. Use
 server-side pagination, sorting, and filters when the app needs large tables.
@@ -191,8 +173,8 @@ Charts should answer one question clearly.
 
 Use shadcn controls that fit the input:
 
-- Date range: when the Semaphor `filter-controls` registry item is installed,
-  use its Semaphor-bound date range control. Otherwise use the app's date
+- Date range: in starter/eval apps, use the starter-included Semaphor
+  filter-control component when available. In existing apps, use the app's date
   picker or two date inputs if no picker exists.
 - Small option set: `ToggleGroup`.
 - Single selection: `Select` or Combobox.
@@ -219,9 +201,8 @@ such as `Date range`, `Facility`, `Material`, or `Market index`; avoid
 source/table names unless needed for disambiguation.
 
 Prefer the app's installed date-range picker, calendar, popover, or command
-combobox patterns for dashboard controls. When a Semaphor-bound control is
-needed and the app uses compatible shadcn primitives, the
-`semaphor-data-app-components/filter-controls` registry item is the default
+combobox patterns for dashboard controls. In starter/eval workspaces, the
+starter-included `filter-controls` component is the default Semaphor-bound
 implementation. A host-owned control is also valid when it is backed by the
 generated input handle and `semaphor.inputOptions(...)`. Native
 `<input type="date">` is a fallback when the app has no date-picker primitive

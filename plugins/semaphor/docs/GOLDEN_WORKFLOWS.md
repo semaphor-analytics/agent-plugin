@@ -81,11 +81,11 @@ Expected agent behavior:
   fetching broad rows into React,
 - for large tables, state the server table plan before editing: query kind,
   fields, filters, server sort, page size, and `result.pagination` controls,
-- use the Semaphor table registry as a reference implementation for server
-  pagination, sorting, state, formatting, and totals mechanics; install the
-  full component only when it fits the host UI and the user approves, otherwise
-  adapt the mechanics into the existing table/grid/design system,
-- ask before adding the Semaphor table registry item or table dependencies;
+- use the Semaphor starter table component as a reference implementation for
+  server pagination, sorting, state, formatting, and totals mechanics; in
+  existing apps, adapt the mechanics into the existing table/grid design system
+  unless the user approves copying starter component source,
+- ask before copying starter table source or adding table dependencies;
   prefer an existing app table/grid library, or `@tanstack/react-table` plus
   `@tanstack/react-virtual` when richer table state and virtualized rendering
   are needed,
@@ -151,10 +151,10 @@ Expected agent behavior:
 - productize the view with `semaphor.matrix(...)` plus `useSemaphorQuery`,
 - define totals, subtotals, display limits, and sorting/windowing explicitly,
 - render loading, error, empty, sparse-cell, subtotal, and grand-total states,
-- use the Semaphor matrix registry as a reference implementation for payload
-  parsing, row hierarchy, pivot columns, sparse cells, subtotals, and grand
-  totals; install the full component only when it fits the host UI and the user
-  approves,
+- use the Semaphor starter matrix component as a reference implementation for
+  payload parsing, row hierarchy, pivot columns, sparse cells, subtotals, and
+  grand totals; copy or adapt the component only when it fits the host UI and
+  the user approves,
 - do not fetch unbounded detail rows and pivot them only in React.
 
 Expected validation:

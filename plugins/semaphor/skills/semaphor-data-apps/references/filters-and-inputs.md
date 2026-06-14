@@ -179,9 +179,9 @@ so the scope is obvious to the user. Do not create a top-level "Material",
 every KPI, chart, and table will change when only one or two queries actually
 receive the handle.
 
-When the Semaphor filter-control registry item is installed, use its
-dashboard-level active-filter summary instead of hand-building inline badge
-strips:
+In starter/eval apps, use the starter-included Semaphor filter-control helpers
+for dashboard-level active-filter summaries instead of hand-building inline
+badge strips:
 
 ```tsx
 import {
@@ -215,10 +215,10 @@ more subscribed filters are active:
 - omit the affordance when no subscribed filter is active, unless the app needs
   to show always-on default context such as "Latest 12 months".
 
-When the Semaphor `view-card` registry item is installed and the host app has
-no equivalent card affordance, prefer it for generated starter/eval views. A
-host-owned card is valid when it shows only filters actually applied to the
-view query and, for evals, exposes the same structured view-shell marker:
+In starter/eval apps, prefer the starter-included `SemaphorViewCard` when the
+view should show applied-filter affordances. A host-owned card is valid when it
+shows only filters actually applied to the view query and, for evals, exposes
+the same structured view-shell marker:
 
 ```tsx
 import {

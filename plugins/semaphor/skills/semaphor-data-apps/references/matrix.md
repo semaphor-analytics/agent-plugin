@@ -18,9 +18,10 @@ and server-side display limits.
 Matrix, pivot, and hierarchical tables are server-shaped BI views. Do not
 invent sparse-cell parsing, hierarchy projection, subtotal handling,
 grand-total placement, or pivot-column layout from scratch when Semaphor
-registry reference files are available. Use the registry as the source of
-truth for payload mechanics, then adapt the presentation to the customer app's
-design system when the full component does not fit.
+starter reference files are available. Use the starter component as the source
+of truth for payload mechanics in starter/eval apps, then adapt the
+presentation to the customer app's design system when the full component does
+not fit.
 
 ## Customer Language
 
@@ -120,17 +121,13 @@ For every matrix view, make the plan explicit:
 component. Include loading, error, and empty states like any other query.
 
 When the target app uses compatible shadcn/base UI primitives and does not
-already have a high-quality matrix or pivot component, prefer Semaphor's
-reusable registry item instead of hand-rolling sticky headers, sparse cell
-rendering, empty/error states, and bounded scrolling:
+already have a high-quality matrix or pivot component, prefer the
+starter-included Semaphor matrix component instead of hand-rolling sticky
+headers, sparse cell rendering, empty/error states, and bounded scrolling.
 
-```bash
-npx shadcn@latest add semaphor-analytics/semaphor-data-app-components/matrix-table
-```
-
-If the host app uses another table/grid/design system, use the registry as a
-reference implementation for mechanics and adapt the visible shell. The hard
-parts to preserve are:
+If the host app uses another table/grid/design system, use the starter matrix
+component as a reference implementation for mechanics and adapt the visible
+shell. The hard parts to preserve are:
 
 - prefer the SDK-returned matrix `grid` projection when present;
 - derive a display grid from `matrixResult` only through the Semaphor matrix
@@ -141,7 +138,7 @@ parts to preserve are:
 - keep matrix sort/display limits represented in the Semaphor matrix query
   where supported.
 
-The registry item installs source under:
+The starter matrix source lives under:
 
 ```text
 components/semaphor/matrix-table/
@@ -158,9 +155,9 @@ fixture, a fake-server result, or an already loaded SDK matrix `grid` or
 sort, or display limits inside a generic component.
 
 If the target app has no matrix component and does not use compatible shadcn,
-build a small bounded renderer from the returned grid shape first. Use
-`core.ts` as the reference for matrix result-to-grid projection, visible
-hierarchy projection, collapse state, path keys, sort state, and cell
+build a small bounded renderer from the returned grid shape first. Use the
+starter `core.ts` as the reference for matrix result-to-grid projection,
+visible hierarchy projection, collapse state, path keys, sort state, and cell
 formatting. Use a richer table library only after checking the existing app and
 asking before adding dependencies.
 
