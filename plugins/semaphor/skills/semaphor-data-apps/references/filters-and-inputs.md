@@ -275,6 +275,22 @@ Remove that query from the input subscription or change it to the planner's
 source-specific binding, then report the missing semantic relationship if the
 desired filter cannot be expressed.
 
+When Semaphor exposes semantic model repair tools, use them for the reusable
+model fix instead of patching around the gap in React:
+
+1. Call `semaphor_propose_semantic_model_change` with the selected `domainId`,
+   source dataset/field, target dataset/field, affected view ids, and input ids.
+2. Show the returned relationship proposal, deterministic evidence, warnings,
+   and recommendation to the author.
+3. Call `semaphor_apply_semantic_model_patch` only after explicit author
+   approval.
+4. Rerun Data App planning or validation after apply, then update the generated
+   contract from the repaired semantic model.
+
+Do not apply semantic model patches silently during app generation. If the
+tools are not exposed or the author declines the repair, keep unsupported views
+unsubscribed from that filter and label the limitation.
+
 ```tsx
 const region = semaphor.filter({
   id: "region",

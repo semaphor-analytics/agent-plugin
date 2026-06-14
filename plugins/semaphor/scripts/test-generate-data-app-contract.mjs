@@ -235,7 +235,53 @@ function runTableBehaviorFixture() {
   const workspaceDir = path.join(tempRoot, "table-behavior");
   fs.mkdirSync(workspaceDir, { recursive: true });
   const summary = validSummary();
+  const sourceKey = "semantic:domain:sales";
+  const campaignSourceKey = "semantic:domain:campaigns";
+  const campaignSource = {
+    sourceKey: campaignSourceKey,
+    kind: "semantic",
+    domainId: "domain",
+    datasetName: "campaigns",
+  };
+  const sqlSourceKey = "sql:conn";
+  const sqlSource = {
+    sourceKey: sqlSourceKey,
+    kind: "sql",
+    connectionId: "conn",
+  };
+  const salesCreatedAtField = {
+    name: "created_at",
+    label: "Sale Created At",
+    role: "date",
+    dataType: "datetime",
+    sourceKey,
+  };
+  const campaignCreatedAtField = {
+    name: "created_at",
+    label: "Campaign Created At",
+    role: "date",
+    dataType: "datetime",
+    sourceKey: campaignSourceKey,
+  };
+  summary.sources.push(campaignSource, sqlSource);
   summary.views[0].visual = "table";
+  summary.views[0].sdkSpec.spec.dateField = {
+    name: "sale_date",
+    label: "Sale Date",
+    role: "date",
+    dataType: "date",
+    sourceKey,
+  };
+  summary.views[0].fields = [
+    ...summary.views[0].fields,
+    salesCreatedAtField,
+    campaignCreatedAtField,
+  ];
+  summary.views[0].sdkSpec.spec.fields = [
+    ...summary.views[0].sdkSpec.spec.fields,
+    salesCreatedAtField,
+    campaignCreatedAtField,
+  ];
   summary.views[0].visualSpec = {
     visualType: "table",
     tableBehavior: {
@@ -252,7 +298,7 @@ function runTableBehaviorFixture() {
       },
       sorting: {
         mode: "server",
-        defaultField: "order_date",
+        defaultField: "sale_date",
         defaultDirection: "desc",
         resetPageOnChange: true,
       },
@@ -263,6 +309,135 @@ function runTableBehaviorFixture() {
       serverSideRequired: true,
     },
   };
+  summary.views.push({
+    id: "sql_fallback",
+    title: "SQL Fallback",
+    visual: "table",
+    queryKind: "sql_fallback",
+    sdkBuilder: "semaphor.sql",
+    fields: [{ name: "sales_value", sourceKey: sqlSourceKey }],
+    sdkSpec: {
+      builder: "semaphor.sql",
+      spec: {
+        source: sqlSource,
+        sql: "select 1 as sales_value",
+        fields: [{ name: "sales_value", sourceKey: sqlSourceKey }],
+        limit: 500,
+      },
+    },
+    visualSpec: {
+      visualType: "table",
+      tableBehavior: {
+        tableMode: "server_paginated",
+        height: {
+          maxPx: 480,
+          scroll: "vertical",
+          stickyHeader: true,
+        },
+        pagination: {
+          mode: "server",
+          pageSize: 50,
+          readsFrom: "result.pagination",
+        },
+        sorting: {
+          mode: "server",
+          resetPageOnChange: true,
+        },
+        totals: {
+          displayedRows: false,
+          allFilteredRows: "not_needed",
+        },
+        serverSideRequired: true,
+      },
+    },
+  });
+  summary.views.push({
+    id: "pagination_only_records",
+    title: "Pagination-only Records",
+    visual: "table",
+    queryKind: "records",
+    sdkBuilder: "semaphor.records",
+    fields: [summary.views[0].fields[0], salesCreatedAtField],
+    sdkSpec: {
+      builder: "semaphor.records",
+      spec: {
+        source: summary.sources[0],
+        fields: [summary.views[0].fields[0], salesCreatedAtField],
+        dateField: summary.views[0].sdkSpec.spec.dateField,
+        limit: 500,
+      },
+    },
+    visualSpec: {
+      visualType: "table",
+      tableBehavior: {
+        tableMode: "server_paginated",
+        height: {
+          maxPx: 480,
+          scroll: "vertical",
+          stickyHeader: true,
+        },
+        pagination: {
+          mode: "server",
+          pageSize: 25,
+          readsFrom: "result.pagination",
+        },
+        sorting: {
+          mode: "client_for_bounded_rows",
+          defaultField: "sale_date",
+          defaultDirection: "desc",
+          resetPageOnChange: true,
+        },
+        totals: {
+          displayedRows: true,
+          allFilteredRows: "separate_aggregate_query_required",
+        },
+        serverSideRequired: true,
+      },
+    },
+  });
+  summary.views.push({
+    id: "client_paged_records",
+    title: "Client-paged Records",
+    visual: "table",
+    queryKind: "records",
+    sdkBuilder: "semaphor.records",
+    fields: [summary.views[0].fields[0]],
+    sdkSpec: {
+      builder: "semaphor.records",
+      spec: {
+        source: summary.sources[0],
+        fields: [summary.views[0].fields[0]],
+        pagination: { page: 2, pageSize: 10 },
+        limit: 100,
+      },
+    },
+    visualSpec: {
+      visualType: "table",
+      tableBehavior: {
+        tableMode: "server_windowed",
+        height: {
+          maxPx: 360,
+          scroll: "vertical",
+          stickyHeader: true,
+        },
+        pagination: {
+          mode: "client_for_bounded_rows",
+          pageSize: 10,
+        },
+        sorting: {
+          mode: "client_for_bounded_rows",
+          defaultField: "sale_date",
+          defaultDirection: "desc",
+          resetPageOnChange: false,
+        },
+        totals: {
+          displayedRows: true,
+          allFilteredRows: "not_needed",
+        },
+        serverSideRequired: true,
+      },
+    },
+  });
   const summaryPath = path.join(workspaceDir, "codegen-summary.json");
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
 
@@ -293,6 +468,8 @@ function runTableBehaviorFixture() {
       "Generated manifest must preserve full table behavior guidance.",
     );
   }
+  typecheckGeneratedFilesIfAvailable({ workspaceDir });
+  assertServerTableQueryFactoryBehavior({ workspaceDir });
 }
 
 function runMalformedSummaryFixture() {
@@ -2577,7 +2754,8 @@ function typecheckGeneratedFilesIfAvailable({ workspaceDir }) {
       '  type SemaphorPhysicalSourceRef = { kind: "physical"; connectionId?: string; databaseName?: string; schemaName?: string; tableName?: string; [key: string]: unknown };',
       '  type SemaphorSqlSourceRef = { kind: "sql"; connectionId?: string; [key: string]: unknown };',
       "  type SemaphorSourceRef = SemaphorSemanticSourceRef | SemaphorPhysicalSourceRef | SemaphorSqlSourceRef;",
-      "  export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: string; aggregate?: string; [key: string]: unknown };",
+      '  export type SemaphorDataType = "string" | "number" | "boolean" | "date" | "datetime" | "unknown";',
+      "  export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: SemaphorDataType; aggregate?: string; [key: string]: unknown };",
       "  type SemaphorFilter = { field: SemaphorFieldRef; operator?: string; values?: unknown[]; scope?: string };",
       '  type SemaphorOrderBy = { field: SemaphorFieldRef; direction: "asc" | "desc" };',
       "  type MetricSpec = { source: SemaphorSourceRef; id?: string; label?: string; measures: SemaphorFieldRef[]; primaryMeasure?: SemaphorFieldRef; dateField?: SemaphorFieldRef; timeGrain?: string; dimensions?: SemaphorFieldRef[]; comparison?: unknown; orderBy?: SemaphorOrderBy; filters?: SemaphorFilter[]; relationshipHint?: unknown; limit?: number; derivedFields?: unknown[] };",
@@ -2678,7 +2856,8 @@ function assertAggregateRecordsAccessorBehavior({ workspaceDir }) {
       'export type SemaphorPhysicalSourceRef = { kind: "physical"; connectionId?: string; databaseName?: string; schemaName?: string; tableName?: string; [key: string]: unknown };',
       'export type SemaphorSqlSourceRef = { kind: "sql"; connectionId?: string; [key: string]: unknown };',
       "export type SemaphorSourceRef = SemaphorSemanticSourceRef | SemaphorPhysicalSourceRef | SemaphorSqlSourceRef;",
-      "export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: string; aggregate?: string; [key: string]: unknown };",
+      'export type SemaphorDataType = "string" | "number" | "boolean" | "date" | "datetime" | "unknown";',
+      "export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: SemaphorDataType; aggregate?: string; [key: string]: unknown };",
       "export type SemaphorResultColumn = { key: string; name?: string; label?: string; aggregate?: string; source?: SemaphorSourceRef };",
       "export const semaphor: { source: { semantic<T extends Record<string, unknown>>(spec: T): T & { kind: 'semantic' }; sql<T extends Record<string, unknown>>(spec: T): T & { kind: 'sql' } } };",
       "",
@@ -2754,6 +2933,186 @@ function assertAggregateRecordsAccessorBehavior({ workspaceDir }) {
   if (runResult.status !== 0) {
     throw new Error(
       `Generated accessor behavior fixture failed:\n${runResult.stdout}\n${runResult.stderr}`,
+    );
+  }
+}
+
+function assertServerTableQueryFactoryBehavior({ workspaceDir }) {
+  const tscPath = findTypeScriptCompiler();
+  if (!tscPath) {
+    console.warn(
+      "Skipping generated server table factory fixture; no local TypeScript compiler was found.",
+    );
+    return;
+  }
+  const sdkStubDir = path.join(
+    workspaceDir,
+    "node_modules/react-semaphor",
+  );
+  fs.mkdirSync(sdkStubDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(sdkStubDir, "package.json"),
+    JSON.stringify(
+      {
+        name: "react-semaphor",
+        type: "commonjs",
+      },
+      null,
+      2,
+    ),
+  );
+  fs.writeFileSync(
+    path.join(sdkStubDir, "data-app-sdk.js"),
+    [
+      "exports.semaphor = {",
+      "  source: {",
+      "    semantic: (spec) => ({ ...spec, kind: 'semantic' }),",
+      "    sql: (spec) => ({ ...spec, kind: 'sql' }),",
+      "  },",
+      "  records: (spec) => ({ ...spec, queryKind: 'records' }),",
+      "  analysis: (spec) => ({ ...spec, queryKind: 'analysis' }),",
+      "  sql: (spec) => ({ ...spec, queryKind: 'sql' }),",
+      "};",
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(
+    path.join(sdkStubDir, "data-app-sdk.d.ts"),
+    [
+      'export type SemaphorSemanticSourceRef = { kind: "semantic"; domainId?: string; datasetId?: string; datasetName?: string; connectionId?: string; [key: string]: unknown };',
+      'export type SemaphorPhysicalSourceRef = { kind: "physical"; connectionId?: string; databaseName?: string; schemaName?: string; tableName?: string; [key: string]: unknown };',
+      'export type SemaphorSqlSourceRef = { kind: "sql"; connectionId?: string; [key: string]: unknown };',
+      "export type SemaphorSourceRef = SemaphorSemanticSourceRef | SemaphorPhysicalSourceRef | SemaphorSqlSourceRef;",
+      'export type SemaphorDataType = "string" | "number" | "boolean" | "date" | "datetime" | "unknown";',
+      "export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: SemaphorDataType; aggregate?: string; [key: string]: unknown };",
+      "type RecordsSpec = { source: SemaphorSourceRef; id?: string; label?: string; fields: SemaphorFieldRef[]; dateField?: SemaphorFieldRef; orderBy?: { field: SemaphorFieldRef; direction: 'asc' | 'desc' }; limit?: number; pagination?: unknown };",
+      "type AnalysisSpec = { source: SemaphorSourceRef; id?: string; label?: string; measures: SemaphorFieldRef[]; driverMode?: string; includePopulation?: boolean };",
+      "type SqlSpec = { source: SemaphorSourceRef; id?: string; label?: string; sql: string; fields?: SemaphorFieldRef[]; limit?: number; pagination?: unknown };",
+      "export const semaphor: { source: { semantic<T extends Record<string, unknown>>(spec: T): T & { kind: 'semantic' }; sql<T extends Record<string, unknown>>(spec: T): T & { kind: 'sql' } }; records<T extends RecordsSpec>(spec: T): T & { queryKind: 'records' }; analysis<T extends AnalysisSpec>(spec: T): T & { queryKind: 'analysis' }; sql<T extends SqlSpec>(spec: T): T & { queryKind: 'sql' } };",
+      "",
+    ].join("\n"),
+  );
+
+  const runnerPath = path.join(workspaceDir, "server-table-factory-behavior.ts");
+  fs.writeFileSync(
+    runnerPath,
+    [
+      'import { queries, recordsSortFieldsForView, recordsSortOptionsForView } from "./src/semaphor/generated/queries";',
+      "",
+      "const defaultQuery = queries.salesKpi();",
+      "const query = queries.salesKpi({",
+      "  page: 3,",
+      "  pageSize: 25,",
+      '  sort: { key: "salesSaleDate", direction: "asc" },',
+      "});",
+      "const campaignCreatedAtQuery = queries.salesKpi({",
+      '  sort: { key: "campaignsCreatedAt", direction: "desc" },',
+      "});",
+      "const sqlQuery = queries.sqlFallback({",
+      "  page: 4,",
+      "  pageSize: 50,",
+      "});",
+      "const paginationOnlyRecordsQuery = queries.paginationOnlyRecords({",
+      "  page: 5,",
+      "  pageSize: 25,",
+      "});",
+      "const clientPagedRecordsQuery = queries.clientPagedRecords();",
+      "",
+      "if (defaultQuery.orderBy?.field !== recordsSortFieldsForView.salesKpi.salesSaleDate || defaultQuery.orderBy.direction !== 'desc') {",
+      "  throw new Error('Expected tableBehavior defaultField/defaultDirection to produce a source-aware default orderBy.');",
+      "}",
+      "if (query.pagination?.page !== 3 || query.pagination?.pageSize !== 25) {",
+      "  throw new Error(`Expected server pagination page=3 pageSize=25, got ${JSON.stringify(query.pagination)}`);",
+      "}",
+      "if (query.orderBy?.direction !== 'asc') {",
+      "  throw new Error(`Expected asc sort direction, got ${String(query.orderBy?.direction)}`);",
+      "}",
+      "if (query.orderBy?.field !== recordsSortFieldsForView.salesKpi.salesSaleDate) {",
+      "  throw new Error('Expected generated factory to use the typed sale_date sort field.');",
+      "}",
+      "if (query.orderBy?.field.name !== 'sale_date') {",
+      "  throw new Error(`Expected sale_date sort field, got ${String(query.orderBy?.field.name)}`);",
+      "}",
+      "if (!recordsSortFieldsForView.salesKpi.salesCreatedAt || !recordsSortFieldsForView.salesKpi.campaignsCreatedAt) {",
+      "  throw new Error('Expected duplicate created_at fields from different sources to keep distinct sort keys.');",
+      "}",
+      "if (!recordsSortOptionsForView.salesKpi.some((option) => option.key === 'campaignsCreatedAt' && option.field === recordsSortFieldsForView.salesKpi.campaignsCreatedAt)) {",
+      "  throw new Error('Expected source-aware generated sort options for UI sort mapping.');",
+      "}",
+      "if (campaignCreatedAtQuery.orderBy?.field !== recordsSortFieldsForView.salesKpi.campaignsCreatedAt) {",
+      "  throw new Error('Expected campaign created_at sort to use the campaign source field.');",
+      "}",
+      "if (campaignCreatedAtQuery.orderBy?.field.source?.datasetName !== 'campaigns') {",
+      "  throw new Error(`Expected campaign created_at source, got ${String(campaignCreatedAtQuery.orderBy?.field.source?.datasetName)}`);",
+      "}",
+      "if (sqlQuery.pagination?.page !== 4 || sqlQuery.pagination?.pageSize !== 50) {",
+      "  throw new Error(`Expected SQL server table pagination page=4 pageSize=50, got ${JSON.stringify(sqlQuery.pagination)}`);",
+      "}",
+      "if ('orderBy' in sqlQuery) {",
+      "  throw new Error('Expected generated SQL server table query to expose pagination without records-only orderBy.');",
+      "}",
+      "if (paginationOnlyRecordsQuery.pagination?.page !== 5 || paginationOnlyRecordsQuery.pagination?.pageSize !== 25) {",
+      "  throw new Error(`Expected pagination-only records table page=5 pageSize=25, got ${JSON.stringify(paginationOnlyRecordsQuery.pagination)}`);",
+      "}",
+      "if ('orderBy' in paginationOnlyRecordsQuery) {",
+      "  throw new Error('Expected pagination-only records table not to emit default orderBy when sorting.mode is client_for_bounded_rows.');",
+      "}",
+      "if ('paginationOnlyRecords' in recordsSortFieldsForView || 'paginationOnlyRecords' in recordsSortOptionsForView) {",
+      "  throw new Error('Expected pagination-only records table to be omitted from server sort fields/options.');",
+      "}",
+      "if (clientPagedRecordsQuery.pagination?.page !== 2 || clientPagedRecordsQuery.pagination?.pageSize !== 10) {",
+      "  throw new Error(`Expected non-server-paginated table to preserve sdkSpec pagination, got ${JSON.stringify(clientPagedRecordsQuery.pagination)}`);",
+      "}",
+      "if ('orderBy' in clientPagedRecordsQuery) {",
+      "  throw new Error('Expected client-paged records table not to emit default orderBy when sorting.mode is client_for_bounded_rows.');",
+      "}",
+      "if ('clientPagedRecords' in recordsSortFieldsForView || 'clientPagedRecords' in recordsSortOptionsForView) {",
+      "  throw new Error('Expected client-paged records table to be omitted from server sort fields/options.');",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  const outDir = path.join(workspaceDir, "server-table-factory-dist");
+  const result = spawnSync(
+    process.execPath,
+    [
+      tscPath,
+      "--target",
+      "ES2020",
+      "--module",
+      "CommonJS",
+      "--moduleResolution",
+      "Node",
+      "--esModuleInterop",
+      "--strict",
+      "--outDir",
+      outDir,
+      runnerPath,
+      path.join(workspaceDir, "src/semaphor/generated/sources.ts"),
+      path.join(workspaceDir, "src/semaphor/generated/fields.ts"),
+      path.join(workspaceDir, "src/semaphor/generated/queries.ts"),
+    ],
+    {
+      cwd: workspaceDir,
+      encoding: "utf8",
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `Generated server table factory fixture did not compile:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+  const runResult = spawnSync(
+    process.execPath,
+    [path.join(outDir, "server-table-factory-behavior.js")],
+    {
+      cwd: workspaceDir,
+      encoding: "utf8",
+    },
+  );
+  if (runResult.status !== 0) {
+    throw new Error(
+      `Generated server table factory fixture failed:\n${runResult.stdout}\n${runResult.stderr}`,
     );
   }
 }

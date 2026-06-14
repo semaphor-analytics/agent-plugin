@@ -192,8 +192,10 @@ server pages with:
 pagination: { page, pageSize }
 ```
 
-on `semaphor.records(...)` or `semaphor.sql(...)`. Use `result.pagination` for
-page controls and `result.rowCount` for the server-reported total count.
+on the generated query builder for the table view, or on a hand-authored
+`semaphor.records(...)` / `semaphor.sql(...)` query when no generated contract
+view exists. Use `result.pagination` for page controls and `result.rowCount`
+for the server-reported total count.
 
 Sorting may be client-side for small, bounded result sets. For large,
 paginated, or complete-dataset tables, sorting should be represented in the
@@ -203,32 +205,67 @@ If a needed table behavior cannot be expressed yet, call that out as a
 `react-semaphor/data-app-sdk` or Semaphor execution gap and build a bounded
 table instead of pretending the frontend has the full dataset.
 
-Minimum server-paginated state pattern:
+Minimum generated records-table pattern when `tableBehavior.sorting.mode ===
+"server"`:
 
 ```tsx
+import {
+  queries,
+  queryOptionsForView,
+  recordsSortOptionsForView,
+} from "@/semaphor/generated";
+
 const [page, setPage] = useState(1);
 const [pageSize, setPageSize] = useState(25);
 const [sort, setSort] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
 
-const query = semaphor.records({
-  source,
-  fields,
-  filters,
-  pagination: { page, pageSize },
-  orderBy: sort ? [{ field: sort.key, direction: sort.direction }] : undefined,
+const sortOptions = recordsSortOptionsForView.ordersTable;
+const sortOption = sortOptions.find((option) => option.key === sort?.key);
+const query = queries.ordersTable({
+  page,
+  pageSize,
+  sort: sort && sortOption
+    ? { key: sortOption.key, direction: sort.direction }
+    : undefined,
 });
 
-const result = useSemaphorQuery(query, { inputs });
+const result = useSemaphorQuery(
+  query,
+  queryOptionsForView.ordersTable(inputHandles),
+);
 
 // Render rows from result.records.
 // Render page controls from result.pagination and result.rowCount.
 // Reset page to 1 when filters, pageSize, or sort changes.
 ```
 
-If the SDK query contract in the installed app uses a different sort/order
-field name, follow the installed public SDK contract. The important behavior is
-that large-table sort, filter, and pagination are represented in the Semaphor
-query, not applied only after fetching a large result set.
+Minimum generated pagination-only pattern for SQL views or records views with
+`tableBehavior.sorting.mode === "client_for_bounded_rows"`:
+
+```tsx
+const [page, setPage] = useState(1);
+const [pageSize, setPageSize] = useState(25);
+
+const query = queries.ordersTable({ page, pageSize });
+const result = useSemaphorQuery(
+  query,
+  queryOptionsForView.ordersTable(inputHandles),
+);
+
+// Render rows from result.records.
+// Render page controls from result.pagination and result.rowCount.
+// If sorting.mode is client_for_bounded_rows, sort only the returned rows.
+```
+
+For generated records-backed views with `tableBehavior.sorting.mode ===
+"server"`, do not pass table header labels or row keys directly as sort fields.
+Use `recordsSortOptionsForView.<viewName>` and pass the selected option key
+back into `queries.<viewName>({ sort })`; the generated query builder maps that
+key to the correct source-aware Semaphor field.
+Generated SQL table views with `tableBehavior.pagination.mode === "server"`
+can receive `page` and `pageSize` through `queries.<viewName>({ page,
+pageSize })`; do not invent generic SQL sort rewrites unless the generated
+contract explicitly models that sort.
 
 ## Semaphor Starter Table Reference
 
@@ -295,31 +332,43 @@ components/semaphor/server-data-table/
   table-formatters.ts
 ```
 
-`SemaphorServerDataTable` is a thin SDK wrapper. Keep the query spec visible in
-the app source through `queryFactory`; do not hide source, fields, filters,
-pagination, or order spec inside a component.
+`SemaphorServerDataTable` is a thin SDK wrapper. For generated records-backed
+contract views with server sorting, keep the generated query builder visible in
+the app source through `queryFactory`; do not rebuild source, fields, filters,
+pagination, or order specs by hand inside a component.
 
 ```tsx
+const sortOptions = recordsSortOptionsForView.ordersTable;
+
 <SemaphorServerDataTable
   title="Orders"
-  queryFactory={({ page, pageSize, sort }) =>
-    semaphor.records({
-      source,
-      fields,
-      filters,
-      pagination: { page, pageSize },
-      orderBy: sort
-        ? { field: resolveSortField(sort.key), direction: sort.direction }
+  sortOptions={sortOptions}
+  queryFactory={({ page, pageSize, sort }) => {
+    const sortOption = sortOptions.find((option) => option.key === sort?.key);
+    return queries.ordersTable({
+      page,
+      pageSize,
+      sort: sort && sortOption
+        ? { key: sortOption.key, direction: sort.direction }
         : undefined,
-    })
-  }
-  options={{ inputs }}
+    });
+  }}
+  options={queryOptionsForView.ordersTable(inputHandles)}
 />
 ```
 
-Map `sort.key` back to the SDK field/order contract in app code. Do not assume
-the result key is always a valid SDK `orderBy.field` without checking the
-installed SDK contract and planner-provided field refs.
+Use raw `semaphor.records(...)` query specs only for explicitly hand-authored
+tables that are not backed by a generated contract view. In that case, map UI
+sort state to source-bearing SDK field refs, not display labels or row keys.
+For generated records views with `tableBehavior.pagination.mode === "server"`
+and `tableBehavior.sorting.mode === "client_for_bounded_rows"`, use
+`queries.recordsView({ page, pageSize })` and sort only the returned bounded
+rows in the table component. If pagination mode is not `server`, use
+`queries.recordsView()` and preserve any pagination already authored in the
+generated SDK spec. For generated SQL table views with server pagination, use
+the same `queryFactory` pattern with `queries.sqlView({ page, pageSize })` and
+omit sort controls unless the generated SQL contract exposes a safe sort
+parameter.
 
 When adapting the starter component instead of using it whole, preserve these
 mechanics:

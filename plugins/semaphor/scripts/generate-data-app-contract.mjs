@@ -502,20 +502,80 @@ function readPluginPackageVersion() {
 }
 
 function renderUsageExample(contract) {
+  const serverSortableRecordsView = contract.views.find((view) =>
+    isServerSortableRecordsView(view) && hasServerPagination(view),
+  );
+  if (serverSortableRecordsView) {
+    return [
+      'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, recordsSortOptionsForView, rowValuesForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
+      'const handles = useSemaphorInputs(appInputSpecs);',
+      'const inputHandles = createInputHandleMap(handles);',
+      `const sortOption = recordsSortOptionsForView.${serverSortableRecordsView.name}[0];`,
+      'const sort = sortOption ? { key: sortOption.key, direction: "asc" as const } : undefined;',
+      `const query = queries.${serverSortableRecordsView.name}({ page, pageSize, sort });`,
+      `const result = useSemaphorQuery(query, queryOptionsForView.${serverSortableRecordsView.name}(inputHandles));`,
+      `const rows = result.records.map((row) => rowValuesForView.${serverSortableRecordsView.name}(row, result.columns));`,
+      'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
+    ].join('\n');
+  }
+  const sortableRecordsView = contract.views.find((view) =>
+    isServerSortableRecordsView(view),
+  );
+  if (sortableRecordsView) {
+    return [
+      'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, recordsSortOptionsForView, rowValuesForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
+      'const handles = useSemaphorInputs(appInputSpecs);',
+      'const inputHandles = createInputHandleMap(handles);',
+      `const sortOption = recordsSortOptionsForView.${sortableRecordsView.name}[0];`,
+      'const sort = sortOption ? { key: sortOption.key, direction: "asc" as const } : undefined;',
+      `const query = queries.${sortableRecordsView.name}({ sort });`,
+      `const result = useSemaphorQuery(query, queryOptionsForView.${sortableRecordsView.name}(inputHandles));`,
+      `const rows = result.records.map((row) => rowValuesForView.${sortableRecordsView.name}(row, result.columns));`,
+      'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
+    ].join('\n');
+  }
+  const serverPaginatedRecordsView = contract.views.find((view) =>
+    isRecordsView(view) && hasServerPagination(view),
+  );
+  if (serverPaginatedRecordsView) {
+    return [
+      'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, rowValuesForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
+      'const handles = useSemaphorInputs(appInputSpecs);',
+      'const inputHandles = createInputHandleMap(handles);',
+      `const query = queries.${serverPaginatedRecordsView.name}({ page, pageSize });`,
+      `const result = useSemaphorQuery(query, queryOptionsForView.${serverPaginatedRecordsView.name}(inputHandles));`,
+      `const rows = result.records.map((row) => rowValuesForView.${serverPaginatedRecordsView.name}(row, result.columns));`,
+      'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
+    ].join('\n');
+  }
+  const serverPaginatedSqlView = contract.views.find((view) =>
+    isSqlView(view) && hasServerPagination(view),
+  );
+  if (serverPaginatedSqlView) {
+    return [
+      'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, rowValuesForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
+      'const handles = useSemaphorInputs(appInputSpecs);',
+      'const inputHandles = createInputHandleMap(handles);',
+      `const query = queries.${serverPaginatedSqlView.name}({ page, pageSize });`,
+      `const result = useSemaphorQuery(query, queryOptionsForView.${serverPaginatedSqlView.name}(inputHandles));`,
+      `const rows = result.records.map((row) => rowValuesForView.${serverPaginatedSqlView.name}(row, result.columns));`,
+      'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
+    ].join('\n');
+  }
   const rowView = contract.views.find((view) => isRowShapedBuilder(view.raw.sdkSpec?.builder));
   if (rowView) {
     return [
       'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, rowValuesForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
       'const handles = useSemaphorInputs(appInputSpecs);',
       'const inputHandles = createInputHandleMap(handles);',
-      `const result = useSemaphorQuery(queries.${rowView.name}, queryOptionsForView.${rowView.name}(inputHandles));`,
+      `const result = useSemaphorQuery(queries.${rowView.name}(), queryOptionsForView.${rowView.name}(inputHandles));`,
       `const rows = result.records.map((row) => rowValuesForView.${rowView.name}(row, result.columns));`,
       'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
     ].join('\n');
   }
   const firstView = contract.views[0];
   const queryLine = firstView
-    ? `const result = useSemaphorQuery(queries.${firstView.name}, queryOptionsForView.${firstView.name}(inputHandles));`
+    ? `const result = useSemaphorQuery(queries.${firstView.name}(), queryOptionsForView.${firstView.name}(inputHandles));`
     : 'const result = undefined;';
   return [
     'import { appInputSpecs, createInputHandleMap, queries, queryOptionsForView, semaphorGeneratedContractMetadata } from "./semaphor/generated";',
@@ -524,6 +584,32 @@ function renderUsageExample(contract) {
     queryLine,
     'const presentationViews = semaphorGeneratedContractMetadata.presentationViews;',
   ].join('\n');
+}
+
+function isRecordsView(view) {
+  return builderMethod(view.raw.sdkSpec?.builder) === 'records';
+}
+
+function isServerSortableRecordsView(view) {
+  return (
+    isRecordsView(view) &&
+    view.raw.visualSpec?.tableBehavior?.sorting?.mode === 'server'
+  );
+}
+
+function isSqlView(view) {
+  return builderMethod(view.raw.sdkSpec?.builder) === 'sql';
+}
+
+function hasServerPagination(view) {
+  return view.raw.visualSpec?.tableBehavior?.pagination?.mode === 'server';
+}
+
+function hasDynamicGeneratedQuery(view) {
+  return (
+    (isRecordsView(view) && (hasServerPagination(view) || isServerSortableRecordsView(view))) ||
+    (isSqlView(view) && hasServerPagination(view))
+  );
 }
 
 function renderSources(contract) {
@@ -658,16 +744,154 @@ function renderQueries(contract) {
   const queryEntries = contract.views.map((view) => {
     const builder = builderMethod(view.raw.sdkSpec.builder);
     const spec = sdkBuilderSpecForView(view);
-    return `  ${view.name}: semaphor.${builder}(${renderValue(spec, contract)}),`;
+    if (isRecordsView(view) && hasDynamicGeneratedQuery(view)) {
+      const tableBehavior = view.raw.visualSpec?.tableBehavior || {};
+      const supportsPagination = hasServerPagination(view);
+      const supportsSort = isServerSortableRecordsView(view);
+      const pageSize = tableBehavior.pagination?.pageSize || spec.pagination?.pageSize || spec.limit || 100;
+      const sortFields = supportsSort ? sortableFieldsForView(view, contract) : [];
+      const defaultSortKey = supportsSort
+        ? defaultSortKeyForView({
+            view,
+            contract,
+            sortFields,
+            defaultField: tableBehavior.sorting?.defaultField,
+          })
+        : undefined;
+      const defaultSortDirection = supportsSort
+        ? tableBehavior.sorting?.defaultDirection
+        : undefined;
+      const paramsType = recordsQueryParamsType({
+        viewName: view.name,
+        supportsPagination,
+        supportsSort,
+      });
+      const orderByLines = supportsSort
+        ? `    const orderBy = resolveRecordsOrderBy(
+      recordsSortFieldsForView.${view.name},
+      params.sort,
+      ${renderValue(defaultSortKey, contract)},
+      ${renderValue(defaultSortDirection, contract)},
+    );
+`
+        : '';
+      const orderBySpread = supportsSort
+        ? '      ...(orderBy ? { orderBy } : {}),\n'
+        : '';
+      const paginationSpread = supportsPagination
+        ? `      pagination: resolveServerTablePagination(params, ${JSON.stringify(pageSize)}),\n`
+        : '';
+      return `  ${view.name}(
+    params: ${paramsType} = {},
+  ) {
+${orderByLines}    return semaphor.${builder}({
+      ...${renderValue(spec, contract)},
+${orderBySpread}${paginationSpread}    });
+  },`;
+    }
+    if (isSqlView(view) && hasServerPagination(view)) {
+      const tableBehavior = view.raw.visualSpec?.tableBehavior || {};
+      const pageSize = tableBehavior.pagination?.pageSize || spec.pagination?.pageSize || spec.limit || 100;
+      return `  ${view.name}(
+    params: SemaphorGeneratedServerPaginationParams = {},
+  ) {
+    return semaphor.${builder}({
+      ...${renderValue(spec, contract)},
+      pagination: resolveServerTablePagination(params, ${JSON.stringify(pageSize)}),
+    });
+  },`;
+    }
+    return `  ${view.name}: () => semaphor.${builder}(${renderValue(spec, contract)}),`;
   }).join('\n');
+  const sortFieldsEntries = contract.views
+    .filter((view) => isServerSortableRecordsView(view))
+    .map((view) => {
+      const sortFields = sortableFieldsForView(view, contract);
+      const fieldEntries = sortFields.map((field) => (
+        `    ${JSON.stringify(field.key)}: fields.${field.fieldName},`
+      )).join('\n');
+      return `  ${view.name}: {
+${fieldEntries}
+  },`;
+    }).join('\n');
+  const sortOptionEntries = contract.views
+    .filter((view) => isServerSortableRecordsView(view))
+    .map((view) => {
+      const sortFields = sortableFieldsForView(view, contract);
+      const optionEntries = sortFields.map((field) => (
+        `    { key: ${JSON.stringify(field.key)}, label: ${JSON.stringify(field.label)}, field: fields.${field.fieldName} },`
+      )).join('\n');
+      return `  ${view.name}: [
+${optionEntries}
+  ],`;
+    }).join('\n');
   return `${GENERATED_HEADER}
 import { semaphor } from "react-semaphor/data-app-sdk";
+import type { SemaphorFieldRef } from "react-semaphor/data-app-sdk";
 import { fields } from "./fields";
 import { sources } from "./sources";
+
+export type SemaphorGeneratedRecordsSortDirection = "asc" | "desc";
+
+export type SemaphorGeneratedRecordsSort<TSortKey extends string = string> = {
+  key: TSortKey;
+  direction: SemaphorGeneratedRecordsSortDirection;
+};
+
+export type SemaphorGeneratedServerPaginationParams = {
+  page?: number;
+  pageSize?: number;
+};
+
+export type SemaphorGeneratedRecordsSortParams<TSortKey extends string = string> = {
+  sort?: SemaphorGeneratedRecordsSort<TSortKey> | null;
+};
+
+export type SemaphorGeneratedRecordsQueryParams<TSortKey extends string = string> =
+  SemaphorGeneratedServerPaginationParams &
+  SemaphorGeneratedRecordsSortParams<TSortKey>;
+
+export const recordsSortFieldsForView = {
+${sortFieldsEntries}
+} as const;
+
+export const recordsSortOptionsForView = {
+${sortOptionEntries}
+} as const;
 
 export const queries = {
 ${queryEntries}
 } as const;
+
+function resolveRecordsOrderBy<TSortKey extends string>(
+  sortFields: Record<TSortKey, SemaphorFieldRef>,
+  sort: SemaphorGeneratedRecordsSort<TSortKey> | null | undefined,
+  defaultKey: TSortKey | undefined,
+  defaultDirection: SemaphorGeneratedRecordsSortDirection | undefined,
+) {
+  const key = sort?.key ?? defaultKey;
+  if (!key) {
+    return undefined;
+  }
+  const field = sortFields[key];
+  if (!field) {
+    return undefined;
+  }
+  return {
+    field,
+    direction: sort?.direction ?? defaultDirection ?? "asc",
+  };
+}
+
+function resolveServerTablePagination(
+  params: SemaphorGeneratedServerPaginationParams,
+  defaultPageSize: number,
+) {
+  return {
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? defaultPageSize,
+  };
+}
 `;
 }
 
@@ -679,6 +903,50 @@ function sdkBuilderSpecForView(view) {
     id: view.raw.id,
     label: view.raw.visualSpec?.title || view.raw.title || builderSpec.label,
   };
+}
+
+function sortableFieldsForView(view, contract) {
+  const collected = [];
+  const spec = view.raw.sdkSpec?.spec || {};
+  for (const field of spec.fields || []) collectField(collected, field);
+  collectField(collected, spec.dateField);
+  collectField(collected, spec.orderBy?.field);
+  for (const field of view.raw.fields || []) collectField(collected, field);
+  const uniqueFields = uniqueBy(
+    collected
+      .filter((field) => field?.name && fieldNameFor(field, contract))
+      .map((field) => ({
+        key: fieldNameFor(field, contract),
+        fieldName: fieldNameFor(field, contract),
+        rawName: field.name,
+        label: field.label || field.name,
+      })),
+    (field) => field.key,
+  );
+  return uniqueFields;
+}
+
+function defaultSortKeyForView({ view, contract, sortFields, defaultField }) {
+  const sortKeys = new Set(sortFields.map((field) => field.key));
+  if (sortKeys.has(defaultField)) {
+    return defaultField;
+  }
+  const matchingRawNameFields = sortFields.filter((field) => field.rawName === defaultField);
+  if (matchingRawNameFields.length === 1) {
+    return matchingRawNameFields[0].key;
+  }
+  const orderByFieldName = fieldNameFor(view.raw.sdkSpec?.spec?.orderBy?.field, contract);
+  return sortKeys.has(orderByFieldName) ? orderByFieldName : undefined;
+}
+
+function recordsQueryParamsType({ viewName, supportsPagination, supportsSort }) {
+  if (supportsPagination && supportsSort) {
+    return `SemaphorGeneratedRecordsQueryParams<Extract<keyof typeof recordsSortFieldsForView.${viewName}, string>>`;
+  }
+  if (supportsSort) {
+    return `SemaphorGeneratedRecordsSortParams<Extract<keyof typeof recordsSortFieldsForView.${viewName}, string>>`;
+  }
+  return 'SemaphorGeneratedServerPaginationParams';
 }
 
 function renderBindings(contract) {

@@ -121,10 +121,10 @@ the canonical planner artifact. For substantial edits to a generated app, use
 for warning cleanup use `operationIntent: { kind: "fix_warnings", targetViewIds }`.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
-option queries, or filter bindings manually. For generated view queries, use
-`useSemaphorQuery(queries.someView, queryOptionsForView.someView(inputHandles))`.
-If contract generation fails twice before producing files, stop and report a
-planner/generator/tooling failure instead of hand-writing generated files.
+option queries, or filter bindings manually. Use `queries.someView()` with
+`queryOptionsForView.someView(inputHandles)`; for server tables, derive UI sort
+choices from generated `recordsSortOptionsForView`.
+If contract generation fails twice, report a planner/generator/tooling failure instead of hand-writing generated files.
 Treat generated `contract.manifest.json` as the durable contract for changes.
 
 A blocked plan with zero executable views is not an implementation plan. Do
@@ -168,6 +168,7 @@ calls for data-app work are:
 - `semaphor_get_domain_relationships`
 - `semaphor_plan_data_app`
 - `semaphor_plan_data_app_change`
+- `semaphor_propose_semantic_model_change` / `semaphor_apply_semantic_model_patch` when exposed
 - `semaphor_generate_data_app_contract`
 - `semaphor_create_data_app_contract`
 - `semaphor_update_data_app_contract`
@@ -206,8 +207,8 @@ as a required dashboard quality checklist, not optional inspiration.
   protocol.
 - Do not invent dataset names, field names, joins, metrics, IDs, or raw
   database credentials.
-- Generated runtime analytics code must use public
-  `react-semaphor/data-app-sdk` builders and `useSemaphorQuery`.
+- Generated runtime analytics code must use public `react-semaphor/data-app-sdk`
+  builders and `useSemaphorQuery`.
 - Generated runtime filter option loading must use `semaphor.inputOptions(...)`
   when choices come from Semaphor data. Do not use `semaphor.records(...)` to
   fetch broad lookup rows and derive dropdown/select options in React unless
@@ -232,15 +233,22 @@ as a required dashboard quality checklist, not optional inspiration.
   If Semaphor cannot prove the relationship, remove that query from the input
   subscription and report the semantic-model gap instead of shipping a broken
   filter.
+- When a Data App filter or joined view is blocked by a missing modeled
+  relationship and semantic model repair tools are exposed, call
+  `semaphor_propose_semantic_model_change` with the exact datasets/fields and
+  affected views/inputs. Show evidence to the author, call
+  `semaphor_apply_semantic_model_patch` only after explicit approval, then
+  rerun planning or validation before changing the generated contract. If those
+  tools are not exposed, report the semantic-model gap and keep unsupported
+  views unsubscribed from the filter.
 - For data-bearing dashboards, use the governed path before SQL: discover
   semantic domains/datasets/schema, validate with `semaphor_analyze` or
   `semaphor_matrix`, then productize with `semaphor.metric`,
   `semaphor.records`, `semaphor.analysis`, `semaphor.matrix`, and
   `semaphor.derivedField` where possible. Use `semaphor.sql` only after naming
   the specific governed capability gap or explicit user SQL request.
-- Do not create a host-specific query language as the source of truth. Missing
-  analytical behavior belongs in the shared analytics protocol, SDK, MCP, or
-  Semaphor App execution adapter.
+- Do not create a host-specific query language as the source of truth; missing
+  analytics behavior belongs in shared protocol, SDK, MCP, or app execution.
 - Do not call dashboard-internal APIs, dashboard card internals, connection
   configs, or raw database credentials from generated app code.
 - Do not inspect, print, search, or log `.env*` token values. Detect expected
@@ -458,11 +466,9 @@ filter composition, read [filters-and-inputs.md](references/filters-and-inputs.m
 
 ## Design Baseline
 
-Generated dashboards must follow the shadcn dashboard practices in
-[shadcn-dashboard.md](references/shadcn-dashboard.md). Use the host app's
-components and theme tokens first, then compose analytical UI with clear
-hierarchy, restrained cards, useful loading/error/empty states, readable
-charts, sortable tables, numeric alignment, and responsive layouts.
+Generated dashboards must follow [shadcn-dashboard.md](references/shadcn-dashboard.md):
+host components/tokens first, clear hierarchy, restrained cards, useful states,
+readable charts, sortable tables, numeric alignment, and responsive layouts.
 
 When the host uses shadcn, prefer its installed components instead of building
 custom markup. Override class names only when a primitive's default treatment
@@ -471,11 +477,10 @@ numeric alignment, missing states, or decorative icons competing with metrics.
 When the host uses another design system, preserve that system while applying
 the same dashboard usability rules.
 
-Before generating dashboard UI, check `samples/`, `src/samples/`, or
-`examples/`, then match layout, filter-chip placement, table affordances,
-states, and density. Starter/eval apps use the included samples and guidelines;
-existing apps adapt those mechanics into the host design system. Production
-data-loading still uses `useSemaphorQuery` per [sdk-contract.md](references/sdk-contract.md).
+Before generating UI, check `samples/`, `src/samples/`, or `examples/`, then
+match layout, filter-chip placement, table affordances, states, and density.
+Starter/eval apps use included samples; existing apps adapt those mechanics.
+Production data-loading still uses `useSemaphorQuery` per [sdk-contract.md](references/sdk-contract.md).
 
 ## Save, Publish, And Validation
 
@@ -494,5 +499,4 @@ Before reporting completion, run validation and the target app checks:
 node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>
 ```
 
-Lifecycle: [publish-lifecycle.md](references/publish-lifecycle.md). Validation:
-[validation.md](references/validation.md).
+Lifecycle: [publish-lifecycle.md](references/publish-lifecycle.md). Validation: [validation.md](references/validation.md).
