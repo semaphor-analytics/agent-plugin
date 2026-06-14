@@ -37,6 +37,68 @@ const WORKSPACE_HINT_SCHEMA = {
   },
   additionalProperties: true,
 };
+const RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA = {
+  type: "object",
+  properties: {
+    sourceDataset: { type: "string" },
+    sourceFields: { type: "array", items: { type: "string" }, minItems: 1 },
+    targetDataset: { type: "string" },
+    targetFields: { type: "array", items: { type: "string" }, minItems: 1 },
+  },
+  additionalProperties: false,
+};
+const SEMANTIC_REPAIR_DIAGNOSTIC_SCHEMA = {
+  type: "object",
+  properties: {
+    reasonCode: { type: "string" },
+    queryId: { type: "string" },
+    queryIds: { type: "array", items: { type: "string" } },
+    viewId: { type: "string" },
+    viewIds: { type: "array", items: { type: "string" } },
+    inputId: { type: "string" },
+    inputIds: { type: "array", items: { type: "string" } },
+    relationshipCandidate: RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA,
+  },
+  additionalProperties: true,
+};
+const SEMANTIC_REPAIR_PATCH_SCHEMA = {
+  type: "object",
+  properties: {
+    domainId: { type: "string" },
+    operations: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        properties: {
+          op: { type: "string", enum: ["add_relationship"] },
+          sourceDataset: { type: "string" },
+          sourceFields: { type: "array", items: { type: "string" }, minItems: 1 },
+          targetDataset: { type: "string" },
+          targetFields: { type: "array", items: { type: "string" }, minItems: 1 },
+          cardinality: {
+            type: "string",
+            enum: ["many_to_one", "one_to_one", "one_to_many"],
+          },
+          defaultJoinType: { type: "string", enum: ["LEFT", "INNER"] },
+          description: { type: "string" },
+        },
+        required: [
+          "op",
+          "sourceDataset",
+          "sourceFields",
+          "targetDataset",
+          "targetFields",
+          "cardinality",
+          "defaultJoinType",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["domainId", "operations"],
+  additionalProperties: false,
+};
 const FALLBACK_TOOLS = [
   {
     name: "semaphor_get_access_context",
@@ -69,6 +131,70 @@ const FALLBACK_TOOLS = [
       "Return semantic-domain relationships. Requires domainId. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.",
   },
   {
+    name: "semaphor_propose_semantic_model_change",
+    description:
+      "Propose a read-only semantic-model relationship repair for a Data App missing_relationship diagnostic. Requires domainId and either candidate fields or dataAppContext diagnostics. Never writes to the semantic model.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceDir: WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+        projectId: { type: "string" },
+        domainId: { type: "string" },
+        reason: {
+          type: "string",
+          enum: [
+            "data_app_filter_blocked",
+            "missing_relationship",
+            "author_requested_relationship_add",
+          ],
+        },
+        dataAppContext: {
+          type: "object",
+          properties: {
+            appId: { type: "string" },
+            viewIds: { type: "array", items: { type: "string" } },
+            inputIds: { type: "array", items: { type: "string" } },
+            diagnostics: {
+              type: "array",
+              items: SEMANTIC_REPAIR_DIAGNOSTIC_SCHEMA,
+            },
+          },
+          additionalProperties: false,
+        },
+        candidate: RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA,
+      },
+      required: ["domainId", "reason"],
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "semaphor_apply_semantic_model_patch",
+    description:
+      "Apply an explicitly approved semantic-model relationship patch returned by semaphor_propose_semantic_model_change. Requires author approval and write-capable Semaphor auth; project/runtime tokens cannot apply model changes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceDir: WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+        projectId: { type: "string" },
+        domainId: { type: "string" },
+        proposalId: { type: "string" },
+        patch: SEMANTIC_REPAIR_PATCH_SCHEMA,
+        approval: {
+          type: "object",
+          properties: {
+            approvedByUser: { type: "boolean", const: true },
+            approvedAt: { type: "string" },
+            approvalText: { type: "string" },
+          },
+          required: ["approvedByUser"],
+          additionalProperties: false,
+        },
+      },
+      required: ["domainId", "proposalId", "patch", "approval"],
+      additionalProperties: true,
+    },
+  },
+  {
     name: "semaphor_plan_data_app",
     description:
       "Plan a Semaphor-backed React Data App from a selected semantic domain. Requires domainId and goal. In local plugin sessions, pass workspaceDir so the bridge can persist the returned canonical codegenSummary JSON to .semaphor/data-app-codegen-summary.latest.json for semaphor_generate_data_app_contract. In project-token mode, pass workspaceDir when the token lives in the target React app .env.local.",
@@ -85,7 +211,7 @@ const FALLBACK_TOOLS = [
   },
 ].map((tool) => ({
   ...tool,
-  inputSchema: WORKSPACE_HINT_SCHEMA,
+  inputSchema: tool.inputSchema || WORKSPACE_HINT_SCHEMA,
 }));
 const LOCAL_TOOLS = [
   {

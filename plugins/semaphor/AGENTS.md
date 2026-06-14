@@ -42,11 +42,10 @@ Codex, Claude Code, and future coding-agent hosts.
 - Do not add a host-specific analytics language. Missing analytical behavior
   belongs in Semaphor's shared MCP, SDK, validation, or execution contracts.
 - If a generated Data App filter or joined view requires a semantic
-  relationship the model cannot prove, use Semaphor MCP semantic model repair
-  only when the repair tools are exposed: propose the relationship with
-  evidence, ask the author for explicit approval, apply only after approval, and
-  rerun planning/validation before updating app code. If repair tools are not
-  exposed, report the model gap. Do not silently force broken filters in React.
+  relationship the model cannot prove, use Semaphor MCP semantic model repair:
+  propose the relationship with evidence, ask the author for explicit approval,
+  apply only after approval, and rerun planning/validation before updating app
+  code. Do not silently force broken filters in React.
 - Use the current public Semaphor MCP, SDK, validation, and lifecycle
   contracts. If examples or guidance are stale, update them to the current
   public contract instead of generating compatibility aliases or host-specific

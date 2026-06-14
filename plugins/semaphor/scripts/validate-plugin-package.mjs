@@ -248,6 +248,9 @@ function validateMcpConfig() {
       "semaphor_get_analysis_context",
       "semaphor_list_semantic_domains",
       "semaphor_get_dataset_schema",
+      "semaphor_get_domain_relationships",
+      "semaphor_propose_semantic_model_change",
+      "semaphor_apply_semantic_model_patch",
       "semaphor_plan_data_app",
     ]) {
       const fallbackToolPattern = new RegExp(
@@ -258,6 +261,31 @@ function validateMcpConfig() {
           `scripts/semaphor-mcp-remote.mjs: no-token fallback tools/list must expose ${requiredFallbackTool} so agents can retry first-class calls with workspaceDir`,
         );
       }
+    }
+    if (
+      !launcherText.includes('required: ["domainId", "reason"]') ||
+      !launcherText.includes("RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA")
+    ) {
+      issues.push(
+        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback tool must expose domainId, reason, and relationship candidate schema",
+      );
+    }
+    if (
+      launcherText.includes(
+        'required: ["sourceDataset", "sourceFields", "targetDataset", "targetFields"]',
+      )
+    ) {
+      issues.push(
+        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback candidate schema must mirror the server tool by allowing partial candidates",
+      );
+    }
+    if (
+      !launcherText.includes('required: ["domainId", "proposalId", "patch", "approval"]') ||
+      !launcherText.includes("SEMANTIC_REPAIR_PATCH_SCHEMA")
+    ) {
+      issues.push(
+        "scripts/semaphor-mcp-remote.mjs: semantic repair apply fallback tool must expose domainId, proposalId, patch, and approval schema",
+      );
     }
   }
 }

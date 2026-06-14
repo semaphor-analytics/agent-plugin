@@ -23,6 +23,7 @@ try {
   runNoFilterFixture();
   runTableBehaviorFixture();
   runMalformedSummaryFixture();
+  runUnsupportedRelationshipRepairMetadataFixture();
   runRootLevelSummaryIssuePathFixture();
   runMalformedIdentityFixture();
   runDatasetIdOnlySourceFixture();
@@ -496,6 +497,202 @@ function runMalformedSummaryFixture() {
       `Malformed fixture failed for the wrong reason:\n${result.stdout}\n${result.stderr}`,
     );
   }
+}
+
+function runUnsupportedRelationshipRepairMetadataFixture() {
+  const workspaceDir = path.join(tempRoot, "relationship-repair-metadata");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const summary = validSummary();
+  summary.unsupportedInsights = [
+    {
+      title: "Campaign filter blocked",
+      requestedQuestion: "Filter orders by campaign name.",
+      reason: "missing_relationship",
+      suggestedModelingFix:
+        "Model a relationship from sales.campaign_id to campaigns.campaign_id.",
+      relationshipCandidate: {
+        sourceDataset: "sales",
+        sourceFields: ["campaign_id"],
+        targetDataset: "campaigns",
+        targetFields: ["campaign_id"],
+      },
+      nextRepairAction: {
+        tool: "semaphor_propose_semantic_model_change",
+        reason: "missing_relationship",
+      },
+    },
+  ];
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error(
+      "Expected unrepaired missing-relationship summary to block generation.",
+    );
+  }
+  if (
+    !result.stdout.includes(
+      "unsupportedInsights.0.reason missing_relationship blocks contract generation",
+    )
+  ) {
+    throw new Error(
+      `Unrepaired missing-relationship summary failed for the wrong reason:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+  assertIssueCode(
+    parseGeneratorJson(result),
+    "semantic_relationship_repair_required",
+    result,
+    "unrepaired missing-relationship generator",
+  );
+
+  const unsupportedViewSummary = validSummary();
+  unsupportedViewSummary.views.push({
+    id: "campaign_filter_blocked",
+    title: "Campaign filter blocked",
+    visual: "table",
+    computation: {
+      kind: "unsupported",
+      reason: "missing_relationship",
+      suggestedModelingFix:
+        "Model a relationship from sales.campaign_id to campaigns.campaign_id.",
+    },
+  });
+  fs.writeFileSync(summaryPath, JSON.stringify(unsupportedViewSummary, null, 2));
+  const unsupportedViewResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (unsupportedViewResult.status === 0) {
+    throw new Error(
+      "Expected unsupported missing-relationship view to block generation.",
+    );
+  }
+  if (
+    !unsupportedViewResult.stdout.includes(
+      "views.3.computation.reason missing_relationship blocks contract generation",
+    )
+  ) {
+    throw new Error(
+      `Unsupported missing-relationship view failed for the wrong reason:\n${unsupportedViewResult.stdout}\n${unsupportedViewResult.stderr}`,
+    );
+  }
+  assertIssueCode(
+    parseGeneratorJson(unsupportedViewResult),
+    "semantic_relationship_repair_required",
+    unsupportedViewResult,
+    "unsupported missing-relationship view generator",
+  );
+
+  summary.unsupportedInsights[0].relationshipCandidate.sourceFields = [];
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  const malformedResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (malformedResult.status === 0) {
+    throw new Error("Expected malformed relationship repair metadata to fail.");
+  }
+  if (
+    !malformedResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.sourceFields must be a non-empty string array",
+    )
+  ) {
+    throw new Error(
+      `Malformed relationship repair metadata failed for the wrong reason:\n${malformedResult.stdout}\n${malformedResult.stderr}`,
+    );
+  }
+
+  summary.unsupportedInsights[0].reason = "missing_measure";
+  summary.unsupportedInsights[0].relationshipCandidate.sourceFields = [
+    "campaign_id",
+  ];
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  const wrongReasonResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (wrongReasonResult.status === 0) {
+    throw new Error(
+      "Expected non-relationship unsupported insight with repair metadata to fail.",
+    );
+  }
+  if (
+    !wrongReasonResult.stdout.includes(
+      "unsupportedInsights.0 relationship repair metadata is only valid for missing_relationship unsupported insights",
+    )
+  ) {
+    throw new Error(
+      `Wrong-reason relationship repair metadata failed for the wrong reason:\n${wrongReasonResult.stdout}\n${wrongReasonResult.stderr}`,
+    );
+  }
+
+  summary.unsupportedInsights[0].reason = "missing_relationship";
+  summary.unsupportedInsights[0].nextRepairAction.candidate = {
+    sourceDataset: "sales",
+    sourceFields: ["campaign_id"],
+    targetDataset: "campaigns",
+    targetFields: ["campaign_id"],
+  };
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  const nestedCandidateResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (nestedCandidateResult.status === 0) {
+    throw new Error("Expected nested repair action candidate to fail.");
+  }
+  if (
+    !nestedCandidateResult.stdout.includes(
+      "unsupportedInsights.0.nextRepairAction.candidate is not supported; repair actions support only tool and reason",
+    )
+  ) {
+    throw new Error(
+      `Nested repair action candidate failed for the wrong reason:\n${nestedCandidateResult.stdout}\n${nestedCandidateResult.stderr}`,
+    );
+  }
+
+  delete summary.unsupportedInsights[0].nextRepairAction.candidate;
+  summary.unsupportedInsights[0].nextRepairAction.patch = { operations: [] };
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  const extraActionKeyResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (extraActionKeyResult.status === 0) {
+    throw new Error("Expected extra repair action key to fail.");
+  }
+  if (
+    !extraActionKeyResult.stdout.includes(
+      "unsupportedInsights.0.nextRepairAction.patch is not supported; repair actions support only tool and reason",
+    )
+  ) {
+    throw new Error(
+      `Extra repair action key failed for the wrong reason:\n${extraActionKeyResult.stdout}\n${extraActionKeyResult.stderr}`,
+    );
+  }
+
+  const blockedSummary = validSummary();
+  blockedSummary.validation = { status: "blocked" };
+  delete blockedSummary.unsupportedInsights;
+  fs.writeFileSync(summaryPath, JSON.stringify(blockedSummary, null, 2));
+  const blockedSummaryResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (blockedSummaryResult.status === 0) {
+    throw new Error("Expected blocked codegen summary to fail generation.");
+  }
+  assertIssueCode(
+    parseGeneratorJson(blockedSummaryResult),
+    "blocked_codegen_summary",
+    blockedSummaryResult,
+    "blocked codegen summary generator",
+  );
 }
 
 function runRootLevelSummaryIssuePathFixture() {

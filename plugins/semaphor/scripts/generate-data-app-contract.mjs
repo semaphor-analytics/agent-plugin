@@ -119,6 +119,15 @@ function issuesForGenerationError(message) {
 }
 
 function codegenSummaryIssueCode(message) {
+  if (
+    /^unsupportedInsights\.\d+\.reason missing_relationship blocks contract generation/.test(message) ||
+    /^views\.\d+\.computation\.reason missing_relationship blocks contract generation/.test(message)
+  ) {
+    return 'semantic_relationship_repair_required';
+  }
+  if (/^validation\.status blocked cannot be generated/.test(message)) {
+    return 'blocked_codegen_summary';
+  }
   if (/\.sdkSpec\.builder must match queryKind/.test(message)) {
     return 'sdk_builder_query_kind_mismatch';
   }
@@ -178,6 +187,12 @@ function codegenSummaryIssueRepairHint(message) {
   }
   if (code === 'invalid_sdk_spec') {
     return 'Regenerate the SDK spec from the accepted typed codegenSummary contract instead of hand-editing builder arguments.';
+  }
+  if (code === 'semantic_relationship_repair_required') {
+    return 'Call semaphor_propose_semantic_model_change, apply an explicitly approved semantic model patch, then replan before generating local contract files.';
+  }
+  if (code === 'blocked_codegen_summary') {
+    return 'Resolve the blocked Data App planning state and rerun planning before generating local contract files.';
   }
   return 'Regenerate or repair the codegenSummary before generating local contract files.';
 }

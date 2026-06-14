@@ -168,7 +168,7 @@ calls for data-app work are:
 - `semaphor_get_domain_relationships`
 - `semaphor_plan_data_app`
 - `semaphor_plan_data_app_change`
-- `semaphor_propose_semantic_model_change` / `semaphor_apply_semantic_model_patch` when exposed
+- `semaphor_propose_semantic_model_change` / `semaphor_apply_semantic_model_patch`
 - `semaphor_generate_data_app_contract`
 - `semaphor_create_data_app_contract`
 - `semaphor_update_data_app_contract`
@@ -234,13 +234,12 @@ as a required dashboard quality checklist, not optional inspiration.
   subscription and report the semantic-model gap instead of shipping a broken
   filter.
 - When a Data App filter or joined view is blocked by a missing modeled
-  relationship and semantic model repair tools are exposed, call
-  `semaphor_propose_semantic_model_change` with the exact datasets/fields and
-  affected views/inputs. Show evidence to the author, call
+  relationship, call `semaphor_propose_semantic_model_change` with exact
+  datasets/fields and affected views/inputs. Show evidence to the author, call
   `semaphor_apply_semantic_model_patch` only after explicit approval, then
-  rerun planning or validation before changing the generated contract. If those
-  tools are not exposed, report the semantic-model gap and keep unsupported
-  views unsubscribed from the filter.
+  rerun planning or validation before changing the generated contract. Keep
+  unsupported views unsubscribed from the filter until the repaired semantic
+  model proves the relationship.
 - For data-bearing dashboards, use the governed path before SQL: discover
   semantic domains/datasets/schema, validate with `semaphor_analyze` or
   `semaphor_matrix`, then productize with `semaphor.metric`,
@@ -492,8 +491,6 @@ npm run save:data-app -- --dir <app> --project-id <project-id> --title "<title>"
 npm run prepare:publish -- --dir <app>
 npm run publish:data-app -- --dir <app> --project-id <project-id> --title "<title>"
 ```
-
-Before reporting completion, run validation and the target app checks:
 
 ```bash
 node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>

@@ -192,6 +192,38 @@ export function validateCodegenSummary(value) {
       });
     }
   }
+  issues.push(...validateGeneratableSummaryReadiness(summary));
+  return issues;
+}
+
+function validateGeneratableSummaryReadiness(summary) {
+  const issues = [];
+  if (summary.validation?.status === 'blocked') {
+    issues.push(
+      'validation.status blocked cannot be generated. Resolve blocked semantic model gaps and replan before generating contract files.',
+    );
+  }
+  if (Array.isArray(summary.unsupportedInsights)) {
+    summary.unsupportedInsights.forEach((unsupportedInsight, index) => {
+      if (unsupportedInsight?.reason === 'missing_relationship') {
+        issues.push(
+          `unsupportedInsights.${index}.reason missing_relationship blocks contract generation. Call semaphor_propose_semantic_model_change, apply an approved semantic model patch, and replan before generating contract files.`,
+        );
+      }
+    });
+  }
+  if (Array.isArray(summary.views)) {
+    summary.views.forEach((view, index) => {
+      if (
+        view?.computation?.kind === 'unsupported' &&
+        view.computation.reason === 'missing_relationship'
+      ) {
+        issues.push(
+          `views.${index}.computation.reason missing_relationship blocks contract generation. Call semaphor_propose_semantic_model_change, apply an approved semantic model patch, and replan before generating contract files.`,
+        );
+      }
+    });
+  }
   return issues;
 }
 
@@ -1095,6 +1127,78 @@ function validateUnsupportedInsight(value, path) {
   }
   if (!CODEGEN_UNSUPPORTED_REASONS.has(unsupportedInsight.reason)) {
     issues.push(`${path}.reason must be a supported unsupported insight reason.`);
+  }
+  const hasRepairMetadata =
+    unsupportedInsight.relationshipCandidate !== undefined ||
+    unsupportedInsight.nextRepairAction !== undefined;
+  if (hasRepairMetadata && unsupportedInsight.reason !== 'missing_relationship') {
+    issues.push(
+      `${path} relationship repair metadata is only valid for missing_relationship unsupported insights.`,
+    );
+  }
+  if (unsupportedInsight.relationshipCandidate !== undefined) {
+    issues.push(
+      ...validateRelationshipRepairCandidate(
+        unsupportedInsight.relationshipCandidate,
+        `${path}.relationshipCandidate`,
+      ),
+    );
+  }
+  if (unsupportedInsight.nextRepairAction !== undefined) {
+    issues.push(
+      ...validateRelationshipRepairAction(
+        unsupportedInsight.nextRepairAction,
+        `${path}.nextRepairAction`,
+      ),
+    );
+  }
+  return issues;
+}
+
+function validateRelationshipRepairAction(value, path) {
+  const action = asRecord(value);
+  if (!action) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  const allowedKeys = new Set(['tool', 'reason']);
+  Object.keys(action).forEach((key) => {
+    if (allowedKeys.has(key)) {
+      return;
+    }
+    issues.push(
+      `${path}.${key} is not supported; repair actions support only tool and reason.`,
+    );
+  });
+  if (action.tool !== 'semaphor_propose_semantic_model_change') {
+    issues.push(`${path}.tool must be semaphor_propose_semantic_model_change.`);
+  }
+  if (action.reason !== 'missing_relationship') {
+    issues.push(`${path}.reason must be missing_relationship.`);
+  }
+  return issues;
+}
+
+function validateRelationshipRepairCandidate(value, path) {
+  const candidate = asRecord(value);
+  if (!candidate) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  for (const key of ['sourceDataset', 'targetDataset']) {
+    if (typeof candidate[key] !== 'string' || !candidate[key].trim()) {
+      issues.push(`${path}.${key} must be a non-empty string.`);
+    }
+  }
+  for (const key of ['sourceFields', 'targetFields']) {
+    const fields = candidate[key];
+    if (
+      !Array.isArray(fields) ||
+      fields.length === 0 ||
+      fields.some((field) => typeof field !== 'string' || !field.trim())
+    ) {
+      issues.push(`${path}.${key} must be a non-empty string array.`);
+    }
   }
   return issues;
 }
