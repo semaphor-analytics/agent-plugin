@@ -42,6 +42,7 @@ function parseArgs(argv) {
     strict: false,
     json: false,
     liveFilterEffect: false,
+    liveGeneratedViews: false,
     filterEffectSamples: 2,
   };
   for (let index = 2; index < argv.length; index += 1) {
@@ -63,6 +64,8 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--live-filter-effect") {
       args.liveFilterEffect = true;
+    } else if (arg === "--live-generated-views") {
+      args.liveGeneratedViews = true;
     } else if (arg === "--filter-effect-samples") {
       args.filterEffectSamples = Number.parseInt(argv[index + 1], 10);
       index += 1;
@@ -213,6 +216,8 @@ function inferIssueCode(message, defaultCode) {
     return "missing_query_traces";
   }
   if (lower.includes("filter-effect report")) return "filter_effect_failed";
+  if (lower.includes("generated view execution"))
+    return "generated_view_execution_failed";
   if (lower.includes("missing react dependency"))
     return "missing_react_dependency";
   if (lower.includes("missing react-semaphor dependency"))
@@ -241,6 +246,9 @@ function inferRepairHint(message) {
   }
   if (lower.includes("filter-effect report")) {
     return "Run a browser smoke that selects the generated filter and records rerun or changed subscribed view ids.";
+  }
+  if (lower.includes("generated view execution")) {
+    return "Run live generated-view validation with a valid Semaphor token and fix generated executable view specs before runtime.";
   }
   return "";
 }
@@ -985,7 +993,7 @@ async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
     console.log(
-      "Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict] [--json] [--devtools-snapshot <path>] [--filter-effect-report <path>] [--live-filter-effect] [--filter-effect-samples <n>]",
+      "Usage: validate-semaphor-data-app.mjs [--dir <path>] [--no-run] [--strict] [--json] [--devtools-snapshot <path>] [--filter-effect-report <path>] [--live-filter-effect] [--live-generated-views] [--filter-effect-samples <n>]",
     );
     process.exit(0);
   }
@@ -1078,6 +1086,11 @@ async function main() {
     });
     issues.push(...liveFilterResult.issues);
     advisories.push(...liveFilterResult.advisories);
+  }
+  if (args.liveGeneratedViews) {
+    const liveViewsResult = await validateLiveGeneratedViews({ root });
+    issues.push(...liveViewsResult.issues);
+    advisories.push(...liveViewsResult.advisories);
   }
 
   const normalizedAdvisories = dedupeDiagnostics(
@@ -1394,6 +1407,174 @@ function liveFilterEffectIssue(message, details = {}) {
   });
 }
 
+function liveGeneratedViewIssue(message, details = {}) {
+  return issue("generated_view_execution_failed", message, {
+    repairHint:
+      "Fix generated executable view specs or runtime token/server setup, then rerun --live-generated-views.",
+    ...details,
+  });
+}
+
+function resolveLiveDataAppExecutionContext({
+  root,
+  summary,
+  issueFactory,
+  missingTokenMessage,
+  missingExecuteUrlMessage,
+}) {
+  const env = readLocalEnv(root);
+  const token =
+    env.VITE_SEMAPHOR_PROJECT_TOKEN ||
+    env.SEMAPHOR_PROJECT_TOKEN ||
+    process.env.VITE_SEMAPHOR_PROJECT_TOKEN ||
+    process.env.SEMAPHOR_PROJECT_TOKEN;
+  if (!token) {
+    return {
+      ok: false,
+      issues: [
+        issueFactory(missingTokenMessage, {
+          repairHint:
+            "Set VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN before running live Data App validation.",
+        }),
+      ],
+    };
+  }
+  const executeUrl = resolveDataAppExecuteUrl({ env, token });
+  if (!executeUrl) {
+    return {
+      ok: false,
+      issues: [
+        issueFactory(missingExecuteUrlMessage, {
+          repairHint:
+            "Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
+        }),
+      ],
+    };
+  }
+
+  return {
+    ok: true,
+    context: {
+      executeUrl,
+      token,
+      sourcesByKey: new Map(
+        (summary.sources || [])
+          .filter((source) => typeof source?.sourceKey === "string")
+          .map((source) => [source.sourceKey, stripSourceKey(source)]),
+      ),
+    },
+  };
+}
+
+async function validateLiveGeneratedViews({ root }) {
+  const manifestPath = path.join(
+    root,
+    GENERATED_CONTRACT_DIR,
+    "contract.manifest.json",
+  );
+  if (!fs.existsSync(manifestPath)) {
+    return {
+      issues: [
+        issue(
+          "missing_generated_contract",
+          "Live generated view execution validation requires src/semaphor/generated/contract.manifest.json.",
+          {
+            filePath: `${GENERATED_CONTRACT_DIR}/contract.manifest.json`,
+            repairHint:
+              "Generate the Data App contract before validating generated view execution.",
+          },
+        ),
+      ],
+      advisories: [],
+    };
+  }
+
+  const manifestRead = readGeneratedContractManifest(root, manifestPath);
+  if (manifestRead.issues.length > 0) {
+    return { issues: manifestRead.issues, advisories: [] };
+  }
+  const summary = manifestRead.manifest.codegenSummary || {};
+  const executableViews = (summary.views || []).filter(
+    (view) => view?.sdkSpec?.builder && view?.sdkSpec?.spec,
+  );
+  if (executableViews.length === 0) {
+    return {
+      issues: [],
+      advisories: [
+        advisory(
+          "live_generated_views_skipped",
+          "Live generated view execution validation skipped because no executable generated views were found.",
+        ),
+      ],
+    };
+  }
+
+  const setup = resolveLiveDataAppExecutionContext({
+    root,
+    summary,
+    issueFactory: liveGeneratedViewIssue,
+    missingTokenMessage:
+      "Live generated view execution validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
+    missingExecuteUrlMessage:
+      "Live generated view execution validation could not resolve the Semaphor execute URL. Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
+  });
+  if (!setup.ok) {
+    return { issues: setup.issues, advisories: [] };
+  }
+
+  const { context } = setup;
+  const issues = [];
+  const advisories = [];
+  for (const [index, view] of executableViews.entries()) {
+    const viewId = view.id || `view_${index}`;
+    const viewRequest = buildViewExecutionRequest(view, context);
+    if (!viewRequest) {
+      issues.push(
+        liveGeneratedViewIssue(
+          `Generated view execution validation could not build intent for "${viewId}".`,
+          {
+            path: `views.${viewId}.sdkSpec`,
+            repairHint:
+              "Regenerate the Data App contract so each executable view has a valid SDK spec.",
+          },
+        ),
+      );
+      continue;
+    }
+
+    const result = await executeDataAppIntent({
+      context,
+      ...viewRequest,
+      activeInputs: [],
+    });
+    if (!result.ok) {
+      issues.push(
+        liveGeneratedViewIssue(
+          `Generated view execution failed for "${viewId}"${formatExecutionFailureClassification(result.error)}: ${result.error}`,
+          {
+            path: `views.${viewId}.sdkSpec`,
+            details: {
+              viewId,
+              status: result.status,
+              error: String(result.error || ""),
+            },
+          },
+        ),
+      );
+    }
+  }
+
+  if (issues.length === 0) {
+    advisories.push(
+      advisory(
+        "live_generated_views_passed",
+        `Live generated view execution validation passed against ${context.executeUrl} for ${executableViews.length} executable view(s).`,
+      ),
+    );
+  }
+  return { issues, advisories };
+}
+
 async function validateLiveFilterEffects({ root, sampleCount }) {
   const manifestPath = path.join(
     root,
@@ -1436,51 +1617,20 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
     };
   }
 
-  const env = readLocalEnv(root);
-  const token =
-    env.VITE_SEMAPHOR_PROJECT_TOKEN ||
-    env.SEMAPHOR_PROJECT_TOKEN ||
-    process.env.VITE_SEMAPHOR_PROJECT_TOKEN ||
-    process.env.SEMAPHOR_PROJECT_TOKEN;
-  if (!token) {
-    return {
-      issues: [
-        liveFilterEffectIssue(
-          "Live filter-effect validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
-          {
-            repairHint:
-              "Set VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN before running --live-filter-effect.",
-          },
-        ),
-      ],
-      advisories: [],
-    };
-  }
-  const executeUrl = resolveDataAppExecuteUrl({ env, token });
-  if (!executeUrl) {
-    return {
-      issues: [
-        liveFilterEffectIssue(
-          "Live filter-effect validation could not resolve the Semaphor execute URL. Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
-          {
-            repairHint:
-              "Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
-          },
-        ),
-      ],
-      advisories: [],
-    };
+  const setup = resolveLiveDataAppExecutionContext({
+    root,
+    summary,
+    issueFactory: liveFilterEffectIssue,
+    missingTokenMessage:
+      "Live filter-effect validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
+    missingExecuteUrlMessage:
+      "Live filter-effect validation could not resolve the Semaphor execute URL. Set SEMAPHOR_SERVER_URL or use a runtime token that includes apiServiceUrl.",
+  });
+  if (!setup.ok) {
+    return { issues: setup.issues, advisories: [] };
   }
 
-  const context = {
-    executeUrl,
-    token,
-    sourcesByKey: new Map(
-      (summary.sources || [])
-        .filter((source) => typeof source?.sourceKey === "string")
-        .map((source) => [source.sourceKey, stripSourceKey(source)]),
-    ),
-  };
+  const { context } = setup;
   const issues = [];
   const advisories = [];
 
@@ -1555,14 +1705,14 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
       const view = (summary.views || []).find(
         (candidate) => candidate?.id === binding.viewId,
       );
-      const viewIntent = buildViewIntent(view, context);
-      if (!viewIntent) {
+      const viewRequest = buildViewExecutionRequest(view, context);
+      if (!viewRequest) {
         continue;
       }
       checkedViewIds.push(binding.viewId);
       const baseline = await executeDataAppIntent({
         context,
-        intent: viewIntent,
+        ...viewRequest,
         activeInputs: [],
       });
       if (!baseline.ok) {
@@ -1576,7 +1726,7 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
       for (const option of options) {
         const filtered = await executeDataAppIntent({
           context,
-          intent: viewIntent,
+          ...viewRequest,
           activeInputs: [
             buildActiveInput({
               input,
@@ -1637,7 +1787,7 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
 
   if (issues.length === 0) {
     advisories.push(
-      `Live filter-effect validation passed against ${executeUrl} for ${optionInputs.length} option-backed input(s).`,
+      `Live filter-effect validation passed against ${context.executeUrl} for ${optionInputs.length} option-backed input(s).`,
     );
   }
   return { issues, advisories };
@@ -1835,7 +1985,7 @@ function buildInputOptionIntent(input, filterContract, context) {
   };
 }
 
-function buildViewIntent(view, context) {
+function buildViewExecutionRequest(view, context) {
   if (!view?.sdkSpec?.builder || !view?.sdkSpec?.spec) {
     return null;
   }
@@ -1844,12 +1994,45 @@ function buildViewIntent(view, context) {
     return null;
   }
   const spec = expandGeneratedRefs(view.sdkSpec.spec, context);
+  if (kind === "analysis") {
+    const {
+      chartTitle,
+      chartType,
+      driverMode,
+      includePopulation,
+      calendarContext,
+      ...intentSpec
+    } = spec;
+    const analysisOptions = {
+      ...(typeof chartTitle === "string" ? { chartTitle } : {}),
+      ...(typeof chartType === "string" ? { chartType } : {}),
+      ...(typeof driverMode === "string" ? { driverMode } : {}),
+      ...(typeof includePopulation === "boolean" ? { includePopulation } : {}),
+      ...(calendarContext && typeof calendarContext === "object"
+        ? { calendarContext }
+        : {}),
+    };
+    return {
+      intent: {
+        version: 1,
+        ...intentSpec,
+        kind: "metric",
+        id: view.id,
+        label: view.visualSpec?.title || view.title || spec.label,
+      },
+      resultShape: "analysis",
+      analysisOptions,
+    };
+  }
   return {
-    version: 1,
-    ...spec,
-    kind,
-    id: view.id,
-    label: view.visualSpec?.title || view.title || spec.label,
+    intent: {
+      version: 1,
+      ...spec,
+      kind,
+      id: view.id,
+      label: view.visualSpec?.title || view.title || spec.label,
+    },
+    resultShape: kind,
   };
 }
 
@@ -1891,7 +2074,13 @@ function activeInputValueForOperator(operator, value) {
   return value;
 }
 
-async function executeDataAppIntent({ context, intent, activeInputs }) {
+async function executeDataAppIntent({
+  context,
+  intent,
+  activeInputs,
+  resultShape,
+  analysisOptions,
+}) {
   let response;
   try {
     response = await fetch(context.executeUrl, {
@@ -1903,7 +2092,8 @@ async function executeDataAppIntent({ context, intent, activeInputs }) {
       body: JSON.stringify({
         intent,
         activeInputs,
-        resultShape: intent.kind,
+        resultShape: resultShape || intent.kind,
+        ...(analysisOptions ? { analysisOptions } : {}),
       }),
     });
   } catch (error) {

@@ -119,7 +119,7 @@ const LOCAL_TOOLS = [
         preferences: {
           type: "object",
           description:
-            "Optional planner preferences such as maxViews, includeFilters, includeTables, includeKpis, and visualStyle.",
+            "Optional planner preferences such as maxViews, tableMode, allowSqlFallback, includeMatrix, and measureAggregateOverrides. Use measureAggregateOverrides only for explicit user-requested caller aggregates, e.g. [{ fieldName: \"expected_yield_pct\", aggregate: \"AVG\" }]; do not infer overrides from field names.",
           additionalProperties: true,
         },
         datasetName: {
@@ -224,7 +224,7 @@ const LOCAL_TOOLS = [
         operationIntent: {
           type: "object",
           description:
-            'Structured change intent. Supports add, edit, remove, and deterministic diagnostic fixes. Use { kind: "fix_warnings", targetViewIds: [...] } for Inspector/runtime warning cleanup so unrelated views, inputs, and filter scopes are rejected before files are regenerated.',
+            'Structured change intent. Supports add, edit, remove, and deterministic diagnostic fixes. Use { kind: "fix_warnings", targetViewIds: [...] } for Inspector/runtime warning cleanup. For explicit metric aggregate repairs, use { kind: "edit", targetViewIds: [...], measureAggregateOverrides: [{ fieldName: "expected_yield_pct", aggregate: "AVG" }] } so unrelated views, inputs, and filter scopes are rejected before files are regenerated.',
           additionalProperties: true,
         },
         domainId: {
@@ -235,7 +235,7 @@ const LOCAL_TOOLS = [
         preferences: {
           type: "object",
           description:
-            "Optional planner preferences for the new candidate views.",
+            "Optional planner preferences for candidate views. Does not accept measureAggregateOverrides; explicit metric aggregate repairs must put measureAggregateOverrides on operationIntent so the deterministic update policy can preserve unrelated views, inputs, and filters.",
           additionalProperties: true,
         },
         datasetName: {
@@ -266,7 +266,7 @@ const LOCAL_TOOLS = [
   {
     name: "semaphor_validate_data_app_contract",
     description:
-      "Run deterministic local Data App preflight: React/react-semaphor package setup, public SDK availability, root provider/DevTools wiring, generated contract completeness, generated contract hygiene, optional typecheck/build, and optional live generated filter-effect checks.",
+      "Run deterministic local Data App preflight: React/react-semaphor package setup, public SDK availability, root provider/DevTools wiring, generated contract completeness, generated contract hygiene, optional typecheck/build, optional live generated view execution checks, and optional live generated filter-effect checks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -295,6 +295,11 @@ const LOCAL_TOOLS = [
           type: "boolean",
           description:
             "When true, execute generated option-backed filters against Semaphor with the app runtime token and fail if sampled subscribed queries error or return empty/all-zero results.",
+        },
+        liveGeneratedViewsCheck: {
+          type: "boolean",
+          description:
+            "When true, execute every generated executable view through Semaphor with the app runtime token and fail before browser runtime if a generated SDK spec or governed query fails.",
         },
       },
       additionalProperties: false,
@@ -653,6 +658,9 @@ function validateLocalDataAppContract(message) {
   }
   if (args.liveFilterEffectCheck) {
     commandArgs.push("--live-filter-effect");
+  }
+  if (args.liveGeneratedViewsCheck) {
+    commandArgs.push("--live-generated-views");
   }
   const result = spawnSync(process.execPath, commandArgs, {
     cwd: workspaceDir,
@@ -1120,6 +1128,44 @@ async function updateLocalDataAppContract(message) {
     };
   }
 
+  const operationIntent =
+    args.operationIntent && typeof args.operationIntent === "object"
+      ? args.operationIntent
+      : {
+          kind: "add",
+          reason:
+            "Default generated Data App update intent: add governed views/filters while preserving existing generated contract entries.",
+        };
+  const hasUpdatePreferenceAggregateOverrides =
+    args.preferences &&
+    typeof args.preferences === "object" &&
+    Array.isArray(args.preferences.measureAggregateOverrides);
+  if (hasUpdatePreferenceAggregateOverrides) {
+    const text =
+      "Update metric aggregate repairs must use operationIntent.measureAggregateOverrides with kind: \"edit\" and targetViewIds. Do not pass measureAggregateOverrides under preferences for semaphor_update_data_app_contract.";
+    return {
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        isError: true,
+        structuredContent: {
+          ok: false,
+          workspaceDir,
+          outputDir,
+          issues: [
+            {
+              code: "invalid_update_preferences",
+              path: "preferences.measureAggregateOverrides",
+              message: text,
+            },
+          ],
+          error: text,
+        },
+        content: [{ type: "text", text }],
+      },
+    };
+  }
+
   const context = await resolveSemaphorContext({
     allowMissing: false,
     includeClientRoots: true,
@@ -1132,14 +1178,7 @@ async function updateLocalDataAppContract(message) {
   const changeArguments = {
     domainId: domainResolution.domainId,
     goal,
-    operationIntent:
-      args.operationIntent && typeof args.operationIntent === "object"
-        ? args.operationIntent
-        : {
-            kind: "add",
-            reason:
-              "Default generated Data App update intent: add governed views/filters while preserving existing generated contract entries.",
-          },
+    operationIntent,
     target: {
       kind: "data_app",
       appPath: workspaceDir,
@@ -1250,6 +1289,7 @@ async function updateLocalDataAppContract(message) {
     afterSummary: codegenSummary,
     migrationReport,
     operationIntent: changeArguments.operationIntent,
+    preferences: changeArguments.preferences,
   });
   if (!updatePolicy.ok) {
     const text = [

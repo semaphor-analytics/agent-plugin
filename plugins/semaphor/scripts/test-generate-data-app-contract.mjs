@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { evaluateContractUpdatePolicy } from "./data-app-contract-update-policy.mjs";
 
@@ -41,6 +42,10 @@ try {
   runPresentationFilterScopeFixture();
   runMalformedManifestFixture();
   runStructuredValidationFixtures();
+  await runLiveFilterEffectSuccessValidationFixture();
+  await runLiveGeneratedViewsRequestShapeValidationFixture();
+  runLiveGeneratedViewsMissingTokenValidationFixture();
+  runLiveGeneratedViewsFetchFailureValidationFixture();
   runContractUpdatePolicyFixture();
   console.log("Semaphor generator fixture tests passed.");
 } finally {
@@ -1703,6 +1708,382 @@ function runLiveFilterEffectFetchFailureValidationFixture() {
   );
 }
 
+async function runLiveFilterEffectSuccessValidationFixture() {
+  const workspaceDir = path.join(
+    tempRoot,
+    "validation-live-filter-effect-success",
+  );
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify(
+      {
+        type: "module",
+        dependencies: {
+          react: "^19.0.0",
+          "react-semaphor": "^0.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(validSummary(), null, 2));
+  const generatorResult = runGenerator({ workspaceDir, summaryPath });
+  if (generatorResult.status !== 0) {
+    throw new Error(
+      `Expected live filter-effect success fixture generation to pass:\n${generatorResult.stdout}\n${generatorResult.stderr}`,
+    );
+  }
+  writeMinimalRuntimeApp(workspaceDir);
+
+  const server = await startFixtureExecuteServer(({ body }) => {
+    if (body?.intent?.kind === "inputOptions") {
+      return {
+        options: [{ label: "Facility A", value: 101 }],
+      };
+    }
+    return {
+      records: body?.activeInputs?.length
+        ? [{ value: 50 }]
+        : [{ value: 100 }],
+      rowCount: 1,
+    };
+  });
+  try {
+    const env = liveValidationEnv(server.url);
+    const result = await runValidatorJsonAsync({
+      workspaceDir,
+      extraArgs: ["--live-filter-effect"],
+      env,
+    });
+    if (result.status !== 0) {
+      throw new Error(
+        `Expected live filter-effect success validation to pass:\n${result.stdout}\n${result.stderr}`,
+      );
+    }
+    const parsed = parseValidationJson(result);
+    if (parsed.ok !== true) {
+      throw new Error(
+        `Expected live filter-effect success validation to return ok true:\n${result.stdout}\n${result.stderr}`,
+      );
+    }
+  } finally {
+    await server.close();
+  }
+}
+
+async function runLiveGeneratedViewsRequestShapeValidationFixture() {
+  const workspaceDir = path.join(
+    tempRoot,
+    "validation-live-generated-views-request-shape",
+  );
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify(
+      {
+        type: "module",
+        dependencies: {
+          react: "^19.0.0",
+          "react-semaphor": "^0.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  const summary = validSummary();
+  const analysisView = summary.views.find((view) => view.id === "sales_analysis");
+  if (!analysisView?.sdkSpec?.spec) {
+    throw new Error("Expected valid summary to include sales_analysis spec.");
+  }
+  delete analysisView.sdkSpec.spec.driverMode;
+  delete analysisView.sdkSpec.spec.includePopulation;
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  const generatorResult = runGenerator({ workspaceDir, summaryPath });
+  if (generatorResult.status !== 0) {
+    throw new Error(
+      `Expected live generated-views request-shape fixture generation to pass:\n${generatorResult.stdout}\n${generatorResult.stderr}`,
+    );
+  }
+  writeMinimalRuntimeApp(workspaceDir);
+
+  const server = await startFixtureExecuteServer(({ body }) => {
+    if (body?.intent?.id === "sales_analysis") {
+      if (body.intent.kind === "analysis") {
+        return { error: "analysis must execute as a metric intent" };
+      }
+      if (
+        body.intent.kind !== "metric" ||
+        body.resultShape !== "analysis" ||
+        !body.analysisOptions ||
+        Object.keys(body.analysisOptions).length !== 0 ||
+        body.intent.driverMode !== undefined ||
+        body.intent.includePopulation !== undefined
+      ) {
+        return { error: "analysis request shape is not SDK-compatible" };
+      }
+    }
+    return {
+      records: [{ value: 1 }],
+      rowCount: 1,
+    };
+  });
+  try {
+    const env = liveValidationEnv(server.url);
+    const result = await runValidatorJsonAsync({
+      workspaceDir,
+      extraArgs: ["--live-generated-views"],
+      env,
+    });
+    if (result.status !== 0) {
+      throw new Error(
+        `Expected live generated-views request-shape validation to pass:\n${result.stdout}\n${result.stderr}`,
+      );
+    }
+    const parsed = parseValidationJson(result);
+    if (parsed.ok !== true) {
+      throw new Error(
+        `Expected live generated-views request-shape validation to return ok true:\n${result.stdout}\n${result.stderr}`,
+      );
+    }
+    if (server.requests.length !== 3) {
+      throw new Error(
+        `Expected one execution request per executable generated view, saw ${server.requests.length}.`,
+      );
+    }
+    for (const request of server.requests) {
+      if (
+        request.method !== "POST" ||
+        request.url !== "/api/v1/data-app/execute"
+      ) {
+        throw new Error(`Unexpected generated-view request target: ${request.method} ${request.url}`);
+      }
+      const bodyText = JSON.stringify(request.body);
+      if (bodyText.includes("sourceKey")) {
+        throw new Error(
+          `Expected generated-view execution request to expand sourceKey refs:\n${bodyText}`,
+        );
+      }
+      if (request.body?.intent?.source?.datasetName !== "sales") {
+        throw new Error(
+          `Expected generated-view execution request to include expanded source:\n${bodyText}`,
+        );
+      }
+    }
+    const analysisRequest = server.requests.find(
+      (request) => request.body?.intent?.id === "sales_analysis",
+    );
+    if (!analysisRequest) {
+      throw new Error("Expected generated analysis view to be executed.");
+    }
+    if (
+      analysisRequest.body.intent.kind !== "metric" ||
+      analysisRequest.body.resultShape !== "analysis" ||
+      !analysisRequest.body.analysisOptions ||
+      Object.keys(analysisRequest.body.analysisOptions).length !== 0 ||
+      analysisRequest.body.intent.driverMode !== undefined ||
+      analysisRequest.body.intent.includePopulation !== undefined
+    ) {
+      throw new Error(
+        `Expected analysis view to execute as metric intent plus empty analysisOptions:\n${JSON.stringify(analysisRequest.body, null, 2)}`,
+      );
+    }
+  } finally {
+    await server.close();
+  }
+}
+
+function runLiveGeneratedViewsMissingTokenValidationFixture() {
+  const workspaceDir = path.join(tempRoot, "validation-live-generated-views");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify(
+      {
+        type: "module",
+        dependencies: {
+          react: "^19.0.0",
+          "react-semaphor": "^0.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(validSummary(), null, 2));
+  const generatorResult = runGenerator({ workspaceDir, summaryPath });
+  if (generatorResult.status !== 0) {
+    throw new Error(
+      `Expected live generated-views fixture generation to pass:\n${generatorResult.stdout}\n${generatorResult.stderr}`,
+    );
+  }
+
+  const env = { ...process.env };
+  delete env.VITE_SEMAPHOR_PROJECT_TOKEN;
+  delete env.SEMAPHOR_PROJECT_TOKEN;
+  const result = runValidatorJson({
+    workspaceDir,
+    extraArgs: ["--live-generated-views"],
+    env,
+  });
+  if (result.status === 0) {
+    throw new Error(
+      "Expected live generated-views missing-token validation fixture to fail.",
+    );
+  }
+  const parsed = parseValidationJson(result);
+  assertIssueCode(
+    parsed,
+    "generated_view_execution_failed",
+    result,
+    "live generated-views missing-token validation",
+  );
+}
+
+function liveValidationEnv(serverUrl) {
+  const env = { ...process.env };
+  env.VITE_SEMAPHOR_PROJECT_TOKEN = "fixture-token";
+  env.SEMAPHOR_PROJECT_TOKEN = "fixture-token";
+  env.SEMAPHOR_SERVER_URL = serverUrl;
+  delete env.VITE_SEMAPHOR_API_SERVICE_URL;
+  delete env.SEMAPHOR_API_SERVICE_URL;
+  delete env.NEXT_PUBLIC_API_SERVICE_URL;
+  delete env.VITE_SEMAPHOR_SERVER_URL;
+  delete env.NEXT_PUBLIC_SEMAPHOR_SERVER_URL;
+  return env;
+}
+
+function writeMinimalRuntimeApp(workspaceDir) {
+  const srcDir = path.join(workspaceDir, "src");
+  fs.mkdirSync(srcDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(srcDir, "App.tsx"),
+    [
+      'import { SemaphorDataAppProvider, SemaphorDevtools } from "react-semaphor/data-app-sdk";',
+      'import { generatedQueries } from "./semaphor/generated";',
+      "",
+      "export function App() {",
+      "  return (",
+      "    <SemaphorDataAppProvider config={{ projectToken: 'fixture-token', exposeWindowBridge: true }}>",
+      "      <SemaphorDevtools />",
+      "      <pre>{generatedQueries.length}</pre>",
+      "    </SemaphorDataAppProvider>",
+      "  );",
+      "}",
+      "",
+    ].join("\n"),
+  );
+}
+
+async function startFixtureExecuteServer(handler) {
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let rawBody = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      rawBody += chunk;
+    });
+    request.on("end", () => {
+      let body = {};
+      try {
+        body = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        body = {};
+      }
+      requests.push({
+        method: request.method,
+        url: request.url,
+        body,
+      });
+      const payload = handler({ request, body });
+      response.writeHead(200, {
+        "content-type": "application/json",
+        connection: "close",
+      });
+      response.end(JSON.stringify(payload));
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Fixture execute server did not bind to a local port.");
+  }
+  return {
+    requests,
+    url: `http://127.0.0.1:${address.port}`,
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.closeAllConnections?.();
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  };
+}
+
+function runLiveGeneratedViewsFetchFailureValidationFixture() {
+  const workspaceDir = path.join(
+    tempRoot,
+    "validation-live-generated-views-fetch-failure",
+  );
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify(
+      {
+        type: "module",
+        dependencies: {
+          react: "^19.0.0",
+          "react-semaphor": "^0.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(validSummary(), null, 2));
+  const generatorResult = runGenerator({ workspaceDir, summaryPath });
+  if (generatorResult.status !== 0) {
+    throw new Error(
+      `Expected live generated-views fetch-failure fixture generation to pass:\n${generatorResult.stdout}\n${generatorResult.stderr}`,
+    );
+  }
+
+  const env = { ...process.env };
+  delete env.VITE_SEMAPHOR_API_SERVICE_URL;
+  delete env.SEMAPHOR_API_SERVICE_URL;
+  delete env.NEXT_PUBLIC_API_SERVICE_URL;
+  delete env.VITE_SEMAPHOR_SERVER_URL;
+  delete env.NEXT_PUBLIC_SEMAPHOR_SERVER_URL;
+  env.VITE_SEMAPHOR_PROJECT_TOKEN = "not-a-real-token";
+  env.SEMAPHOR_PROJECT_TOKEN = "not-a-real-token";
+  env.SEMAPHOR_SERVER_URL = "http://127.0.0.1:9";
+  const result = runValidatorJson({
+    workspaceDir,
+    extraArgs: ["--live-generated-views"],
+    env,
+  });
+  if (result.status === 0) {
+    throw new Error(
+      "Expected live generated-views fetch-failure validation fixture to fail.",
+    );
+  }
+  const parsed = parseValidationJson(result);
+  assertIssueCode(
+    parsed,
+    "generated_view_execution_failed",
+    result,
+    "live generated-views fetch-failure validation",
+  );
+}
+
 function runVerboseSuccessfulBuildValidationFixture() {
   const workspaceDir = path.join(tempRoot, "validation-verbose-build");
   fs.mkdirSync(path.join(workspaceDir, "scripts"), { recursive: true });
@@ -1895,6 +2276,141 @@ function runContractUpdatePolicyFixture() {
       `Expected general edit not to be blocked: ${JSON.stringify(explicitGeneralEdit)}`,
     );
   }
+
+  const aggregateOverrideEdit = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: afterWarningFixSummary,
+    operationIntent: {
+      kind: "edit",
+      targetViewIds: ["sales_kpi"],
+      measureAggregateOverrides: [
+        { fieldName: "sales_value", aggregate: "AVG" },
+      ],
+    },
+    migrationReport: {
+      views: {
+        added: [],
+        removed: [],
+        changed: [{ id: "sales_kpi", reasons: ["fields", "sdkSpec"] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (!aggregateOverrideEdit.ok) {
+    throw new Error(
+      `Expected metric aggregate override edit to pass: ${JSON.stringify(aggregateOverrideEdit)}`,
+    );
+  }
+
+  const broadenedAggregateOverrideEdit = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: {
+      ...afterWarningFixSummary,
+      views: [
+        ...afterWarningFixSummary.views,
+        {
+          id: "unrelated_breakdown",
+          title: "Unrelated Breakdown",
+          fields: [],
+        },
+      ],
+    },
+    operationIntent: {
+      kind: "edit",
+      targetViewIds: ["sales_kpi"],
+      measureAggregateOverrides: [
+        { fieldName: "sales_value", aggregate: "AVG" },
+      ],
+    },
+    migrationReport: {
+      views: {
+        added: [{ id: "unrelated_breakdown" }],
+        removed: [],
+        changed: [{ id: "sales_kpi", reasons: ["fields", "sdkSpec"] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (broadenedAggregateOverrideEdit.ok) {
+    throw new Error(
+      "Expected metric aggregate override edit to reject unrelated view additions.",
+    );
+  }
+
+  const preferenceAggregateOverrideEdit = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: afterWarningFixSummary,
+    operationIntent: {
+      kind: "edit",
+      targetViewIds: ["sales_kpi"],
+    },
+    preferences: {
+      measureAggregateOverrides: [
+        { fieldName: "sales_value", aggregate: "AVG" },
+      ],
+    },
+    migrationReport: {
+      views: {
+        added: [{ id: "unrelated_breakdown" }],
+        removed: [],
+        changed: [{ id: "sales_kpi", reasons: ["fields", "sdkSpec"] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (preferenceAggregateOverrideEdit.ok) {
+    throw new Error(
+      "Expected update preferences aggregate overrides to be rejected.",
+    );
+  }
+  if (
+    preferenceAggregateOverrideEdit.policy?.mode !==
+    "invalid_update_preferences"
+  ) {
+    throw new Error(
+      `Expected update preferences aggregate overrides to be rejected as invalid preferences: ${JSON.stringify(preferenceAggregateOverrideEdit)}`,
+    );
+  }
+
+  const emptyOperationIntentAggregateOverrideEdit = evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: afterWarningFixSummary,
+    operationIntent: {
+      kind: "edit",
+      targetViewIds: ["sales_kpi"],
+      measureAggregateOverrides: [],
+    },
+    preferences: {
+      measureAggregateOverrides: [
+        { fieldName: "sales_value", aggregate: "AVG" },
+      ],
+    },
+    migrationReport: {
+      views: {
+        added: [{ id: "unrelated_breakdown" }],
+        removed: [],
+        changed: [{ id: "sales_kpi", reasons: ["fields", "sdkSpec"] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (emptyOperationIntentAggregateOverrideEdit.ok) {
+    throw new Error(
+      "Expected preference aggregate overrides to be rejected even when operationIntent has an empty override array.",
+    );
+  }
+  if (
+    emptyOperationIntentAggregateOverrideEdit.policy?.mode !==
+    "invalid_update_preferences"
+  ) {
+    throw new Error(
+      `Expected preference overrides plus empty operationIntent overrides to be rejected as invalid preferences: ${JSON.stringify(emptyOperationIntentAggregateOverrideEdit)}`,
+    );
+  }
 }
 
 function updatePolicySummaryFixture() {
@@ -1958,6 +2474,51 @@ function runValidatorJson({
     encoding: "utf8",
     env,
     maxBuffer: 64 * 1024 * 1024,
+    timeout: 15000,
+  });
+}
+
+function runValidatorJsonAsync({
+  workspaceDir,
+  extraArgs = [],
+  env = process.env,
+  runBuild = false,
+  timeoutMs = 15000,
+}) {
+  const args = [validatorPath, "--dir", workspaceDir, "--json", ...extraArgs];
+  if (!runBuild) {
+    args.splice(3, 0, "--no-run");
+  }
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, args, {
+      cwd: pluginRoot,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, timeoutMs);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      resolve({
+        status: timedOut ? null : code,
+        signal: timedOut ? "timeout" : signal,
+        stdout,
+        stderr,
+      });
+    });
   });
 }
 

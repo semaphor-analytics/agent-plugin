@@ -16,17 +16,58 @@ export function evaluateContractUpdatePolicy({
   afterSummary,
   migrationReport,
   operationIntent,
+  preferences,
 }) {
   const kind = typeof operationIntent?.kind === 'string'
     ? operationIntent.kind.trim()
     : 'add';
+  if (hasMeasureAggregateOverrides(preferences)) {
+    return {
+      ok: false,
+      policy: {
+        kind,
+        mode: 'invalid_update_preferences',
+        reason:
+          'Metric aggregate override updates must use operationIntent.measureAggregateOverrides so deterministic update policy can guard the targeted edit.',
+      },
+      violations: [
+        {
+          path: 'preferences.measureAggregateOverrides',
+          reason:
+            'Move measureAggregateOverrides to operationIntent.measureAggregateOverrides for update calls.',
+        },
+      ],
+    };
+  }
 
   if (DIAGNOSTIC_FIX_KINDS.has(kind)) {
-    return evaluateDiagnosticFixPolicy({
+    return evaluateTargetedViewOnlyPolicy({
       beforeSummary,
       afterSummary,
       migrationReport,
       operationIntent,
+      mode: 'diagnostic_warning_fix',
+      allowedViewChangeReasons: WARNING_FIX_VIEW_REASONS,
+      label: 'Diagnostic warning fixes',
+      reason:
+        'Diagnostic warning fixes are preserve-by-default and may not add/remove views, inputs, or filter contracts.',
+    });
+  }
+  if (
+    kind === 'edit' &&
+    Array.isArray(operationIntent?.measureAggregateOverrides) &&
+    operationIntent.measureAggregateOverrides.length > 0
+  ) {
+    return evaluateTargetedViewOnlyPolicy({
+      beforeSummary,
+      afterSummary,
+      migrationReport,
+      operationIntent,
+      mode: 'metric_aggregate_override_edit',
+      allowedViewChangeReasons: WARNING_FIX_VIEW_REASONS,
+      label: 'Metric aggregate override edits',
+      reason:
+        'Metric aggregate override edits are preserve-by-default and may only adjust fields/sdkSpec on targeted views.',
     });
   }
 
@@ -42,11 +83,23 @@ export function evaluateContractUpdatePolicy({
   };
 }
 
-function evaluateDiagnosticFixPolicy({
+function hasMeasureAggregateOverrides(value) {
+  return (
+    value &&
+    typeof value === 'object' &&
+    Array.isArray(value.measureAggregateOverrides)
+  );
+}
+
+function evaluateTargetedViewOnlyPolicy({
   beforeSummary,
   afterSummary,
   migrationReport,
   operationIntent,
+  mode,
+  allowedViewChangeReasons,
+  label,
+  reason,
 }) {
   const violations = [];
   const targetViewIds = normalizeStringSet(operationIntent?.targetViewIds);
@@ -55,34 +108,38 @@ function evaluateDiagnosticFixPolicy({
   if (targetViewIds.size === 0) {
     violations.push({
       path: 'operationIntent.targetViewIds',
-      reason:
-        'Diagnostic warning fixes must declare targetViewIds so the update cannot broaden to unrelated views.',
+      reason: `${label} must declare targetViewIds so the update cannot broaden to unrelated views.`,
     });
   }
 
   collectAddedRemovedViolations({
     bucket: report.views,
     label: 'views',
+    operationLabel: label,
     violations,
   });
   collectAddedRemovedViolations({
     bucket: report.inputs,
     label: 'inputs',
+    operationLabel: label,
     violations,
   });
   collectAnyChangeViolations({
     bucket: report.inputs,
     label: 'inputs',
+    operationLabel: label,
     violations,
   });
   collectAddedRemovedViolations({
     bucket: report.filterContracts,
     label: 'filterContracts',
+    operationLabel: label,
     violations,
   });
   collectAnyChangeViolations({
     bucket: report.filterContracts,
     label: 'filterContracts',
+    operationLabel: label,
     violations,
   });
 
@@ -90,18 +147,17 @@ function evaluateDiagnosticFixPolicy({
     if (targetViewIds.size > 0 && !targetViewIds.has(change.id)) {
       violations.push({
         path: `views.${change.id}`,
-        reason:
-          'Diagnostic warning fixes may only change explicitly targeted views.',
+        reason: `${label} may only change explicitly targeted views.`,
       });
     }
     const disallowedReasons = Array.isArray(change.reasons)
-      ? change.reasons.filter((reason) => !WARNING_FIX_VIEW_REASONS.has(reason))
+      ? change.reasons.filter((reason) => !allowedViewChangeReasons.has(reason))
       : [];
     if (disallowedReasons.length > 0) {
       violations.push({
         path: `views.${change.id}`,
         reason:
-          `Diagnostic warning fixes may only adjust fields/sdkSpec; changed ${disallowedReasons.join(', ')}.`,
+          `${label} may only adjust fields/sdkSpec; changed ${disallowedReasons.join(', ')}.`,
       });
     }
   }
@@ -109,6 +165,7 @@ function evaluateDiagnosticFixPolicy({
     beforeSummary,
     afterSummary,
     targetViewIds,
+    label,
   });
   if (fullSummaryViolation) {
     violations.push(fullSummaryViolation);
@@ -118,11 +175,10 @@ function evaluateDiagnosticFixPolicy({
     ok: violations.length === 0,
     policy: {
       kind: operationIntent?.kind || 'diagnostic_fix',
-      mode: 'diagnostic_warning_fix',
-      allowedViewChangeReasons: Array.from(WARNING_FIX_VIEW_REASONS).sort(),
+      mode,
+      allowedViewChangeReasons: Array.from(allowedViewChangeReasons).sort(),
       targetViewIds: Array.from(targetViewIds).sort(),
-      reason:
-        'Diagnostic warning fixes are preserve-by-default and may not add/remove views, inputs, or filter contracts.',
+      reason,
     },
     violations,
   };
@@ -132,12 +188,13 @@ function findDisallowedSummaryChange({
   beforeSummary,
   afterSummary,
   targetViewIds,
+  label,
 }) {
   if (!beforeSummary || !afterSummary || typeof beforeSummary !== 'object' || typeof afterSummary !== 'object') {
     return {
       path: 'codegenSummary',
       reason:
-        'Diagnostic warning fixes require before/after codegen summaries for full-scope verification.',
+        `${label} require before/after codegen summaries for full-scope verification.`,
     };
   }
 
@@ -167,30 +224,40 @@ function findDisallowedSummaryChange({
   return {
     path: 'codegenSummary',
     reason:
-      'Diagnostic warning fixes may only change fields/sdkSpec on targetViewIds; another generated contract section changed.',
+      `${label} may only change fields/sdkSpec on targetViewIds; another generated contract section changed.`,
   };
 }
 
-function collectAddedRemovedViolations({ bucket, label, violations }) {
+function collectAddedRemovedViolations({
+  bucket,
+  label,
+  operationLabel,
+  violations,
+}) {
   for (const entry of entries(bucket?.added)) {
     violations.push({
       path: `${label}.${entry.id || '<unknown>'}`,
-      reason: `Diagnostic warning fixes may not add ${label}.`,
+      reason: `${operationLabel} may not add ${label}.`,
     });
   }
   for (const entry of entries(bucket?.removed)) {
     violations.push({
       path: `${label}.${entry.id || '<unknown>'}`,
-      reason: `Diagnostic warning fixes may not remove ${label}.`,
+      reason: `${operationLabel} may not remove ${label}.`,
     });
   }
 }
 
-function collectAnyChangeViolations({ bucket, label, violations }) {
+function collectAnyChangeViolations({
+  bucket,
+  label,
+  operationLabel,
+  violations,
+}) {
   for (const entry of changedEntries(bucket)) {
     violations.push({
       path: `${label}.${entry.id || '<unknown>'}`,
-      reason: `Diagnostic warning fixes may not change ${label}.`,
+      reason: `${operationLabel} may not change ${label}.`,
     });
   }
 }
