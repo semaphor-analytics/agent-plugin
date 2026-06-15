@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { evaluateContractUpdatePolicy } from "./data-app-contract-update-policy.mjs";
+import { evaluateContractUpdatePolicy } from "./shared-codegen-loader.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(scriptDir, "..");
@@ -18,7 +18,7 @@ const tempRoot = fs.mkdtempSync(
 );
 
 try {
-  await runCodegenValidationWrapperFixture();
+  await runSharedCodegenLoaderFixture();
   runGeneratedFilePathSafetyFixture();
   runValidPartialScopeFixture();
   runAggregateRecordsAccessorFixture();
@@ -126,31 +126,29 @@ function runGeneratedFilePathSafetyFixture() {
   }
 }
 
-async function runCodegenValidationWrapperFixture() {
-  const workspaceDir = path.join(tempRoot, "codegen-validation-wrapper");
+async function runSharedCodegenLoaderFixture() {
+  const workspaceDir = path.join(tempRoot, "shared-codegen-loader");
   fs.mkdirSync(workspaceDir, { recursive: true });
   const moduleOnePath = path.join(workspaceDir, "codegen-one.mjs");
   const moduleTwoPath = path.join(workspaceDir, "codegen-two.mjs");
   fs.writeFileSync(
     moduleOnePath,
     [
-      'export const CODEGEN_SUMMARY_SCHEMA_VERSION = "fixture/v1";',
-      'export const CODEGEN_SUMMARY_VALIDATOR_VERSION = "fixture-validator/v1";',
       'export function validateCodegenSummary() { return ["from-one"]; }',
+      'export function assertValidCodegenSummary() { throw new Error("from-one"); }',
       "",
     ].join("\n"),
   );
   fs.writeFileSync(
     moduleTwoPath,
     [
-      'export const CODEGEN_SUMMARY_SCHEMA_VERSION = "fixture/v1";',
-      'export const CODEGEN_SUMMARY_VALIDATOR_VERSION = "fixture-validator/v1";',
       'export function validateCodegenSummary() { return ["from-two"]; }',
+      'export function assertValidCodegenSummary() { throw new Error("from-two"); }',
       "",
     ].join("\n"),
   );
   const wrapperUrl = `${pathToFileURL(
-    path.join(scriptDir, "data-app-codegen-summary-validation.mjs"),
+    path.join(scriptDir, "shared-codegen-loader.mjs"),
   ).href}?fixture=${Date.now()}`;
   const previousModulePath = process.env.SEMAPHOR_DATA_APP_CODEGEN_MODULE;
   try {
@@ -164,7 +162,7 @@ async function runCodegenValidationWrapperFixture() {
     }
     if (!assertionMessage.includes("from-one")) {
       throw new Error(
-        `Expected fallback assertValidCodegenSummary to await validation issues from first module, saw: ${assertionMessage}`,
+        `Expected shared codegen loader to call first module assertion, saw: ${assertionMessage}`,
       );
     }
 

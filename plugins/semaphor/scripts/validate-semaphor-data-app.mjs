@@ -9,20 +9,13 @@ import {
   buildGeneratedViewExecutionRequest,
   buildGeneratedViewExecutionRequests,
   validateGeneratedContract,
-} from "./data-app-codegen-summary-validation.mjs";
+} from "./shared-codegen-loader.mjs";
+import {
+  GENERATED_CONTRACT_TYPESCRIPT_FILES,
+  REQUIRED_GENERATED_FILES,
+} from "./generated-contract-files.mjs";
 
 const GENERATED_CONTRACT_DIR = path.join("src", "semaphor", "generated");
-const REQUIRED_GENERATED_FILES = [
-  "sources.ts",
-  "fields.ts",
-  "inputs.ts",
-  "queries.ts",
-  "bindings.ts",
-  "accessors.ts",
-  "metadata.ts",
-  "index.ts",
-  "contract.manifest.json",
-];
 const SCRIPT_OUTPUT_MAX_BUFFER = 64 * 1024 * 1024;
 
 const SKIPPED_DIRS = new Set([
@@ -592,8 +585,7 @@ function readGeneratedContractManifest(root, manifestPath) {
 
 function readGeneratedContractFiles(generatedDir) {
   return Object.fromEntries(
-    REQUIRED_GENERATED_FILES
-      .filter((fileName) => fileName.endsWith(".ts"))
+    GENERATED_CONTRACT_TYPESCRIPT_FILES
       .filter((fileName) => fs.existsSync(path.join(generatedDir, fileName)))
       .map((fileName) => [
         fileName,

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { importSharedCodegen } from './data-app-codegen-summary-validation.mjs';
+import { importSharedCodegen } from './shared-codegen-loader.mjs';
 
 const DEFAULT_OUTPUT_DIR = 'src/semaphor/generated';
 const CODEGEN_SUMMARY_ROOT_FIELDS = new Set([

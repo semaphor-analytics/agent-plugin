@@ -12,8 +12,12 @@ Active cross-repo plan:
 
 Current phase:
 
-- Phase 2: move generated Data App contract rendering ownership to
-  `react-semaphor/data-app-codegen/node`.
+- Phase 5: delete duplicate plugin-local SDK/codegen wrappers and add
+  guardrails. Shared SDK/codegen validation, generation, generated-contract
+  validation, generated-view/option/input request shaping, and deterministic
+  update policy route through `react-semaphor/data-app-codegen` or
+  `react-semaphor/data-app-codegen/node`. The plugin remains the
+  filesystem/process/MCP wrapper.
 
 ## Ownership Rule
 
@@ -23,54 +27,63 @@ Current phase:
   accessor/query-factory behavior.
 - `agent-plugin` owns host workflow: filesystem paths, workspace safety, MCP
   bridge transport, structured JSON output, child processes, auth/project token
-  guidance, and generated file writes until later phases move rendering.
+  guidance, shared codegen package resolution, and generated file writes.
 - `semaphor-app` owns planning, semantic grounding, governed execution, hosted
   lifecycle APIs, and MCP server tools.
 
-The plugin must not become a second SDK validator.
+The plugin must not become a second SDK validator, generator, generated-contract
+validator, live request shaper, or deterministic update-policy implementation.
 
-## Phase 2 Scope
+## Phase 5 Scope
 
 In scope:
 
-- keep `scripts/generate-data-app-contract.mjs` as the stable CLI/MCP wrapper
-  path;
-- resolve `react-semaphor/data-app-codegen/node` from the target workspace before
-  generation;
-- call shared `generateSemaphorDataAppContract(summary, options)`;
-- keep path safety, workspace/output directory resolution, JSON formatting,
-  package-version attribution, and file writes plugin-owned;
-- preserve generated file names, output location, manifest path, script names,
-  MCP tool names, and structured issue output;
-- keep wrapper fixtures proving the shared generator can be invoked and files
-  are written.
+- delete the temporary wrapper files:
+  - `scripts/data-app-codegen-summary-validation.mjs`;
+  - `scripts/data-app-contract-update-policy.mjs`;
+- keep one plugin-owned `scripts/shared-codegen-loader.mjs` that lazily resolves
+  `react-semaphor/data-app-codegen/node` from the target workspace and delegates
+  shared SDK/codegen functions;
+- keep `scripts/generate-data-app-contract.mjs` as the stable filesystem and
+  path-safety wrapper around shared generation;
+- keep `scripts/validate-semaphor-data-app.mjs` as the plugin workflow
+  validator that delegates SDK/codegen-shaped checks to shared code;
+- keep `scripts/semaphor-mcp-remote.mjs` as the MCP bridge that delegates
+  generated-contract validation and update policy to shared codegen;
+- add package-validation guardrails that fail if deleted wrappers or duplicated
+  SDK/codegen semantics reappear;
+- preserve script names, MCP tool names, output directory, generated file names,
+  and structured JSON issue transport.
 
 Out of scope:
 
-- moving generated view live validation;
-- moving update policy;
-- changing generated file names, generated output directory, or generated app
-  runtime imports;
+- changing `react-semaphor` SDK/codegen behavior;
+- changing generated file names, generated output directory, generated app
+  runtime imports, or generated dashboard UI;
 - changing `semaphor-app` planning or execution behavior.
 
 ## Review Guardrails
 
-Reviewers must evaluate this slice against Phase 2 only.
+Reviewers must evaluate this slice against Phase 5 only.
 
 Raise findings for:
 
-- `generate-data-app-contract.mjs` resolving
-  `react-semaphor/data-app-codegen/node` at module load;
-- plugin wrapper logic that reintroduces generated contract assembly, query
-  factory rendering, accessor rendering, source identity helpers, table totals
-  semantics, or generated metadata rendering;
+- any top-level import of `react-semaphor/data-app-codegen/node` before a
+  workspace is known;
+- deleted wrapper files being reintroduced;
+- plugin scripts reintroducing SDK builder allow-lists, source identity
+  comparison, table totals semantics, records/matrix/metric/analysis spec
+  validation, generated contract assembly, query-factory rendering, accessor
+  rendering, generated metadata rendering, or deterministic update-policy
+  vocabularies;
 - generation paths that do not use the target workspace's installed or linked
   `react-semaphor/data-app-codegen/node`;
 - generated file writes that escape the requested workspace/output directory;
-- plugin generation failures that lose structured JSON issue output.
+- wrapper failures that lose structured JSON issue output.
 
-Do not raise findings asking Phase 2 to move update policy, live validation, or
-app-side planning. Those are later phases in the cross-repo plan.
+Do not raise findings asking Phase 5 to change app-side planning, governed
+execution, semantic relationship repair, hosted runtime behavior, generated UI,
+or SDK/codegen contract behavior. Those are not part of this cleanup slice.
 
 ## Hard Migration Policy
 
@@ -91,17 +104,19 @@ npm --prefix plugins/semaphor run validate:plugin
 git diff --check
 ```
 
-The plugin generator depends on the built shared `react-semaphor` subpath during
-local monorepo tests. If `react-semaphor/src/data-app-codegen/**` changed, build
-`react-semaphor` once before running plugin wrapper tests so
-`react-semaphor/dist/data-app-codegen-node/index.js` is current.
+The plugin wrapper tests depend on the built shared `react-semaphor` codegen
+subpaths during local monorepo tests. If `react-semaphor/src/data-app-codegen/**`
+changed, build `react-semaphor` once before running plugin wrapper tests so
+`react-semaphor/dist/data-app-codegen-node/index.js` is current. Phase 5 does
+not normally require a `react-semaphor` build because it changes plugin wrapper
+ownership only.
 
-Also verify the packaged-startup shape when validation resolver behavior
-changes:
+Also verify the packaged-startup shape when shared loader resolver behavior
+changes. The deleted wrappers must not be needed for startup:
 
 ```bash
 tmpdir=$(mktemp -d)
 mkdir -p "$tmpdir/scripts"
-cp plugins/semaphor/scripts/data-app-codegen-summary-validation.mjs "$tmpdir/scripts/"
-node -e "import('$tmpdir/scripts/data-app-codegen-summary-validation.mjs').then(() => console.log('wrapper import ok'))"
+cp plugins/semaphor/scripts/shared-codegen-loader.mjs "$tmpdir/scripts/"
+node -e "import('$tmpdir/scripts/shared-codegen-loader.mjs').then(() => console.log('loader import ok'))"
 ```

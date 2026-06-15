@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,25 +6,15 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  assertValidCodegenSummary,
-  CODEGEN_SUMMARY_VALIDATOR_VERSION,
-} from "./data-app-codegen-summary-validation.mjs";
-import { evaluateContractUpdatePolicy } from "./data-app-contract-update-policy.mjs";
+  evaluateContractUpdatePolicy,
+  validateGeneratedContract,
+} from "./shared-codegen-loader.mjs";
+import { GENERATED_CONTRACT_TYPESCRIPT_FILES } from "./generated-contract-files.mjs";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
 const CLIENT_REQUEST_TIMEOUT_MS = 2000;
 const CHILD_PROCESS_OUTPUT_MAX_BUFFER = 64 * 1024 * 1024;
-const GENERATED_CONTRACT_FILES = [
-  "sources.ts",
-  "fields.ts",
-  "inputs.ts",
-  "queries.ts",
-  "bindings.ts",
-  "accessors.ts",
-  "metadata.ts",
-  "index.ts",
-];
 const WORKSPACE_HINT_SCHEMA = {
   type: "object",
   properties: {
@@ -1858,66 +1847,35 @@ async function readGeneratedContractManifest({ workspaceDir, outputDir }) {
     );
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  if (
-    manifest?.schemaVersion !==
-    "semaphor-generated-data-app-contract-manifest/v1"
-  ) {
+  const validation = await validateGeneratedContract({
+    manifest,
+    generatedFiles: readGeneratedContractFiles(
+      path.resolve(workspaceDir, outputDir),
+    ),
+  }, { workspaceDir });
+  if (Array.isArray(validation?.issues) && validation.issues.length > 0) {
     throw new Error(
-      `${path.relative(workspaceDir, manifestPath)} is not a Semaphor generated contract manifest.`,
-    );
-  }
-  if (
-    manifest?.codegenSummary?.schemaVersion !==
-    "semaphor-data-app-codegen-summary/v1"
-  ) {
-    throw new Error(
-      `${path.relative(workspaceDir, manifestPath)} does not contain a canonical codegenSummary.`,
-    );
-  }
-  if (!Array.isArray(manifest.codegenSummary.filterContracts)) {
-    throw new Error(
-      `${path.relative(workspaceDir, manifestPath)} was generated from an old summary without filterContracts. Regenerate with semaphor_create_data_app_contract before iterative updates.`,
-    );
-  }
-  if (
-    manifest.codegenSummaryValidatorVersion !==
-    CODEGEN_SUMMARY_VALIDATOR_VERSION
-  ) {
-    throw new Error(
-      `${path.relative(workspaceDir, manifestPath)} was generated with an old codegenSummary validator. Regenerate with semaphor_generate_data_app_contract before iterative updates.`,
-    );
-  }
-  await assertValidCodegenSummary(manifest.codegenSummary, { workspaceDir });
-  const expectedSummaryHash = hashCanonicalJson(manifest.codegenSummary);
-  if (manifest.codegenSummaryHash !== expectedSummaryHash) {
-    throw new Error(
-      `${path.relative(workspaceDir, manifestPath)} codegenSummaryHash does not match codegenSummary. Regenerate the contract instead of updating from a hand-edited manifest.`,
-    );
-  }
-  const expectedContentHash = hashGeneratedContractFiles(
-    path.resolve(workspaceDir, outputDir),
-  );
-  if (manifest.generatedContentHash !== expectedContentHash) {
-    throw new Error(
-      `${path.relative(workspaceDir, manifestPath)} generatedContentHash does not match generated TypeScript files. Regenerate the contract before iterative updates.`,
+      [
+        `${path.relative(workspaceDir, manifestPath)} failed generated contract validation. Regenerate before iterative updates.`,
+        ...validation.issues.map((issue) =>
+          `- ${issue.path ? `${issue.path}: ` : ""}${issue.message}`,
+        ),
+      ].join("\n"),
     );
   }
   return manifest;
 }
 
-function hashGeneratedContractFiles(generatedDir) {
-  const hash = crypto.createHash("sha256");
-  for (const fileName of [...GENERATED_CONTRACT_FILES].sort()) {
+function readGeneratedContractFiles(generatedDir) {
+  const files = {};
+  for (const fileName of GENERATED_CONTRACT_TYPESCRIPT_FILES) {
     const filePath = path.join(generatedDir, fileName);
     if (!fs.existsSync(filePath)) {
       continue;
     }
-    hash.update(fileName);
-    hash.update("\0");
-    hash.update(fs.readFileSync(filePath, "utf8"));
-    hash.update("\0");
+    files[fileName] = fs.readFileSync(filePath, "utf8");
   }
-  return `sha256:${hash.digest("hex")}`;
+  return files;
 }
 
 function pathIsInside(parentDir, childPath) {
@@ -2512,10 +2470,6 @@ function firstString(...values) {
       (value) => typeof value === "string" && value.trim().length > 0,
     ) || ""
   );
-}
-
-function hashCanonicalJson(value) {
-  return `sha256:${crypto.createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 }
 
 function formatJsonRpcError(error) {

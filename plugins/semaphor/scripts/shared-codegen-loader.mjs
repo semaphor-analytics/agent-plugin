@@ -15,55 +15,46 @@ const monorepoCodegenDist = path.join(
 
 const cachedSharedCodegenByPath = new Map();
 
-export const CODEGEN_SUMMARY_SCHEMA_VERSION =
-  "semaphor-data-app-codegen-summary/v1";
-
-export const CODEGEN_SUMMARY_VALIDATOR_VERSION =
-  "semaphor-data-app-codegen-summary-validator/v2";
-
 export async function validateCodegenSummary(value, options = {}) {
-  const sharedCodegen = await importSharedCodegen(options);
-  if (typeof sharedCodegen.validateCodegenSummary === "function") {
-    return sharedCodegen.validateCodegenSummary(value);
-  }
-  const result = sharedCodegen.validateSemaphorDataAppCodegenSummary(value);
-  return Array.isArray(result?.issues) ? result.issues : [];
+  const validator = await sharedCodegenFunction(
+    "validateCodegenSummary",
+    options,
+  );
+  return validator(value);
 }
 
 export async function assertValidCodegenSummary(value, options = {}) {
-  const sharedCodegen = await importSharedCodegen(options);
-  if (typeof sharedCodegen.assertValidCodegenSummary === "function") {
-    sharedCodegen.assertValidCodegenSummary(value);
-    return;
-  }
-  const issues = await validateCodegenSummary(value, options);
-  if (issues.length > 0) {
-    throw new Error(`Invalid Semaphor codegenSummary:\n- ${issues.join("\n- ")}`);
-  }
+  const assertion = await sharedCodegenFunction(
+    "assertValidCodegenSummary",
+    options,
+  );
+  assertion(value);
 }
 
 export async function validateGeneratedContract(input, options = {}) {
-  const sharedCodegen = await importSharedCodegen(options);
-  const validator = sharedCodegen.validateSemaphorGeneratedContract;
-  if (typeof validator !== "function") {
-    throw new Error(
-      "react-semaphor/data-app-codegen/node does not expose validateSemaphorGeneratedContract.",
-    );
-  }
+  const validator = await sharedCodegenFunction(
+    "validateSemaphorGeneratedContract",
+    options,
+  );
   return validator(input);
+}
+
+export async function evaluateContractUpdatePolicy(input, options = {}) {
+  const evaluator = await sharedCodegenFunction(
+    "evaluateSemaphorDataAppContractUpdatePolicy",
+    options,
+  );
+  return evaluator(input);
 }
 
 export async function buildGeneratedViewExecutionRequests(
   codegenSummary,
   options = {},
 ) {
-  const sharedCodegen = await importSharedCodegen(options);
-  const builder = sharedCodegen.buildSemaphorGeneratedViewExecutionRequests;
-  if (typeof builder !== "function") {
-    throw new Error(
-      "react-semaphor/data-app-codegen/node does not expose buildSemaphorGeneratedViewExecutionRequests.",
-    );
-  }
+  const builder = await sharedCodegenFunction(
+    "buildSemaphorGeneratedViewExecutionRequests",
+    options,
+  );
   return builder(codegenSummary);
 }
 
@@ -72,24 +63,23 @@ export async function buildGeneratedViewExecutionRequest(
   codegenSummary,
   options = {},
 ) {
-  const sharedCodegen = await importSharedCodegen(options);
-  const builder = sharedCodegen.buildSemaphorGeneratedViewExecutionRequest;
-  if (typeof builder !== "function") {
-    throw new Error(
-      "react-semaphor/data-app-codegen/node does not expose buildSemaphorGeneratedViewExecutionRequest.",
-    );
-  }
+  const builder = await sharedCodegenFunction(
+    "buildSemaphorGeneratedViewExecutionRequest",
+    options,
+  );
   return builder(view, codegenSummary);
 }
 
-export async function buildGeneratedInputOptionIntent(input, filterContract, codegenSummary, options = {}) {
-  const sharedCodegen = await importSharedCodegen(options);
-  const builder = sharedCodegen.buildSemaphorGeneratedInputOptionIntent;
-  if (typeof builder !== "function") {
-    throw new Error(
-      "react-semaphor/data-app-codegen/node does not expose buildSemaphorGeneratedInputOptionIntent.",
-    );
-  }
+export async function buildGeneratedInputOptionIntent(
+  input,
+  filterContract,
+  codegenSummary,
+  options = {},
+) {
+  const builder = await sharedCodegenFunction(
+    "buildSemaphorGeneratedInputOptionIntent",
+    options,
+  );
   return builder({ input, filterContract, codegenSummary });
 }
 
@@ -97,13 +87,10 @@ export async function buildGeneratedActiveInput(
   { input, filterContract, binding, option, codegenSummary },
   options = {},
 ) {
-  const sharedCodegen = await importSharedCodegen(options);
-  const builder = sharedCodegen.buildSemaphorGeneratedActiveInput;
-  if (typeof builder !== "function") {
-    throw new Error(
-      "react-semaphor/data-app-codegen/node does not expose buildSemaphorGeneratedActiveInput.",
-    );
-  }
+  const builder = await sharedCodegenFunction(
+    "buildSemaphorGeneratedActiveInput",
+    options,
+  );
   return builder({ input, filterContract, binding, option, codegenSummary });
 }
 
@@ -137,6 +124,17 @@ export async function importSharedCodegen(options = {}) {
       ...errors.map((error) => `- ${error}`),
     ].join("\n"),
   );
+}
+
+async function sharedCodegenFunction(exportName, options = {}) {
+  const sharedCodegen = await importSharedCodegen(options);
+  const candidate = sharedCodegen[exportName];
+  if (typeof candidate !== "function") {
+    throw new Error(
+      `react-semaphor/data-app-codegen/node does not expose ${exportName}.`,
+    );
+  }
+  return candidate;
 }
 
 async function importSharedCodegenFromPath(modulePath) {
