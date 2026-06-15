@@ -244,51 +244,9 @@ function validateMcpConfig() {
         "scripts/semaphor-mcp-remote.mjs: client roots must be ignored unless exactly one root is reported; multi-root sessions must require explicit workspaceDir",
       );
     }
-    for (const requiredFallbackTool of [
-      "semaphor_get_analysis_context",
-      "semaphor_list_semantic_domains",
-      "semaphor_get_dataset_schema",
-      "semaphor_get_domain_relationships",
-      "semaphor_propose_semantic_model_change",
-      "semaphor_apply_semantic_model_patch",
-      "semaphor_plan_data_app",
-    ]) {
-      const fallbackToolPattern = new RegExp(
-        `name:\\s*['"]${requiredFallbackTool}['"]`,
-      );
-      if (!fallbackToolPattern.test(launcherText)) {
-        issues.push(
-          `scripts/semaphor-mcp-remote.mjs: no-token fallback tools/list must expose ${requiredFallbackTool} so agents can retry first-class calls with workspaceDir`,
-        );
-      }
-    }
-    if (
-      !launcherText.includes('required: ["domainId", "reason"]') ||
-      !launcherText.includes("RELATIONSHIP_CANDIDATE_SCHEMA") ||
-      !launcherText.includes("SEMANTIC_RELATIONSHIP_SOURCE_SCHEMA") ||
-      !launcherText.includes('required: ["kind", "domainId", "datasetName"]') ||
-      !launcherText.includes('required: ["source", "sourceFields", "target", "targetFields"]') ||
-      !launcherText.includes("additionalProperties: false")
-    ) {
+    if (!/name:\s*['"]semaphor_get_access_context['"]/.test(launcherText)) {
       issues.push(
-        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback tool must expose domainId, reason, and endpoint-scoped relationship candidate schema",
-      );
-    }
-    if (
-      launcherText.includes(
-        'required: ["sourceDataset", "sourceFields", "targetDataset", "targetFields"]',
-      )
-    ) {
-      issues.push(
-        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback candidate schema must reject legacy dataset-string candidates",
-      );
-    }
-    if (
-      !launcherText.includes('required: ["domainId", "proposalId", "patch", "approval"]') ||
-      !launcherText.includes("SEMANTIC_REPAIR_PATCH_SCHEMA")
-    ) {
-      issues.push(
-        "scripts/semaphor-mcp-remote.mjs: semantic repair apply fallback tool must expose domainId, proposalId, patch, and approval schema",
+        "scripts/semaphor-mcp-remote.mjs: no-token fallback tools/list must expose semaphor_get_access_context for auth/project setup guidance",
       );
     }
   }
@@ -434,6 +392,45 @@ function validateMcpBridge() {
       "scripts/semaphor-mcp-remote.mjs: generated contract manifest validation must not hash unrelated .ts files from the generated directory",
     );
   }
+  for (const forbidden of [
+    "SEMANTIC_RELATIONSHIP_SOURCE_SCHEMA",
+    "SEMANTIC_RELATIONSHIP_FIELD_SCHEMA",
+    "RELATIONSHIP_CANDIDATE_SCHEMA",
+    "SEMANTIC_REPAIR_DIAGNOSTIC_SCHEMA",
+    "SEMANTIC_REPAIR_PATCH_SCHEMA",
+  ]) {
+    if (bridgeText.includes(forbidden)) {
+      issues.push(
+        `scripts/semaphor-mcp-remote.mjs: must not duplicate server-owned MCP semantic schemas in plugin fallback (${forbidden})`,
+      );
+    }
+  }
+  const fallbackToolsText = textBetween(
+    bridgeText,
+    "const FALLBACK_TOOLS = [",
+    "const LOCAL_TOOLS = [",
+  );
+  for (const serverOwnedTool of [
+    "semaphor_get_analysis_context",
+    "semaphor_list_semantic_domains",
+    "semaphor_list_datasets",
+    "semaphor_get_dataset_schema",
+    "semaphor_get_domain_relationships",
+    "semaphor_propose_semantic_model_change",
+    "semaphor_apply_semantic_model_patch",
+    "semaphor_plan_data_app",
+    "semaphor_plan_data_app_change",
+    "semaphor_get_data_app_runtime_token",
+  ]) {
+    const fallbackToolNamePattern = new RegExp(
+      `\\bname\\s*:\\s*["']${escapeRegExp(serverOwnedTool)}["']`,
+    );
+    if (fallbackToolNamePattern.test(fallbackToolsText)) {
+      issues.push(
+        `scripts/semaphor-mcp-remote.mjs: fallback tools must not advertise server-owned MCP tool schema ${serverOwnedTool}; use live tools/list from semaphor-app`,
+      );
+    }
+  }
   const generatorPath = path.join(
     root,
     "scripts/generate-data-app-contract.mjs",
@@ -565,6 +562,19 @@ function validateMcpBridge() {
       );
     }
   }
+}
+
+function textBetween(text, start, end) {
+  const startIndex = text.indexOf(start);
+  if (startIndex < 0) return "";
+  const contentStart = startIndex + start.length;
+  const endIndex = text.indexOf(end, contentStart);
+  if (endIndex < 0) return text.slice(contentStart);
+  return text.slice(contentStart, endIndex);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function scanDistributionText() {

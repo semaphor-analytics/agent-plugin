@@ -145,10 +145,11 @@ Production-ready auth behavior:
   log in, list projects, and mint a runtime project token when the user has not
   configured a local token yet.
 - Project-token server `semaphor-project` is the deterministic app-local path.
-  It should expose core discovery and planning tools even when the bridge
-  cannot resolve a token during `tools/list`, so the agent can retry the same
-  first-class MCP tool with `workspaceDir` instead of switching to shell
-  wrappers.
+  If the bridge cannot resolve a token during `tools/list`, it exposes only
+  access-context guidance plus plugin-owned local workflow tools. Resolve auth
+  first by retrying `semaphor_get_access_context` with `workspaceDir`, using
+  hosted OAuth, or adding a project token; rich discovery and planning tools
+  come from live Semaphor `tools/list` after auth is available.
 - `call:mcp` is a diagnostic fallback for debugging and eval forensics only.
   Do not use it for ordinary customer app authoring.
   It is not the normal app-building path.
