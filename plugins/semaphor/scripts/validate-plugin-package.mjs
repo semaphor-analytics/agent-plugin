@@ -441,7 +441,7 @@ function validateMcpBridge() {
     }
     if (!generatorText.includes("importSharedCodegen")) {
       issues.push(
-        "scripts/generate-data-app-contract.mjs: generator wrapper must resolve shared react-semaphor/data-app-codegen",
+        "scripts/generate-data-app-contract.mjs: generator wrapper must resolve shared react-semaphor/data-app-codegen/node",
       );
     }
     if (!generatorText.includes("generateSemaphorDataAppContract")) {
@@ -472,14 +472,14 @@ function validateMcpBridge() {
     const summaryValidationText = fs.existsSync(summaryValidationPath)
       ? fs.readFileSync(summaryValidationPath, "utf8")
       : "";
-    if (!summaryValidationText.includes("react-semaphor/data-app-codegen")) {
+    if (!summaryValidationText.includes("react-semaphor/data-app-codegen/node")) {
       issues.push(
-        "scripts/data-app-codegen-summary-validation.mjs: must delegate SDK/codegen summary validation to react-semaphor/data-app-codegen",
+        "scripts/data-app-codegen-summary-validation.mjs: must delegate SDK/codegen summary validation/generation to react-semaphor/data-app-codegen/node",
       );
     }
     if (summaryValidationText.includes("await importSharedCodegen();")) {
       issues.push(
-        "scripts/data-app-codegen-summary-validation.mjs: must resolve react-semaphor/data-app-codegen lazily inside validation calls, not at module load",
+        "scripts/data-app-codegen-summary-validation.mjs: must resolve react-semaphor/data-app-codegen/node lazily inside validation calls, not at module load",
       );
     }
     for (const forbidden of [

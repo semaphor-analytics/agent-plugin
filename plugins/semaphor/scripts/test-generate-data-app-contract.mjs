@@ -3020,7 +3020,7 @@ function runMissingSharedCodegenValidationFixture() {
   if (
     !manifestIssue ||
     !String(manifestIssue.message || "").includes(
-      "could not load react-semaphor/data-app-codegen",
+      "could not load react-semaphor/data-app-codegen/node",
     )
   ) {
     throw new Error(

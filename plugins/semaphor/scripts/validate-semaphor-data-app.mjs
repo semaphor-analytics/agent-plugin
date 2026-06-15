@@ -569,11 +569,11 @@ async function validateGeneratedContractManifest(root, generatedDir) {
       diagnostic({
         code: "invalid_contract_manifest",
         severity: "error",
-        message: `${formatLocation(root, manifestPath)}: could not load react-semaphor/data-app-codegen to validate codegenSummary.`,
+        message: `${formatLocation(root, manifestPath)}: could not load react-semaphor/data-app-codegen/node to validate codegenSummary.`,
         filePath: formatLocation(root, manifestPath),
         path: "codegenSummary",
         repairHint:
-          "Install or link a react-semaphor version that exposes react-semaphor/data-app-codegen, then rerun validation.",
+          "Install or link a react-semaphor version that exposes react-semaphor/data-app-codegen/node, then rerun validation.",
         details: {
           error: error instanceof Error ? error.message : String(error),
         },

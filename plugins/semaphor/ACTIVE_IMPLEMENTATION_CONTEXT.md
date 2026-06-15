@@ -13,7 +13,7 @@ Active cross-repo plan:
 Current phase:
 
 - Phase 2: move generated Data App contract rendering ownership to
-  `react-semaphor/data-app-codegen`.
+  `react-semaphor/data-app-codegen/node`.
 
 ## Ownership Rule
 
@@ -35,7 +35,7 @@ In scope:
 
 - keep `scripts/generate-data-app-contract.mjs` as the stable CLI/MCP wrapper
   path;
-- resolve `react-semaphor/data-app-codegen` from the target workspace before
+- resolve `react-semaphor/data-app-codegen/node` from the target workspace before
   generation;
 - call shared `generateSemaphorDataAppContract(summary, options)`;
 - keep path safety, workspace/output directory resolution, JSON formatting,
@@ -60,12 +60,12 @@ Reviewers must evaluate this slice against Phase 2 only.
 Raise findings for:
 
 - `generate-data-app-contract.mjs` resolving
-  `react-semaphor/data-app-codegen` at module load;
+  `react-semaphor/data-app-codegen/node` at module load;
 - plugin wrapper logic that reintroduces generated contract assembly, query
   factory rendering, accessor rendering, source identity helpers, table totals
   semantics, or generated metadata rendering;
 - generation paths that do not use the target workspace's installed or linked
-  `react-semaphor/data-app-codegen`;
+  `react-semaphor/data-app-codegen/node`;
 - generated file writes that escape the requested workspace/output directory;
 - plugin generation failures that lose structured JSON issue output.
 
@@ -94,7 +94,7 @@ git diff --check
 The plugin generator depends on the built shared `react-semaphor` subpath during
 local monorepo tests. If `react-semaphor/src/data-app-codegen/**` changed, build
 `react-semaphor` once before running plugin wrapper tests so
-`react-semaphor/dist/data-app-codegen/index.js` is current.
+`react-semaphor/dist/data-app-codegen-node/index.js` is current.
 
 Also verify the packaged-startup shape when validation resolver behavior
 changes:

@@ -35,7 +35,7 @@ try {
   const sharedCodegen = await importSharedCodegen({ workspaceDir });
   if (typeof sharedCodegen.generateSemaphorDataAppContract !== 'function') {
     throw new Error(
-      'Installed react-semaphor/data-app-codegen does not export generateSemaphorDataAppContract. Update or link a compatible react-semaphor build.',
+      'Installed react-semaphor/data-app-codegen/node does not export generateSemaphorDataAppContract. Update or link a compatible react-semaphor build.',
     );
   }
   const generatedContract = sharedCodegen.generateSemaphorDataAppContract(summary, {

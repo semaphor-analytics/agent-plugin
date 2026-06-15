@@ -9,7 +9,7 @@ const monorepoCodegenDist = path.join(
   monorepoRoot,
   "react-semaphor",
   "dist",
-  "data-app-codegen",
+  "data-app-codegen-node",
   "index.js",
 );
 
@@ -66,8 +66,8 @@ export async function importSharedCodegen(options = {}) {
 
   throw new Error(
     [
-      "Could not resolve react-semaphor/data-app-codegen.",
-      "Install or link a react-semaphor version that exposes the data-app-codegen subpath.",
+      "Could not resolve react-semaphor/data-app-codegen/node.",
+      "Install or link a react-semaphor version that exposes the data-app-codegen/node subpath.",
       "For local monorepo plugin validation, build react-semaphor first.",
       ...errors.map((error) => `- ${error}`),
     ].join("\n"),
@@ -140,10 +140,10 @@ function resolveReactSemaphorDataAppCodegenImport(baseRequire) {
   const packageJson = JSON.parse(
     fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"),
   );
-  const exportTarget = packageJson.exports?.["./data-app-codegen"]?.import;
+  const exportTarget = packageJson.exports?.["./data-app-codegen/node"]?.import;
   if (typeof exportTarget !== "string" || !exportTarget.trim()) {
     throw new Error(
-      "Installed react-semaphor does not expose react-semaphor/data-app-codegen.",
+      "Installed react-semaphor does not expose react-semaphor/data-app-codegen/node.",
     );
   }
   return path.resolve(packageRoot, exportTarget);
