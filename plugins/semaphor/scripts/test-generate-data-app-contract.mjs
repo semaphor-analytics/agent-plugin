@@ -511,10 +511,32 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
       suggestedModelingFix:
         "Model a relationship from sales.campaign_id to campaigns.campaign_id.",
       relationshipCandidate: {
-        sourceDataset: "sales",
-        sourceFields: ["campaign_id"],
-        targetDataset: "campaigns",
-        targetFields: ["campaign_id"],
+        source: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "sales",
+          datasetId: "dataset-sales",
+        },
+        sourceFields: [
+          {
+            name: "campaign_id",
+            role: "id",
+            dataType: "string",
+          },
+        ],
+        target: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "campaigns",
+          datasetId: "dataset-campaigns",
+        },
+        targetFields: [
+          {
+            name: "campaign_id",
+            role: "id",
+            dataType: "string",
+          },
+        ],
       },
       nextRepairAction: {
         tool: "semaphor_propose_semantic_model_change",
@@ -549,6 +571,45 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
     result,
     "unrepaired missing-relationship generator",
   );
+
+  const partialCandidateSummary = validSummary();
+  partialCandidateSummary.unsupportedInsights = [
+    {
+      ...summary.unsupportedInsights[0],
+      relationshipCandidate: {
+        source: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "sales",
+        },
+        target: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "campaigns",
+        },
+      },
+    },
+  ];
+  fs.writeFileSync(summaryPath, JSON.stringify(partialCandidateSummary, null, 2));
+  const partialCandidateResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (partialCandidateResult.status === 0) {
+    throw new Error("Expected partial relationship candidate to fail.");
+  }
+  if (
+    !partialCandidateResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.sourceFields must be a non-empty endpoint field array",
+    ) ||
+    !partialCandidateResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.targetFields must be a non-empty endpoint field array",
+    )
+  ) {
+    throw new Error(
+      `Partial relationship candidate failed for the wrong reason:\n${partialCandidateResult.stdout}\n${partialCandidateResult.stderr}`,
+    );
+  }
 
   const unsupportedViewSummary = validSummary();
   unsupportedViewSummary.views.push({
@@ -588,7 +649,12 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
     "unsupported missing-relationship view generator",
   );
 
-  summary.unsupportedInsights[0].relationshipCandidate.sourceFields = [];
+  summary.unsupportedInsights[0].relationshipCandidate = {
+    sourceDataset: "sales",
+    sourceFields: ["campaign_id"],
+    targetDataset: "campaigns",
+    targetFields: ["campaign_id"],
+  };
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
   const malformedResult = runGenerator({
     workspaceDir,
@@ -599,7 +665,7 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
   }
   if (
     !malformedResult.stdout.includes(
-      "unsupportedInsights.0.relationshipCandidate.sourceFields must be a non-empty string array",
+      "unsupportedInsights.0.relationshipCandidate.sourceDataset is not supported; relationship candidates support only source, sourceFields, target, and targetFields",
     )
   ) {
     throw new Error(
@@ -607,10 +673,168 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
     );
   }
 
-  summary.unsupportedInsights[0].reason = "missing_measure";
-  summary.unsupportedInsights[0].relationshipCandidate.sourceFields = [
-    "campaign_id",
+  const nonSemanticEndpointSummary = validSummary();
+  nonSemanticEndpointSummary.unsupportedInsights = [
+    {
+      ...summary.unsupportedInsights[0],
+      relationshipCandidate: {
+        source: {
+          kind: "physical",
+          connectionId: "conn",
+          tableName: "sales",
+        },
+        sourceFields: [{
+          name: "campaign_id",
+        }],
+        target: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "campaigns",
+        },
+        targetFields: [{
+          name: "campaign_id",
+        }],
+      },
+    },
   ];
+  fs.writeFileSync(summaryPath, JSON.stringify(nonSemanticEndpointSummary, null, 2));
+  const nonSemanticEndpointResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (nonSemanticEndpointResult.status === 0) {
+    throw new Error("Expected non-semantic relationship candidate endpoint to fail.");
+  }
+  if (
+    !nonSemanticEndpointResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.source must use semantic source identity",
+    )
+  ) {
+    throw new Error(
+      `Non-semantic relationship candidate endpoint failed for the wrong reason:\n${nonSemanticEndpointResult.stdout}\n${nonSemanticEndpointResult.stderr}`,
+    );
+  }
+
+  const obsoleteFieldSourceSummary = validSummary();
+  obsoleteFieldSourceSummary.unsupportedInsights = [
+    {
+      ...summary.unsupportedInsights[0],
+      relationshipCandidate: {
+        source: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "sales",
+          sourceKey: "semantic:domain:sales",
+        },
+        sourceFields: [{
+          name: "campaign_id",
+          sourceKey: "semantic:domain:sales",
+          source: {
+            kind: "semantic",
+            domainId: "domain",
+            datasetName: "campaigns",
+          },
+        }],
+        target: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "campaigns",
+        },
+        targetFields: [{
+          name: "campaign_id",
+          source: {
+            kind: "semantic",
+            domainId: "domain",
+            datasetName: "campaigns",
+          },
+        }],
+      },
+    },
+  ];
+  fs.writeFileSync(summaryPath, JSON.stringify(obsoleteFieldSourceSummary, null, 2));
+  const obsoleteFieldSourceResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (obsoleteFieldSourceResult.status === 0) {
+    throw new Error(
+      "Expected obsolete relationship candidate field source metadata to fail.",
+    );
+  }
+  if (
+    !obsoleteFieldSourceResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.sourceFields.0.sourceKey is not supported",
+    ) ||
+    !obsoleteFieldSourceResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.sourceFields.0.source is not supported",
+    )
+  ) {
+    throw new Error(
+      `Source-bearing relationship candidate field failed for the wrong reason:\n${obsoleteFieldSourceResult.stdout}\n${obsoleteFieldSourceResult.stderr}`,
+    );
+  }
+
+  const endpointExecutionMetadataSummary = validSummary();
+  endpointExecutionMetadataSummary.unsupportedInsights = [
+    {
+      ...summary.unsupportedInsights[0],
+      relationshipCandidate: {
+        source: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "sales",
+          connectionId: "conn-sales",
+        },
+        sourceFields: [{ name: "campaign_id" }],
+        target: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "campaigns",
+        },
+        targetFields: [{ name: "campaign_id" }],
+      },
+    },
+  ];
+  fs.writeFileSync(
+    summaryPath,
+    JSON.stringify(endpointExecutionMetadataSummary, null, 2),
+  );
+  const endpointExecutionMetadataResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (endpointExecutionMetadataResult.status === 0) {
+    throw new Error(
+      "Expected relationship candidate endpoint execution metadata to fail.",
+    );
+  }
+  if (
+    !endpointExecutionMetadataResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.source.connectionId is not supported",
+    )
+  ) {
+    throw new Error(
+      `Relationship candidate endpoint execution metadata failed for the wrong reason:\n${endpointExecutionMetadataResult.stdout}\n${endpointExecutionMetadataResult.stderr}`,
+    );
+  }
+
+  summary.unsupportedInsights[0].reason = "missing_measure";
+  summary.unsupportedInsights[0].relationshipCandidate = {
+    source: {
+      kind: "semantic",
+      domainId: "domain",
+      datasetName: "sales",
+    },
+    sourceFields: [{ name: "campaign_id" }],
+    target: {
+      kind: "semantic",
+      domainId: "domain",
+      datasetName: "campaigns",
+    },
+    targetFields: [{
+      name: "campaign_id",
+    }],
+  };
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
   const wrongReasonResult = runGenerator({
     workspaceDir,
@@ -633,10 +857,20 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
 
   summary.unsupportedInsights[0].reason = "missing_relationship";
   summary.unsupportedInsights[0].nextRepairAction.candidate = {
-    sourceDataset: "sales",
-    sourceFields: ["campaign_id"],
-    targetDataset: "campaigns",
-    targetFields: ["campaign_id"],
+    source: {
+      kind: "semantic",
+      domainId: "domain",
+      datasetName: "sales",
+    },
+    sourceFields: [{ name: "campaign_id" }],
+    target: {
+      kind: "semantic",
+      domainId: "domain",
+      datasetName: "campaigns",
+    },
+    targetFields: [{
+      name: "campaign_id",
+    }],
   };
   fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
   const nestedCandidateResult = runGenerator({

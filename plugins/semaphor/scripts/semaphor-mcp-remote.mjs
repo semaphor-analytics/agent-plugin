@@ -37,14 +37,53 @@ const WORKSPACE_HINT_SCHEMA = {
   },
   additionalProperties: true,
 };
-const RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA = {
+const SEMANTIC_RELATIONSHIP_SOURCE_SCHEMA = {
   type: "object",
   properties: {
-    sourceDataset: { type: "string" },
-    sourceFields: { type: "array", items: { type: "string" }, minItems: 1 },
-    targetDataset: { type: "string" },
-    targetFields: { type: "array", items: { type: "string" }, minItems: 1 },
+    kind: { type: "string", enum: ["semantic"] },
+    domainId: { type: "string" },
+    datasetName: { type: "string" },
+    datasetId: { type: "string" },
+    label: { type: "string" },
+    sourceKey: { type: "string" },
   },
+  required: ["kind", "domainId", "datasetName"],
+  additionalProperties: false,
+};
+const SEMANTIC_RELATIONSHIP_FIELD_SCHEMA = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    label: { type: "string" },
+    role: {
+      type: "string",
+      enum: ["dimension", "measure", "date", "id", "unknown"],
+    },
+    dataType: {
+      type: "string",
+      enum: ["string", "number", "boolean", "date", "datetime", "unknown"],
+    },
+  },
+  required: ["name"],
+  additionalProperties: false,
+};
+const RELATIONSHIP_CANDIDATE_SCHEMA = {
+  type: "object",
+  properties: {
+    source: SEMANTIC_RELATIONSHIP_SOURCE_SCHEMA,
+    sourceFields: {
+      type: "array",
+      minItems: 1,
+      items: SEMANTIC_RELATIONSHIP_FIELD_SCHEMA,
+    },
+    target: SEMANTIC_RELATIONSHIP_SOURCE_SCHEMA,
+    targetFields: {
+      type: "array",
+      minItems: 1,
+      items: SEMANTIC_RELATIONSHIP_FIELD_SCHEMA,
+    },
+  },
+  required: ["source", "sourceFields", "target", "targetFields"],
   additionalProperties: false,
 };
 const SEMANTIC_REPAIR_DIAGNOSTIC_SCHEMA = {
@@ -57,7 +96,7 @@ const SEMANTIC_REPAIR_DIAGNOSTIC_SCHEMA = {
     viewIds: { type: "array", items: { type: "string" } },
     inputId: { type: "string" },
     inputIds: { type: "array", items: { type: "string" } },
-    relationshipCandidate: RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA,
+    relationshipCandidate: RELATIONSHIP_CANDIDATE_SCHEMA,
   },
   additionalProperties: true,
 };
@@ -161,7 +200,7 @@ const FALLBACK_TOOLS = [
           },
           additionalProperties: false,
         },
-        candidate: RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA,
+        candidate: RELATIONSHIP_CANDIDATE_SCHEMA,
       },
       required: ["domainId", "reason"],
       additionalProperties: true,

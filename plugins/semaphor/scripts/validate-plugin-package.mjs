@@ -264,10 +264,14 @@ function validateMcpConfig() {
     }
     if (
       !launcherText.includes('required: ["domainId", "reason"]') ||
-      !launcherText.includes("RELATIONSHIP_REPAIR_CANDIDATE_SCHEMA")
+      !launcherText.includes("RELATIONSHIP_CANDIDATE_SCHEMA") ||
+      !launcherText.includes("SEMANTIC_RELATIONSHIP_SOURCE_SCHEMA") ||
+      !launcherText.includes('required: ["kind", "domainId", "datasetName"]') ||
+      !launcherText.includes('required: ["source", "sourceFields", "target", "targetFields"]') ||
+      !launcherText.includes("additionalProperties: false")
     ) {
       issues.push(
-        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback tool must expose domainId, reason, and relationship candidate schema",
+        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback tool must expose domainId, reason, and endpoint-scoped relationship candidate schema",
       );
     }
     if (
@@ -276,7 +280,7 @@ function validateMcpConfig() {
       )
     ) {
       issues.push(
-        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback candidate schema must mirror the server tool by allowing partial candidates",
+        "scripts/semaphor-mcp-remote.mjs: semantic repair proposal fallback candidate schema must reject legacy dataset-string candidates",
       );
     }
     if (

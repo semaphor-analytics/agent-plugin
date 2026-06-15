@@ -235,7 +235,7 @@ as a required dashboard quality checklist, not optional inspiration.
   filter.
 - When a Data App filter or joined view is blocked by a missing modeled
   relationship, call `semaphor_propose_semantic_model_change` with exact
-  datasets/fields and affected views/inputs. Show evidence to the author, call
+  endpoint-scoped relationship candidate fields and affected views/inputs. Show evidence to the author, call
   `semaphor_apply_semantic_model_patch` only after explicit approval, then
   rerun planning or validation before changing the generated contract. Keep
   unsupported views unsubscribed from the filter until the repaired semantic

@@ -1138,7 +1138,7 @@ function validateUnsupportedInsight(value, path) {
   }
   if (unsupportedInsight.relationshipCandidate !== undefined) {
     issues.push(
-      ...validateRelationshipRepairCandidate(
+      ...validateRelationshipCandidate(
         unsupportedInsight.relationshipCandidate,
         `${path}.relationshipCandidate`,
       ),
@@ -1179,26 +1179,105 @@ function validateRelationshipRepairAction(value, path) {
   return issues;
 }
 
-function validateRelationshipRepairCandidate(value, path) {
+function validateRelationshipCandidate(value, path) {
   const candidate = asRecord(value);
   if (!candidate) {
     return [`${path} must be an object.`];
   }
   const issues = [];
-  for (const key of ['sourceDataset', 'targetDataset']) {
-    if (typeof candidate[key] !== 'string' || !candidate[key].trim()) {
-      issues.push(`${path}.${key} must be a non-empty string.`);
+  const allowedKeys = new Set(['source', 'sourceFields', 'target', 'targetFields']);
+  Object.keys(candidate).forEach((key) => {
+    if (allowedKeys.has(key)) {
+      return;
     }
-  }
+    issues.push(
+      `${path}.${key} is not supported; relationship candidates support only source, sourceFields, target, and targetFields.`,
+    );
+  });
+  issues.push(...validateRelationshipCandidateSource(candidate.source, `${path}.source`));
+  issues.push(...validateRelationshipCandidateSource(candidate.target, `${path}.target`));
   for (const key of ['sourceFields', 'targetFields']) {
     const fields = candidate[key];
-    if (
-      !Array.isArray(fields) ||
-      fields.length === 0 ||
-      fields.some((field) => typeof field !== 'string' || !field.trim())
-    ) {
-      issues.push(`${path}.${key} must be a non-empty string array.`);
+    if (!Array.isArray(fields) || fields.length === 0) {
+      issues.push(`${path}.${key} must be a non-empty endpoint field array.`);
+      continue;
     }
+    fields.forEach((field, index) => {
+      issues.push(...validateRelationshipCandidateField(field, `${path}.${key}.${index}`));
+    });
+  }
+  return issues;
+}
+
+function validateRelationshipCandidateField(value, path) {
+  const field = asRecord(value);
+  if (!field) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  const allowedKeys = new Set(['name', 'label', 'role', 'dataType']);
+  Object.keys(field).forEach((key) => {
+    if (allowedKeys.has(key)) {
+      return;
+    }
+    issues.push(
+      `${path}.${key} is not supported; relationship candidate fields are scoped by their endpoint and support only name, label, role, and dataType.`,
+    );
+  });
+  if (typeof field.name !== 'string' || !field.name.trim()) {
+    issues.push(`${path}.name must be a non-empty string.`);
+  }
+  if (
+    field.role !== undefined &&
+    !['dimension', 'measure', 'date', 'id', 'unknown'].includes(String(field.role))
+  ) {
+    issues.push(`${path}.role must be dimension, measure, date, id, or unknown.`);
+  }
+  if (
+    field.dataType !== undefined &&
+    !['string', 'number', 'boolean', 'date', 'datetime', 'unknown'].includes(
+      String(field.dataType),
+    )
+  ) {
+    issues.push(
+      `${path}.dataType must be string, number, boolean, date, datetime, or unknown.`,
+    );
+  }
+  return issues;
+}
+
+function validateRelationshipCandidateSource(value, path) {
+  const source = asRecord(value);
+  if (!source) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  const allowedKeys = new Set([
+    'kind',
+    'domainId',
+    'datasetName',
+    'datasetId',
+    'label',
+    'sourceKey',
+  ]);
+  Object.keys(source).forEach((key) => {
+    if (allowedKeys.has(key)) {
+      return;
+    }
+    issues.push(
+      `${path}.${key} is not supported; relationship candidate sources support only semantic identity fields.`,
+    );
+  });
+  if (source.kind !== 'semantic') {
+    issues.push(`${path} must use semantic source identity.`);
+  }
+  if (
+    typeof source.domainId !== 'string' ||
+    !source.domainId.trim() ||
+    typeof source.datasetName !== 'string' ||
+    !source.datasetName.trim()
+  ) {
+    issues.push(`${path} must include semantic domainId and datasetName.`);
   }
   return issues;
 }

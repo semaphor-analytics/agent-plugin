@@ -279,7 +279,7 @@ When Semaphor exposes semantic model repair tools, use them for the reusable
 model fix instead of patching around the gap in React:
 
 1. Call `semaphor_propose_semantic_model_change` with the selected `domainId`,
-   source dataset/field, target dataset/field, affected view ids, and input ids.
+   endpoint-scoped relationship candidate, affected view ids, and input ids.
 2. Show the returned relationship proposal, deterministic evidence, warnings,
    and recommendation to the author.
 3. Call `semaphor_apply_semantic_model_patch` only after explicit author
