@@ -439,10 +439,35 @@ function validateMcpBridge() {
         "scripts/generate-data-app-contract.mjs: generator must write contract.manifest.json for iterative planning and drift detection",
       );
     }
-    if (!generatorText.includes("codegenSummaryHash")) {
+    if (!generatorText.includes("importSharedCodegen")) {
       issues.push(
-        "scripts/generate-data-app-contract.mjs: generator must write codegenSummaryHash so manifest payload drift is detectable",
+        "scripts/generate-data-app-contract.mjs: generator wrapper must resolve shared react-semaphor/data-app-codegen",
       );
+    }
+    if (!generatorText.includes("generateSemaphorDataAppContract")) {
+      issues.push(
+        "scripts/generate-data-app-contract.mjs: generator wrapper must call shared generateSemaphorDataAppContract",
+      );
+    }
+    if (!generatorText.includes("generatedContract.files")) {
+      issues.push(
+        "scripts/generate-data-app-contract.mjs: generator wrapper must write shared generatedContract.files",
+      );
+    }
+    for (const forbidden of [
+      "function buildContract(",
+      "function renderFiles(",
+      "function renderQueries(",
+      "function renderAccessors(",
+      "function sourceKey(",
+      "recordsSortFieldsForView =",
+      "tableColumnsForView =",
+    ]) {
+      if (generatorText.includes(forbidden)) {
+        issues.push(
+          `scripts/generate-data-app-contract.mjs: must not contain duplicated shared generator logic (${forbidden})`,
+        );
+      }
     }
     const summaryValidationText = fs.existsSync(summaryValidationPath)
       ? fs.readFileSync(summaryValidationPath, "utf8")
@@ -471,19 +496,6 @@ function validateMcpBridge() {
       if (summaryValidationText.includes(forbidden)) {
         issues.push(
           `scripts/data-app-codegen-summary-validation.mjs: must not contain duplicated SDK/codegen validation logic (${forbidden})`,
-        );
-      }
-    }
-    for (const requiredExport of [
-      "generatedQueryViewIds",
-      "generatedInputOptionQueryIds",
-      "filterContractsForView",
-      "inputsForViewId",
-      "queryOptionsForViewId",
-    ]) {
-      if (!generatorText.includes(requiredExport)) {
-        issues.push(
-          `scripts/generate-data-app-contract.mjs: generated contract must expose ${requiredExport}`,
         );
       }
     }

@@ -42,7 +42,7 @@ export async function assertValidCodegenSummary(value, options = {}) {
   }
 }
 
-async function importSharedCodegen(options = {}) {
+export async function importSharedCodegen(options = {}) {
   const explicitPath = process.env.SEMAPHOR_DATA_APP_CODEGEN_MODULE;
   if (explicitPath) {
     return importSharedCodegenFromPath(path.resolve(explicitPath));

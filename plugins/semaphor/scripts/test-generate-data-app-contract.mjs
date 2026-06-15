@@ -19,6 +19,7 @@ const tempRoot = fs.mkdtempSync(
 
 try {
   await runCodegenValidationWrapperFixture();
+  runGeneratedFilePathSafetyFixture();
   runValidPartialScopeFixture();
   runAggregateRecordsAccessorFixture();
   runNoFilterFixture();
@@ -62,6 +63,67 @@ try {
   console.log("Semaphor generator fixture tests passed.");
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
+}
+
+function runGeneratedFilePathSafetyFixture() {
+  const workspaceDir = path.join(tempRoot, "generated-file-path-safety");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify({ schemaVersion: "fixture" }, null, 2));
+  const modulePath = path.join(workspaceDir, "malicious-codegen.mjs");
+  fs.writeFileSync(
+    modulePath,
+    [
+      "export function generateSemaphorDataAppContract() {",
+      "  return {",
+      '    schemaVersion: "fixture",',
+      '    files: { "../escaped.ts": "escape", "sources.ts": "safe" },',
+      '    manifest: { generatedContentHash: "sha256:fixture" },',
+      '    contentHash: "sha256:fixture",',
+      "    stats: {",
+      "      inputCount: 0,",
+      "      executableViewCount: 0,",
+      "      presentationViewCount: 0,",
+      "      queryCount: 0,",
+      "      optionQueryCount: 0",
+      "    },",
+      '    usageExample: "",',
+      "    warnings: []",
+      "  };",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+    env: {
+      ...process.env,
+      SEMAPHOR_DATA_APP_CODEGEN_MODULE: modulePath,
+    },
+  });
+  if (result.status === 0) {
+    throw new Error(
+      `Expected generated file path safety fixture to fail:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+  const parsed = JSON.parse(result.stdout);
+  if (
+    parsed.ok !== false ||
+    !String(parsed.error || "").includes("must be a file name, not a path")
+  ) {
+    throw new Error(
+      `Expected generated file path safety issue, saw:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+  const escapedPath = path.join(workspaceDir, "src/semaphor/escaped.ts");
+  if (fs.existsSync(escapedPath)) {
+    throw new Error(`Generator wrote outside outputDir: ${escapedPath}`);
+  }
 }
 
 async function runCodegenValidationWrapperFixture() {
@@ -3882,13 +3944,14 @@ function updatePolicySummaryFixture() {
   };
 }
 
-function runGenerator({ workspaceDir, summaryPath }) {
+function runGenerator({ workspaceDir, summaryPath, env = process.env }) {
   return spawnSync(
     process.execPath,
     [generatorPath, "--dir", workspaceDir, "--plan", summaryPath, "--json"],
     {
       cwd: pluginRoot,
       encoding: "utf8",
+      env,
     },
   );
 }

@@ -12,7 +12,7 @@ Active cross-repo plan:
 
 Current phase:
 
-- Phase 1: move Data App codegen summary validation ownership to
+- Phase 2: move generated Data App contract rendering ownership to
   `react-semaphor/data-app-codegen`.
 
 ## Ownership Rule
@@ -29,30 +29,24 @@ Current phase:
 
 The plugin must not become a second SDK validator.
 
-## Phase 1 Scope
+## Phase 2 Scope
 
 In scope:
 
-- keep `scripts/data-app-codegen-summary-validation.mjs` as a compatibility
-  wrapper with the existing exported names:
-  - `CODEGEN_SUMMARY_SCHEMA_VERSION`
-  - `CODEGEN_SUMMARY_VALIDATOR_VERSION`
-  - `validateCodegenSummary`
-  - `assertValidCodegenSummary`
-- delegate validation to `react-semaphor/data-app-codegen`;
-- resolve the shared codegen module lazily, only when validation is invoked;
-- pass `workspaceDir` into validation call sites when known so validation uses
-  the target app's installed or linked `react-semaphor`;
-- keep MCP startup and `tools/list` safe when a packaged plugin install does
-  not itself bundle or declare `react-semaphor`;
-- keep local monorepo self-tests working through the sibling
-  `react-semaphor/dist/data-app-codegen/index.js` build artifact;
-- preserve structured issue output and stable plugin script/MCP tool names.
+- keep `scripts/generate-data-app-contract.mjs` as the stable CLI/MCP wrapper
+  path;
+- resolve `react-semaphor/data-app-codegen` from the target workspace before
+  generation;
+- call shared `generateSemaphorDataAppContract(summary, options)`;
+- keep path safety, workspace/output directory resolution, JSON formatting,
+  package-version attribution, and file writes plugin-owned;
+- preserve generated file names, output location, manifest path, script names,
+  MCP tool names, and structured issue output;
+- keep wrapper fixtures proving the shared generator can be invoked and files
+  are written.
 
 Out of scope:
 
-- moving generated contract rendering out of `generate-data-app-contract.mjs`;
-- moving query factory/accessor rendering;
 - moving generated view live validation;
 - moving update policy;
 - changing generated file names, generated output directory, or generated app
@@ -61,25 +55,22 @@ Out of scope:
 
 ## Review Guardrails
 
-Reviewers must evaluate this slice against Phase 1 only.
+Reviewers must evaluate this slice against Phase 2 only.
 
 Raise findings for:
 
-- `data-app-codegen-summary-validation.mjs` resolving
+- `generate-data-app-contract.mjs` resolving
   `react-semaphor/data-app-codegen` at module load;
-- packaged plugin startup failing before MCP tools are exposed because
-  `react-semaphor` is not installed in the plugin package;
-- plugin wrapper logic that reintroduces SDK builder allow-lists, executable SDK
-  spec validation, source identity comparison, table totals semantics, or
-  relationship repair validation;
-- validation call sites that have a known `workspaceDir` but do not pass it into
-  the wrapper;
-- plugin validation failures that lose structured `{ ok, issues, advisories }`
-  output.
+- plugin wrapper logic that reintroduces generated contract assembly, query
+  factory rendering, accessor rendering, source identity helpers, table totals
+  semantics, or generated metadata rendering;
+- generation paths that do not use the target workspace's installed or linked
+  `react-semaphor/data-app-codegen`;
+- generated file writes that escape the requested workspace/output directory;
+- plugin generation failures that lose structured JSON issue output.
 
-Do not raise findings asking Phase 1 to move generator rendering, update
-policy, live validation, or app-side planning. Those are later phases in the
-cross-repo plan.
+Do not raise findings asking Phase 2 to move update policy, live validation, or
+app-side planning. Those are later phases in the cross-repo plan.
 
 ## Hard Migration Policy
 
@@ -100,7 +91,13 @@ npm --prefix plugins/semaphor run validate:plugin
 git diff --check
 ```
 
-Also verify the packaged-startup shape:
+The plugin generator depends on the built shared `react-semaphor` subpath during
+local monorepo tests. If `react-semaphor/src/data-app-codegen/**` changed, build
+`react-semaphor` once before running plugin wrapper tests so
+`react-semaphor/dist/data-app-codegen/index.js` is current.
+
+Also verify the packaged-startup shape when validation resolver behavior
+changes:
 
 ```bash
 tmpdir=$(mktemp -d)
