@@ -447,12 +447,32 @@ function validateMcpBridge() {
     const summaryValidationText = fs.existsSync(summaryValidationPath)
       ? fs.readFileSync(summaryValidationPath, "utf8")
       : "";
-    if (
-      !summaryValidationText.includes("semaphor-data-app-codegen-summary/v1")
-    ) {
+    if (!summaryValidationText.includes("react-semaphor/data-app-codegen")) {
       issues.push(
-        "scripts/data-app-codegen-summary-validation.mjs: must enforce semaphor-data-app-codegen-summary/v1",
+        "scripts/data-app-codegen-summary-validation.mjs: must delegate SDK/codegen summary validation to react-semaphor/data-app-codegen",
       );
+    }
+    if (summaryValidationText.includes("await importSharedCodegen();")) {
+      issues.push(
+        "scripts/data-app-codegen-summary-validation.mjs: must resolve react-semaphor/data-app-codegen lazily inside validation calls, not at module load",
+      );
+    }
+    for (const forbidden of [
+      "CODEGEN_SDK_BUILDERS",
+      "CODEGEN_METRIC_SPEC_KEYS",
+      "CODEGEN_RECORDS_SPEC_KEYS",
+      "CODEGEN_MATRIX_SPEC_KEYS",
+      "CODEGEN_SQL_SPEC_KEYS",
+      "validateSdkSpec",
+      "validateCodegenView",
+      "validateCodegenFieldRef",
+      "validateMatchingTotalsMeasures",
+    ]) {
+      if (summaryValidationText.includes(forbidden)) {
+        issues.push(
+          `scripts/data-app-codegen-summary-validation.mjs: must not contain duplicated SDK/codegen validation logic (${forbidden})`,
+        );
+      }
     }
     for (const requiredExport of [
       "generatedQueryViewIds",

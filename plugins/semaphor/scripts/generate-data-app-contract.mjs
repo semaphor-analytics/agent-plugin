@@ -41,7 +41,7 @@ try {
     label: 'outputDir',
   });
   const artifact = readPlanArtifact({ args, workspaceDir });
-  const summary = normalizeCodegenSummary(artifact);
+  const summary = await normalizeCodegenSummary(artifact, { workspaceDir });
   const contract = buildContract(summary);
   if (
     contract.views.length === 0 &&
@@ -251,9 +251,9 @@ function assertInsideDirectory({ parentDir, childPath, label }) {
   throw new Error(`${label} must resolve inside workspaceDir.`);
 }
 
-function normalizeCodegenSummary(artifact) {
+async function normalizeCodegenSummary(artifact, { workspaceDir } = {}) {
   const summary = artifact;
-  assertValidCodegenSummary(summary);
+  await assertValidCodegenSummary(summary, { workspaceDir });
   return summary;
 }
 

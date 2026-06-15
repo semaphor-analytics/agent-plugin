@@ -1250,7 +1250,7 @@ async function updateLocalDataAppContract(message) {
 
   let manifest;
   try {
-    manifest = readGeneratedContractManifest({ workspaceDir, outputDir });
+    manifest = await readGeneratedContractManifest({ workspaceDir, outputDir });
   } catch (error) {
     const text = redactSensitiveText(
       error instanceof Error ? error.message : String(error),
@@ -1841,7 +1841,7 @@ function canonicalJson(value) {
     .join(",")}}`;
 }
 
-function readGeneratedContractManifest({ workspaceDir, outputDir }) {
+async function readGeneratedContractManifest({ workspaceDir, outputDir }) {
   const manifestPath = path.resolve(
     workspaceDir,
     outputDir,
@@ -1885,7 +1885,7 @@ function readGeneratedContractManifest({ workspaceDir, outputDir }) {
       `${path.relative(workspaceDir, manifestPath)} was generated with an old codegenSummary validator. Regenerate with semaphor_generate_data_app_contract before iterative updates.`,
     );
   }
-  assertValidCodegenSummary(manifest.codegenSummary);
+  await assertValidCodegenSummary(manifest.codegenSummary, { workspaceDir });
   const expectedSummaryHash = hashCanonicalJson(manifest.codegenSummary);
   if (manifest.codegenSummaryHash !== expectedSummaryHash) {
     throw new Error(

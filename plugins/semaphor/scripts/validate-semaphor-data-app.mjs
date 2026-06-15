@@ -305,7 +305,7 @@ function isGeneratedFile(root, filePath) {
   );
 }
 
-function scanDataAppPreflight(root, sources) {
+async function scanDataAppPreflight(root, sources) {
   const issues = [];
   const advisories = [];
 
@@ -334,7 +334,7 @@ function scanDataAppPreflight(root, sources) {
       ),
     );
     if (hasGeneratedContract) {
-      issues.push(...scanGeneratedContract(root, generatedDir));
+      issues.push(...(await scanGeneratedContract(root, generatedDir)));
     }
     return { issues, advisories, sdkSources, hasGeneratedContract };
   }
@@ -382,7 +382,7 @@ function scanDataAppPreflight(root, sources) {
   }
 
   if (hasGeneratedContract) {
-    issues.push(...scanGeneratedContract(root, generatedDir));
+    issues.push(...(await scanGeneratedContract(root, generatedDir)));
     if (!importsGeneratedContract(root, sources)) {
       issues.push(
         issue(
@@ -445,7 +445,7 @@ function importsGeneratedContract(root, sources) {
     );
 }
 
-function scanGeneratedContract(root, generatedDir) {
+async function scanGeneratedContract(root, generatedDir) {
   const issues = [];
   for (const fileName of REQUIRED_GENERATED_FILES) {
     const filePath = path.join(generatedDir, fileName);
@@ -463,7 +463,7 @@ function scanGeneratedContract(root, generatedDir) {
       );
     }
   }
-  issues.push(...validateGeneratedContractManifest(root, generatedDir));
+  issues.push(...(await validateGeneratedContractManifest(root, generatedDir)));
 
   for (const filePath of collectSourceFiles(generatedDir)) {
     const location = formatLocation(root, filePath);
@@ -523,7 +523,7 @@ function scanGeneratedContract(root, generatedDir) {
   return issues;
 }
 
-function validateGeneratedContractManifest(root, generatedDir) {
+async function validateGeneratedContractManifest(root, generatedDir) {
   const issues = [];
   const manifestPath = path.join(generatedDir, "contract.manifest.json");
   if (!fs.existsSync(manifestPath)) {
@@ -548,16 +548,35 @@ function validateGeneratedContractManifest(root, generatedDir) {
       ),
     );
   }
-  for (const issue of validateCodegenSummary(manifest?.codegenSummary)) {
+  try {
+    for (const issue of await validateCodegenSummary(manifest?.codegenSummary, {
+      workspaceDir: root,
+    })) {
+      issues.push(
+        diagnostic({
+          code: "invalid_contract_manifest",
+          severity: "error",
+          message: `${formatLocation(root, manifestPath)}: codegenSummary.${issue}`,
+          filePath: formatLocation(root, manifestPath),
+          path: `codegenSummary.${issue}`,
+          repairHint:
+            "Regenerate the generated contract from a valid Data App codegenSummary.",
+        }),
+      );
+    }
+  } catch (error) {
     issues.push(
       diagnostic({
         code: "invalid_contract_manifest",
         severity: "error",
-        message: `${formatLocation(root, manifestPath)}: codegenSummary.${issue}`,
+        message: `${formatLocation(root, manifestPath)}: could not load react-semaphor/data-app-codegen to validate codegenSummary.`,
         filePath: formatLocation(root, manifestPath),
-        path: `codegenSummary.${issue}`,
+        path: "codegenSummary",
         repairHint:
-          "Regenerate the generated contract from a valid Data App codegenSummary.",
+          "Install or link a react-semaphor version that exposes react-semaphor/data-app-codegen, then rerun validation.",
+        details: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       }),
     );
   }
@@ -1054,7 +1073,7 @@ async function main() {
 
   const sourceFiles = collectSourceFiles(root);
   const sources = readSources(sourceFiles);
-  const preflight = scanDataAppPreflight(root, sources);
+  const preflight = await scanDataAppPreflight(root, sources);
   const sdkCompatibility = deps["react-semaphor"]
     ? checkReactSemaphorCompatibility(root)
     : { issues: [], advisories: [] };

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { evaluateContractUpdatePolicy } from "./data-app-contract-update-policy.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +18,7 @@ const tempRoot = fs.mkdtempSync(
 );
 
 try {
+  await runCodegenValidationWrapperFixture();
   runValidPartialScopeFixture();
   runAggregateRecordsAccessorFixture();
   runNoFilterFixture();
@@ -61,6 +62,64 @@ try {
   console.log("Semaphor generator fixture tests passed.");
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
+}
+
+async function runCodegenValidationWrapperFixture() {
+  const workspaceDir = path.join(tempRoot, "codegen-validation-wrapper");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const moduleOnePath = path.join(workspaceDir, "codegen-one.mjs");
+  const moduleTwoPath = path.join(workspaceDir, "codegen-two.mjs");
+  fs.writeFileSync(
+    moduleOnePath,
+    [
+      'export const CODEGEN_SUMMARY_SCHEMA_VERSION = "fixture/v1";',
+      'export const CODEGEN_SUMMARY_VALIDATOR_VERSION = "fixture-validator/v1";',
+      'export function validateCodegenSummary() { return ["from-one"]; }',
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(
+    moduleTwoPath,
+    [
+      'export const CODEGEN_SUMMARY_SCHEMA_VERSION = "fixture/v1";',
+      'export const CODEGEN_SUMMARY_VALIDATOR_VERSION = "fixture-validator/v1";',
+      'export function validateCodegenSummary() { return ["from-two"]; }',
+      "",
+    ].join("\n"),
+  );
+  const wrapperUrl = `${pathToFileURL(
+    path.join(scriptDir, "data-app-codegen-summary-validation.mjs"),
+  ).href}?fixture=${Date.now()}`;
+  const previousModulePath = process.env.SEMAPHOR_DATA_APP_CODEGEN_MODULE;
+  try {
+    process.env.SEMAPHOR_DATA_APP_CODEGEN_MODULE = moduleOnePath;
+    const wrapper = await import(wrapperUrl);
+    let assertionMessage = "";
+    try {
+      await wrapper.assertValidCodegenSummary({});
+    } catch (error) {
+      assertionMessage = error instanceof Error ? error.message : String(error);
+    }
+    if (!assertionMessage.includes("from-one")) {
+      throw new Error(
+        `Expected fallback assertValidCodegenSummary to await validation issues from first module, saw: ${assertionMessage}`,
+      );
+    }
+
+    process.env.SEMAPHOR_DATA_APP_CODEGEN_MODULE = moduleTwoPath;
+    const secondIssues = await wrapper.validateCodegenSummary({});
+    if (secondIssues.join("|") !== "from-two") {
+      throw new Error(
+        `Expected wrapper to resolve and cache by module path, saw: ${secondIssues.join("|")}`,
+      );
+    }
+  } finally {
+    if (previousModulePath === undefined) {
+      delete process.env.SEMAPHOR_DATA_APP_CODEGEN_MODULE;
+    } else {
+      process.env.SEMAPHOR_DATA_APP_CODEGEN_MODULE = previousModulePath;
+    }
+  }
 }
 
 function runValidPartialScopeFixture() {
@@ -881,7 +940,7 @@ function runEquivalentTotalsSourceIdentityFixture() {
   const summary = validSummary();
   const sourceKeyMeasure = {
     ...summary.views[0].fields[0],
-    sourceKey: "semantic:domain:dataset-sales",
+    sourceKey: "semantic:domain:datasetId:dataset-sales",
   };
   const inlineSourceMeasure = {
     name: summary.views[0].fields[0].name,
@@ -1110,6 +1169,10 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
   const workspaceDir = path.join(tempRoot, "relationship-repair-metadata");
   fs.mkdirSync(workspaceDir, { recursive: true });
   const summary = validSummary();
+  summary.validation = { status: "blocked" };
+  summary.nextRequiredTool = {
+    name: "semaphor_propose_semantic_model_change",
+  };
   summary.unsupportedInsights = [
     {
       title: "Campaign filter blocked",
@@ -2593,6 +2656,7 @@ function runStructuredValidationFixtures() {
   runMissingGeneratedContractValidationFixture();
   runGeneratedContractNotImportedValidationFixture();
   runMalformedManifestJsonValidationFixture();
+  runMissingSharedCodegenValidationFixture();
   runFilterEffectValidationFixture();
   runLiveFilterEffectMissingTokenValidationFixture();
   runLiveFilterEffectFetchFailureValidationFixture();
@@ -2840,6 +2904,67 @@ function runMalformedManifestJsonValidationFixture() {
     filterEffectResult,
     "malformed-manifest filter-effect validation",
   );
+}
+
+function runMissingSharedCodegenValidationFixture() {
+  const workspaceDir = path.join(
+    tempRoot,
+    "validation-missing-shared-codegen",
+  );
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify(
+      {
+        type: "module",
+        dependencies: {
+          react: "^19.0.0",
+          "react-semaphor": "^0.0.0",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(validSummary(), null, 2));
+  const generatorResult = runGenerator({ workspaceDir, summaryPath });
+  if (generatorResult.status !== 0) {
+    throw new Error(
+      `Expected missing-shared-codegen fixture generation to pass:\n${generatorResult.stdout}\n${generatorResult.stderr}`,
+    );
+  }
+  const env = { ...process.env };
+  env.SEMAPHOR_DATA_APP_CODEGEN_MODULE = path.join(
+    workspaceDir,
+    "missing-codegen-module.mjs",
+  );
+  const result = runValidatorJson({ workspaceDir, env });
+  if (result.status === 0) {
+    throw new Error(
+      "Expected missing-shared-codegen validation fixture to fail.",
+    );
+  }
+  const parsed = parseValidationJson(result);
+  assertIssueCode(
+    parsed,
+    "invalid_contract_manifest",
+    result,
+    "missing-shared-codegen validation",
+  );
+  const manifestIssue = parsed.issues.find(
+    (issue) => issue.code === "invalid_contract_manifest",
+  );
+  if (
+    !manifestIssue ||
+    !String(manifestIssue.message || "").includes(
+      "could not load react-semaphor/data-app-codegen",
+    )
+  ) {
+    throw new Error(
+      `Expected missing-shared-codegen validation to preserve structured load failure:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
 }
 
 function runFilterEffectValidationFixture() {
