@@ -59,7 +59,7 @@ try {
   await runLiveGeneratedViewsRequestShapeValidationFixture();
   runLiveGeneratedViewsMissingTokenValidationFixture();
   runLiveGeneratedViewsFetchFailureValidationFixture();
-  runContractUpdatePolicyFixture();
+  await runContractUpdatePolicyFixture();
   console.log("Semaphor generator fixture tests passed.");
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -3625,7 +3625,7 @@ function runVerboseSuccessfulBuildValidationFixture() {
   }
 }
 
-function runContractUpdatePolicyFixture() {
+async function runContractUpdatePolicyFixture() {
   const beforeSummary = updatePolicySummaryFixture();
   const afterWarningFixSummary = updatePolicySummaryFixture();
   afterWarningFixSummary.views[0].fields = [
@@ -3639,7 +3639,7 @@ function runContractUpdatePolicyFixture() {
     },
   };
 
-  const narrowWarningFix = evaluateContractUpdatePolicy({
+  const narrowWarningFix = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: afterWarningFixSummary,
     operationIntent: {
@@ -3662,7 +3662,7 @@ function runContractUpdatePolicyFixture() {
     );
   }
 
-  const missingTargets = evaluateContractUpdatePolicy({
+  const missingTargets = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: afterWarningFixSummary,
     operationIntent: {
@@ -3684,17 +3684,23 @@ function runContractUpdatePolicyFixture() {
     );
   }
 
-  const hiddenChecklistChange = updatePolicySummaryFixture();
-  hiddenChecklistChange.views[0].fields =
+  const regeneratedBookkeepingChange = updatePolicySummaryFixture();
+  regeneratedBookkeepingChange.views[0].fields =
     afterWarningFixSummary.views[0].fields;
-  hiddenChecklistChange.views[0].sdkSpec =
+  regeneratedBookkeepingChange.views[0].sdkSpec =
     afterWarningFixSummary.views[0].sdkSpec;
-  hiddenChecklistChange.implementationChecklist.validationCommands = [
-    "npm run something-else",
+  regeneratedBookkeepingChange.implementationChecklist.validationCommands = [
+    "npm run current-validator",
   ];
-  const hiddenSummaryChange = evaluateContractUpdatePolicy({
+  regeneratedBookkeepingChange.assumptions = [
+    "Planner refreshed generated-summary assumptions after the targeted update.",
+  ];
+  regeneratedBookkeepingChange.nextStep = "build";
+  regeneratedBookkeepingChange.validation = { status: "ready" };
+  regeneratedBookkeepingChange.unsupportedInsights = [];
+  const regeneratedBookkeepingResult = await evaluateContractUpdatePolicy({
     beforeSummary,
-    afterSummary: hiddenChecklistChange,
+    afterSummary: regeneratedBookkeepingChange,
     operationIntent: {
       kind: "fix_warnings",
       targetViewIds: ["sales_kpi"],
@@ -3709,13 +3715,42 @@ function runContractUpdatePolicyFixture() {
       filterContracts: { added: [], removed: [], changed: [] },
     },
   });
-  if (hiddenSummaryChange.ok) {
+  if (!regeneratedBookkeepingResult.ok) {
     throw new Error(
-      "Expected diagnostic warning fix to reject hidden summary changes.",
+      `Expected targeted update policy to allow regenerated summary bookkeeping: ${JSON.stringify(regeneratedBookkeepingResult)}`,
     );
   }
 
-  const unrelatedFilterChange = evaluateContractUpdatePolicy({
+  const hiddenSummaryChange = updatePolicySummaryFixture();
+  hiddenSummaryChange.views[0].fields =
+    afterWarningFixSummary.views[0].fields;
+  hiddenSummaryChange.views[0].sdkSpec =
+    afterWarningFixSummary.views[0].sdkSpec;
+  hiddenSummaryChange.title = "Hidden Summary Title Change";
+  const hiddenSummaryChangeResult = await evaluateContractUpdatePolicy({
+    beforeSummary,
+    afterSummary: hiddenSummaryChange,
+    operationIntent: {
+      kind: "fix_warnings",
+      targetViewIds: ["sales_kpi"],
+    },
+    migrationReport: {
+      views: {
+        added: [],
+        removed: [],
+        changed: [{ id: "sales_kpi", reasons: ["fields", "sdkSpec"] }],
+      },
+      inputs: { added: [], removed: [], changed: [] },
+      filterContracts: { added: [], removed: [], changed: [] },
+    },
+  });
+  if (hiddenSummaryChangeResult.ok) {
+    throw new Error(
+      "Expected diagnostic warning fix to reject hidden structural summary changes.",
+    );
+  }
+
+  const unrelatedFilterChange = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: afterWarningFixSummary,
     operationIntent: {
@@ -3746,7 +3781,7 @@ function runContractUpdatePolicyFixture() {
     );
   }
 
-  const explicitGeneralEdit = evaluateContractUpdatePolicy({
+  const explicitGeneralEdit = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: {
       ...beforeSummary,
@@ -3773,7 +3808,7 @@ function runContractUpdatePolicyFixture() {
     );
   }
 
-  const aggregateOverrideEdit = evaluateContractUpdatePolicy({
+  const aggregateOverrideEdit = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: afterWarningFixSummary,
     operationIntent: {
@@ -3799,7 +3834,7 @@ function runContractUpdatePolicyFixture() {
     );
   }
 
-  const broadenedAggregateOverrideEdit = evaluateContractUpdatePolicy({
+  const broadenedAggregateOverrideEdit = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: {
       ...afterWarningFixSummary,
@@ -3835,7 +3870,7 @@ function runContractUpdatePolicyFixture() {
     );
   }
 
-  const preferenceAggregateOverrideEdit = evaluateContractUpdatePolicy({
+  const preferenceAggregateOverrideEdit = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: afterWarningFixSummary,
     operationIntent: {
@@ -3871,7 +3906,7 @@ function runContractUpdatePolicyFixture() {
     );
   }
 
-  const emptyOperationIntentAggregateOverrideEdit = evaluateContractUpdatePolicy({
+  const emptyOperationIntentAggregateOverrideEdit = await evaluateContractUpdatePolicy({
     beforeSummary,
     afterSummary: afterWarningFixSummary,
     operationIntent: {

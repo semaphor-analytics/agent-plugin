@@ -432,6 +432,10 @@ function validateMcpBridge() {
     root,
     "scripts/data-app-codegen-summary-validation.mjs",
   );
+  const updatePolicyPath = path.join(
+    root,
+    "scripts/data-app-contract-update-policy.mjs",
+  );
   if (fs.existsSync(generatorPath)) {
     const generatorText = fs.readFileSync(generatorPath, "utf8");
     if (!generatorText.includes("contract.manifest.json")) {
@@ -501,6 +505,28 @@ function validateMcpBridge() {
       if (summaryValidationText.includes(forbidden)) {
         issues.push(
           `scripts/data-app-codegen-summary-validation.mjs: must not contain duplicated SDK/codegen validation logic (${forbidden})`,
+        );
+      }
+    }
+  }
+  if (fs.existsSync(updatePolicyPath)) {
+    const updatePolicyText = fs.readFileSync(updatePolicyPath, "utf8");
+    if (!updatePolicyText.includes("evaluateSemaphorDataAppContractUpdatePolicy")) {
+      issues.push(
+        "scripts/data-app-contract-update-policy.mjs: must delegate deterministic update policy to react-semaphor/data-app-codegen",
+      );
+    }
+    for (const forbidden of [
+      "DIAGNOSTIC_FIX_KINDS",
+      "WARNING_FIX_VIEW_REASONS",
+      "invalid_update_preferences",
+      "metric_aggregate_override_edit",
+      "general_iterative_update",
+      "function canonicalJson",
+    ]) {
+      if (updatePolicyText.includes(forbidden)) {
+        issues.push(
+          `scripts/data-app-contract-update-policy.mjs: must not contain duplicated update policy logic (${forbidden})`,
         );
       }
     }

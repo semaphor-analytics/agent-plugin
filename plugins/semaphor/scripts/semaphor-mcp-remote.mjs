@@ -1449,12 +1449,14 @@ async function updateLocalDataAppContract(message) {
     after: codegenSummary,
     changePlan,
   });
-  const updatePolicy = evaluateContractUpdatePolicy({
+  const updatePolicy = await evaluateContractUpdatePolicy({
     beforeSummary: currentSummary,
     afterSummary: codegenSummary,
     migrationReport,
     operationIntent: changeArguments.operationIntent,
     preferences: changeArguments.preferences,
+  }, {
+    workspaceDir,
   });
   if (!updatePolicy.ok) {
     const text = [
