@@ -482,6 +482,11 @@ function validateMcpBridge() {
         "scripts/data-app-codegen-summary-validation.mjs: must resolve react-semaphor/data-app-codegen/node lazily inside validation calls, not at module load",
       );
     }
+    if (!summaryValidationText.includes("validateSemaphorGeneratedContract")) {
+      issues.push(
+        "scripts/data-app-codegen-summary-validation.mjs: must expose shared generated contract validation from react-semaphor/data-app-codegen",
+      );
+    }
     for (const forbidden of [
       "CODEGEN_SDK_BUILDERS",
       "CODEGEN_METRIC_SPEC_KEYS",
@@ -511,14 +516,9 @@ function validateMcpBridge() {
         "scripts/validate-semaphor-data-app.mjs: validator must require contract.manifest.json",
       );
     }
-    if (!validatorText.includes("generatedContentHash")) {
+    if (!validatorText.includes("validateGeneratedContract")) {
       issues.push(
-        "scripts/validate-semaphor-data-app.mjs: validator must verify generatedContentHash to catch generated-contract drift",
-      );
-    }
-    if (!validatorText.includes("codegenSummaryHash")) {
-      issues.push(
-        "scripts/validate-semaphor-data-app.mjs: validator must verify codegenSummaryHash to catch manifest payload drift",
+        "scripts/validate-semaphor-data-app.mjs: validator must delegate generated contract validation to react-semaphor/data-app-codegen",
       );
     }
     if (!validatorText.includes("validateFilterEffectReport")) {

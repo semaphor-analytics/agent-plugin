@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
-  CODEGEN_SUMMARY_VALIDATOR_VERSION,
-  validateCodegenSummary,
+  buildGeneratedActiveInput,
+  buildGeneratedInputOptionIntent,
+  buildGeneratedViewExecutionRequest,
+  buildGeneratedViewExecutionRequests,
+  validateGeneratedContract,
 } from "./data-app-codegen-summary-validation.mjs";
 
 const GENERATED_CONTRACT_DIR = path.join("src", "semaphor", "generated");
-const CONTRACT_MANIFEST_SCHEMA_VERSION =
-  "semaphor-generated-data-app-contract-manifest/v1";
 const REQUIRED_GENERATED_FILES = [
   "sources.ts",
   "fields.ts",
@@ -524,52 +524,39 @@ async function scanGeneratedContract(root, generatedDir) {
 }
 
 async function validateGeneratedContractManifest(root, generatedDir) {
-  const issues = [];
   const manifestPath = path.join(generatedDir, "contract.manifest.json");
   if (!fs.existsSync(manifestPath)) {
-    return issues;
+    return [];
   }
   const manifestRead = readGeneratedContractManifest(root, manifestPath);
   if (manifestRead.issues.length > 0) {
     return manifestRead.issues;
   }
-  const manifest = manifestRead.manifest;
-  if (manifest?.schemaVersion !== CONTRACT_MANIFEST_SCHEMA_VERSION) {
-    issues.push(
-      issue(
-        "invalid_contract_manifest",
-        `${formatLocation(root, manifestPath)}: schemaVersion must be ${CONTRACT_MANIFEST_SCHEMA_VERSION}. Regenerate the contract with semaphor_create_data_app_contract.`,
-        {
-          filePath: formatLocation(root, manifestPath),
-          path: "schemaVersion",
-          repairHint:
-            "Regenerate the contract with semaphor_create_data_app_contract.",
-        },
-      ),
-    );
-  }
   try {
-    for (const issue of await validateCodegenSummary(manifest?.codegenSummary, {
+    const result = await validateGeneratedContract({
+      manifest: manifestRead.manifest,
+      generatedFiles: readGeneratedContractFiles(generatedDir),
+    }, {
       workspaceDir: root,
-    })) {
-      issues.push(
-        diagnostic({
-          code: "invalid_contract_manifest",
-          severity: "error",
-          message: `${formatLocation(root, manifestPath)}: codegenSummary.${issue}`,
-          filePath: formatLocation(root, manifestPath),
-          path: `codegenSummary.${issue}`,
-          repairHint:
-            "Regenerate the generated contract from a valid Data App codegenSummary.",
-        }),
-      );
-    }
-  } catch (error) {
-    issues.push(
+    });
+    return (result.issues || []).map((validationIssue) =>
       diagnostic({
         code: "invalid_contract_manifest",
         severity: "error",
-        message: `${formatLocation(root, manifestPath)}: could not load react-semaphor/data-app-codegen/node to validate codegenSummary.`,
+        message: `${formatLocation(root, manifestPath)}: ${validationIssue.message}`,
+        filePath: formatLocation(root, manifestPath),
+        path: validationIssue.path,
+        repairHint:
+          validationIssue.repairHint ||
+          "Regenerate the generated contract from a valid Data App codegenSummary.",
+      }),
+    );
+  } catch (error) {
+    return [
+      diagnostic({
+        code: "invalid_contract_manifest",
+        severity: "error",
+        message: `${formatLocation(root, manifestPath)}: could not load react-semaphor/data-app-codegen/node to validate generated contract manifest.`,
         filePath: formatLocation(root, manifestPath),
         path: "codegenSummary",
         repairHint:
@@ -578,137 +565,8 @@ async function validateGeneratedContractManifest(root, generatedDir) {
           error: error instanceof Error ? error.message : String(error),
         },
       }),
-    );
+    ];
   }
-  if (
-    manifest?.codegenSummaryValidatorVersion !==
-    CODEGEN_SUMMARY_VALIDATOR_VERSION
-  ) {
-    issues.push(
-      issue(
-        "invalid_contract_manifest",
-        `${formatLocation(root, manifestPath)}: codegenSummaryValidatorVersion must be ${CODEGEN_SUMMARY_VALIDATOR_VERSION}. Regenerate the contract with semaphor_generate_data_app_contract.`,
-        {
-          filePath: formatLocation(root, manifestPath),
-          path: "codegenSummaryValidatorVersion",
-          repairHint:
-            "Regenerate the contract with semaphor_generate_data_app_contract.",
-        },
-      ),
-    );
-  }
-  if (typeof manifest?.codegenSummaryHash !== "string") {
-    issues.push(
-      issue(
-        "invalid_contract_manifest",
-        `${formatLocation(root, manifestPath)}: codegenSummaryHash is required.`,
-        {
-          filePath: formatLocation(root, manifestPath),
-          path: "codegenSummaryHash",
-          repairHint:
-            "Regenerate the generated contract so manifest hashes are written deterministically.",
-        },
-      ),
-    );
-  } else if (
-    manifest?.codegenSummary &&
-    typeof manifest.codegenSummary === "object"
-  ) {
-    const expectedSummaryHash = hashCanonicalJson(manifest.codegenSummary);
-    if (manifest.codegenSummaryHash !== expectedSummaryHash) {
-      issues.push(
-        issue(
-          "invalid_contract_manifest",
-          `${formatLocation(root, manifestPath)}: codegenSummaryHash does not match codegenSummary. Regenerate the contract instead of editing the manifest.`,
-          {
-            filePath: formatLocation(root, manifestPath),
-            path: "codegenSummaryHash",
-            repairHint:
-              "Regenerate the generated contract instead of editing the manifest.",
-          },
-        ),
-      );
-    }
-  }
-  const inputIds = new Set(
-    (manifest?.codegenSummary?.inputs || [])
-      .map((input) => input?.id)
-      .filter((id) => typeof id === "string" && id.length > 0),
-  );
-  const viewIds = new Set(
-    (manifest?.codegenSummary?.views || [])
-      .map((view) => view?.id)
-      .filter((id) => typeof id === "string" && id.length > 0),
-  );
-  for (const [index, filterContract] of (
-    manifest?.codegenSummary?.filterContracts || []
-  ).entries()) {
-    if (!filterContract?.inputId || !inputIds.has(filterContract.inputId)) {
-      issues.push(
-        issue(
-          "invalid_contract_manifest",
-          `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.inputId must reference a generated input.`,
-          {
-            filePath: formatLocation(root, manifestPath),
-            path: `codegenSummary.filterContracts.${index}.inputId`,
-            repairHint:
-              "Regenerate the generated contract from a valid planner output.",
-          },
-        ),
-      );
-    }
-    if (!Array.isArray(filterContract?.bindings)) {
-      continue;
-    }
-    for (const [bindingIndex, binding] of (
-      filterContract?.bindings || []
-    ).entries()) {
-      if (!binding?.viewId || !viewIds.has(binding.viewId)) {
-        issues.push(
-          issue(
-            "invalid_contract_manifest",
-            `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.viewId must reference a generated view.`,
-            {
-              filePath: formatLocation(root, manifestPath),
-              path: `codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.viewId`,
-              repairHint:
-                "Regenerate the generated contract from a valid planner output.",
-            },
-          ),
-        );
-      }
-      if (!binding?.fieldRef?.name) {
-        issues.push(
-          issue(
-            "invalid_contract_manifest",
-            `${formatLocation(root, manifestPath)}: codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.fieldRef is required.`,
-            {
-              filePath: formatLocation(root, manifestPath),
-              path: `codegenSummary.filterContracts.${index}.bindings.${bindingIndex}.fieldRef`,
-              repairHint:
-                "Regenerate the generated contract from a valid planner output.",
-            },
-          ),
-        );
-      }
-    }
-  }
-  const expectedHash = hashGeneratedFiles(generatedDir);
-  if (manifest?.generatedContentHash !== expectedHash) {
-    issues.push(
-      issue(
-        "invalid_contract_manifest",
-        `${formatLocation(root, manifestPath)}: generatedContentHash does not match generated TypeScript files. Regenerate the contract instead of hand-editing generated files.`,
-        {
-          filePath: formatLocation(root, manifestPath),
-          path: "generatedContentHash",
-          repairHint:
-            "Regenerate the contract instead of hand-editing generated files.",
-        },
-      ),
-    );
-  }
-  return issues;
 }
 
 function readGeneratedContractManifest(root, manifestPath) {
@@ -732,26 +590,16 @@ function readGeneratedContractManifest(root, manifestPath) {
   }
 }
 
-function hashGeneratedFiles(generatedDir) {
-  const hash = crypto.createHash("sha256");
-  const fileNames = REQUIRED_GENERATED_FILES.filter((fileName) =>
-    fileName.endsWith(".ts"),
-  ).sort();
-  for (const fileName of fileNames) {
-    const filePath = path.join(generatedDir, fileName);
-    if (!fs.existsSync(filePath)) {
-      continue;
-    }
-    hash.update(fileName);
-    hash.update("\0");
-    hash.update(fs.readFileSync(filePath, "utf8"));
-    hash.update("\0");
-  }
-  return `sha256:${hash.digest("hex")}`;
-}
-
-function hashCanonicalJson(value) {
-  return `sha256:${crypto.createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+function readGeneratedContractFiles(generatedDir) {
+  return Object.fromEntries(
+    REQUIRED_GENERATED_FILES
+      .filter((fileName) => fileName.endsWith(".ts"))
+      .filter((fileName) => fs.existsSync(path.join(generatedDir, fileName)))
+      .map((fileName) => [
+        fileName,
+        fs.readFileSync(path.join(generatedDir, fileName), "utf8"),
+      ]),
+  );
 }
 
 function canonicalJson(value) {
@@ -1436,7 +1284,6 @@ function liveGeneratedViewIssue(message, details = {}) {
 
 function resolveLiveDataAppExecutionContext({
   root,
-  summary,
   issueFactory,
   missingTokenMessage,
   missingExecuteUrlMessage,
@@ -1476,11 +1323,6 @@ function resolveLiveDataAppExecutionContext({
     context: {
       executeUrl,
       token,
-      sourcesByKey: new Map(
-        (summary.sources || [])
-          .filter((source) => typeof source?.sourceKey === "string")
-          .map((source) => [source.sourceKey, stripSourceKey(source)]),
-      ),
     },
   };
 }
@@ -1513,10 +1355,30 @@ async function validateLiveGeneratedViews({ root }) {
     return { issues: manifestRead.issues, advisories: [] };
   }
   const summary = manifestRead.manifest.codegenSummary || {};
-  const executableViews = (summary.views || []).filter(
-    (view) => view?.sdkSpec?.builder && view?.sdkSpec?.spec,
-  );
-  if (executableViews.length === 0) {
+  let requestResult;
+  try {
+    requestResult = await buildGeneratedViewExecutionRequests(summary, {
+      workspaceDir: root,
+    });
+  } catch (error) {
+    return {
+      issues: [
+        liveGeneratedViewIssue(
+          "Live generated view execution validation could not load shared SDK request shaping.",
+          {
+            path: "codegenSummary.views",
+            repairHint:
+              "Install or link a react-semaphor version that exposes generated-view request shaping, then rerun validation.",
+            details: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          },
+        ),
+      ],
+      advisories: [],
+    };
+  }
+  if (requestResult.requests.length === 0 && requestResult.issues.length === 0) {
     return {
       issues: [],
       advisories: [
@@ -1530,7 +1392,6 @@ async function validateLiveGeneratedViews({ root }) {
 
   const setup = resolveLiveDataAppExecutionContext({
     root,
-    summary,
     issueFactory: liveGeneratedViewIssue,
     missingTokenMessage:
       "Live generated view execution validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
@@ -1542,25 +1403,16 @@ async function validateLiveGeneratedViews({ root }) {
   }
 
   const { context } = setup;
-  const issues = [];
+  const issues = requestResult.issues.map((requestIssue) =>
+    liveGeneratedViewIssue(requestIssue.message, {
+      path: requestIssue.path,
+      repairHint:
+        "Regenerate the Data App contract so each executable view has a valid SDK spec.",
+      details: requestIssue.viewId ? { viewId: requestIssue.viewId } : undefined,
+    }),
+  );
   const advisories = [];
-  for (const [index, view] of executableViews.entries()) {
-    const viewId = view.id || `view_${index}`;
-    const viewRequest = buildViewExecutionRequest(view, context);
-    if (!viewRequest) {
-      issues.push(
-        liveGeneratedViewIssue(
-          `Generated view execution validation could not build intent for "${viewId}".`,
-          {
-            path: `views.${viewId}.sdkSpec`,
-            repairHint:
-              "Regenerate the Data App contract so each executable view has a valid SDK spec.",
-          },
-        ),
-      );
-      continue;
-    }
-
+  for (const viewRequest of requestResult.requests) {
     const result = await executeDataAppIntent({
       context,
       ...viewRequest,
@@ -1569,11 +1421,11 @@ async function validateLiveGeneratedViews({ root }) {
     if (!result.ok) {
       issues.push(
         liveGeneratedViewIssue(
-          `Generated view execution failed for "${viewId}"${formatExecutionFailureClassification(result.error)}: ${result.error}`,
+          `Generated view execution failed for "${viewRequest.viewId}"${formatExecutionFailureClassification(result.error)}: ${result.error}`,
           {
-            path: `views.${viewId}.sdkSpec`,
+            path: `views.${viewRequest.viewId}.sdkSpec`,
             details: {
-              viewId,
+              viewId: viewRequest.viewId,
               status: result.status,
               error: String(result.error || ""),
             },
@@ -1587,7 +1439,7 @@ async function validateLiveGeneratedViews({ root }) {
     advisories.push(
       advisory(
         "live_generated_views_passed",
-        `Live generated view execution validation passed against ${context.executeUrl} for ${executableViews.length} executable view(s).`,
+        `Live generated view execution validation passed against ${context.executeUrl} for ${requestResult.requests.length} executable view(s).`,
       ),
     );
   }
@@ -1638,7 +1490,6 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
 
   const setup = resolveLiveDataAppExecutionContext({
     root,
-    summary,
     issueFactory: liveFilterEffectIssue,
     missingTokenMessage:
       "Live filter-effect validation requires VITE_SEMAPHOR_PROJECT_TOKEN or SEMAPHOR_PROJECT_TOKEN in the environment or the app's .env.local.",
@@ -1663,7 +1514,30 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
     if (!input || appliesToViewIds.length === 0) {
       continue;
     }
-    const optionIntent = buildInputOptionIntent(input, filterContract, context);
+    let optionIntent;
+    try {
+      optionIntent = await buildGeneratedInputOptionIntent(
+        input,
+        filterContract,
+        summary,
+        { workspaceDir: root },
+      );
+    } catch (error) {
+      issues.push(
+        liveFilterEffectIssue(
+          `Live filter-effect validation could not load shared option-query request shaping for "${filterContract.inputId}".`,
+          {
+            path: `filterContracts.${filterContract.inputId}`,
+            repairHint:
+              "Install or link a react-semaphor version that exposes generated option-query request shaping, then rerun validation.",
+            details: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          },
+        ),
+      );
+      continue;
+    }
     if (!optionIntent) {
       issues.push(
         liveFilterEffectIssue(
@@ -1724,7 +1598,19 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
       const view = (summary.views || []).find(
         (candidate) => candidate?.id === binding.viewId,
       );
-      const viewRequest = buildViewExecutionRequest(view, context);
+      let viewRequest;
+      try {
+        viewRequest = await buildGeneratedViewExecutionRequest(
+          view,
+          summary,
+          { workspaceDir: root },
+        );
+      } catch (error) {
+        errors.push(
+          `${binding.viewId} request shaping failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        continue;
+      }
       if (!viewRequest) {
         continue;
       }
@@ -1743,18 +1629,25 @@ async function validateLiveFilterEffects({ root, sampleCount }) {
       const baselineSummary = summarizeResultData(baseline.data);
 
       for (const option of options) {
+        let activeInput;
+        try {
+          activeInput = await buildGeneratedActiveInput({
+            input,
+            filterContract,
+            binding,
+            option,
+            codegenSummary: summary,
+          }, { workspaceDir: root });
+        } catch (error) {
+          errors.push(
+            `${binding.viewId} active input shaping failed for ${filterContract.inputId}=${String(option.value)}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          continue;
+        }
         const filtered = await executeDataAppIntent({
           context,
           ...viewRequest,
-          activeInputs: [
-            buildActiveInput({
-              input,
-              filterContract,
-              binding,
-              option,
-              context,
-            }),
-          ],
+          activeInputs: [activeInput],
         });
         if (!filtered.ok) {
           errors.push(
@@ -1938,159 +1831,6 @@ function decodeJwtPayload(token) {
   } catch {
     return {};
   }
-}
-
-function stripSourceKey(source) {
-  if (!source || typeof source !== "object") {
-    return source;
-  }
-  const { sourceKey: _sourceKey, ...rest } = source;
-  return rest;
-}
-
-function expandGeneratedRefs(value, context) {
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => expandGeneratedRefs(item, context));
-  }
-  if (
-    typeof value.sourceKey === "string" &&
-    typeof value.kind === "string" &&
-    (typeof value.datasetName === "string" ||
-      typeof value.datasetId === "string")
-  ) {
-    return stripSourceKey(value);
-  }
-  const expanded = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (key !== "sourceKey") {
-      expanded[key] = expandGeneratedRefs(item, context);
-    }
-  }
-  if (typeof value.sourceKey === "string") {
-    const source = context.sourcesByKey.get(value.sourceKey);
-    if (source && !expanded.source) {
-      expanded.source = source;
-    }
-  }
-  return expanded;
-}
-
-function buildInputOptionIntent(input, filterContract, context) {
-  const optionQuery = input.optionQuery || filterContract.optionQuery;
-  if (!optionQuery) {
-    return null;
-  }
-  const expanded = expandGeneratedRefs(optionQuery, context);
-  const source = expanded.source || optionQuery.source;
-  const valueField = expanded.valueFieldRef || expanded.valueField;
-  const labelField = expanded.labelFieldRef || expanded.labelField;
-  if (!source || !valueField || !labelField) {
-    return null;
-  }
-  return {
-    version: 1,
-    kind: "inputOptions",
-    id: optionQuery.id || `${input.id}-options`,
-    inputId: input.id,
-    source: stripSourceKey(source),
-    valueField,
-    labelField,
-    ...(expanded.population ? { population: expanded.population } : {}),
-    ...(expanded.dependencies ? { dependencies: expanded.dependencies } : {}),
-    limit: optionQuery.limit || optionQuery.spec?.limit || 100,
-  };
-}
-
-function buildViewExecutionRequest(view, context) {
-  if (!view?.sdkSpec?.builder || !view?.sdkSpec?.spec) {
-    return null;
-  }
-  const kind = String(view.sdkSpec.builder).replace("semaphor.", "");
-  if (!["metric", "records", "analysis", "matrix", "sql"].includes(kind)) {
-    return null;
-  }
-  const spec = expandGeneratedRefs(view.sdkSpec.spec, context);
-  if (kind === "analysis") {
-    const {
-      chartTitle,
-      chartType,
-      driverMode,
-      includePopulation,
-      calendarContext,
-      ...intentSpec
-    } = spec;
-    const analysisOptions = {
-      ...(typeof chartTitle === "string" ? { chartTitle } : {}),
-      ...(typeof chartType === "string" ? { chartType } : {}),
-      ...(typeof driverMode === "string" ? { driverMode } : {}),
-      ...(typeof includePopulation === "boolean" ? { includePopulation } : {}),
-      ...(calendarContext && typeof calendarContext === "object"
-        ? { calendarContext }
-        : {}),
-    };
-    return {
-      intent: {
-        version: 1,
-        ...intentSpec,
-        kind: "metric",
-        id: view.id,
-        label: view.visualSpec?.title || view.title || spec.label,
-      },
-      resultShape: "analysis",
-      analysisOptions,
-    };
-  }
-  return {
-    intent: {
-      version: 1,
-      ...spec,
-      kind,
-      id: view.id,
-      label: view.visualSpec?.title || view.title || spec.label,
-    },
-    resultShape: kind,
-  };
-}
-
-function buildActiveInput({ input, filterContract, binding, option, context }) {
-  const field = expandGeneratedRefs(
-    binding.fieldRef || filterContract.fieldRef || input.fieldRef,
-    context,
-  );
-  const operator = filterContract.operator || input.operator || "in";
-  const relationshipHint = relationshipHintForBinding(binding);
-  return {
-    inputId: filterContract.inputId || input.id,
-    kind: "filter",
-    operator,
-    value: activeInputValueForOperator(operator, option.value),
-    isActive: true,
-    field,
-    ...(relationshipHint ? { relationshipHint } : {}),
-  };
-}
-
-function relationshipHintForBinding(binding) {
-  if (binding.relationshipHint) {
-    return binding.relationshipHint;
-  }
-  const relationshipIds = (binding.relationshipsUsed || [])
-    .map((relationship) => relationship?.id)
-    .filter((id) => typeof id === "string" && id.length > 0);
-  return relationshipIds.length > 0 ? { relationshipIds } : undefined;
-}
-
-function activeInputValueForOperator(operator, value) {
-  if (operator === "in" || operator === "not_in") {
-    return [value];
-  }
-  if (operator === "between") {
-    return Array.isArray(value) ? value : [value, value];
-  }
-  return value;
 }
 
 async function executeDataAppIntent({
