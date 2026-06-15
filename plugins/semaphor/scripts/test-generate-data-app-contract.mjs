@@ -22,6 +22,16 @@ try {
   runAggregateRecordsAccessorFixture();
   runNoFilterFixture();
   runTableBehaviorFixture();
+  runMatrixSdkTotalsFixture();
+  runServerPaginatedLocalTotalsFixture();
+  runInvalidTableTotalsFixture();
+  runHiddenSdkTableTotalsFixture();
+  runHiddenSdkTotalsWithoutTableBehaviorFixture();
+  runPresentationServerTotalsFixture();
+  runMismatchedSdkTableTotalsFixture();
+  runEquivalentTotalsSourceIdentityFixture();
+  runMalformedSdkTableTotalsFixture();
+  runSourceLessSdkTableTotalsFixture();
   runMalformedSummaryFixture();
   runUnsupportedRelationshipRepairMetadataFixture();
   runRootLevelSummaryIssuePathFixture();
@@ -283,6 +293,10 @@ function runTableBehaviorFixture() {
     salesCreatedAtField,
     campaignCreatedAtField,
   ];
+  summary.views[0].sdkSpec.spec.totals = {
+    mode: "server",
+    measures: [summary.views[0].fields[0]],
+  };
   summary.views[0].visualSpec = {
     visualType: "table",
     tableBehavior: {
@@ -304,8 +318,8 @@ function runTableBehaviorFixture() {
         resetPageOnChange: true,
       },
       totals: {
-        displayedRows: true,
-        allFilteredRows: "separate_aggregate_query_required",
+        mode: "server",
+        measures: [summary.views[0].fields[0]],
       },
       serverSideRequired: true,
     },
@@ -345,8 +359,7 @@ function runTableBehaviorFixture() {
           resetPageOnChange: true,
         },
         totals: {
-          displayedRows: false,
-          allFilteredRows: "not_needed",
+          mode: "none",
         },
         serverSideRequired: true,
       },
@@ -365,6 +378,10 @@ function runTableBehaviorFixture() {
         source: summary.sources[0],
         fields: [summary.views[0].fields[0], salesCreatedAtField],
         dateField: summary.views[0].sdkSpec.spec.dateField,
+        totals: {
+          mode: "server",
+          measures: [summary.views[0].fields[0]],
+        },
         limit: 500,
       },
     },
@@ -389,8 +406,8 @@ function runTableBehaviorFixture() {
           resetPageOnChange: true,
         },
         totals: {
-          displayedRows: true,
-          allFilteredRows: "separate_aggregate_query_required",
+          mode: "server",
+          measures: [summary.views[0].fields[0]],
         },
         serverSideRequired: true,
       },
@@ -432,8 +449,8 @@ function runTableBehaviorFixture() {
           resetPageOnChange: false,
         },
         totals: {
-          displayedRows: true,
-          allFilteredRows: "not_needed",
+          mode: "local",
+          label: "Displayed rows",
         },
         serverSideRequired: true,
       },
@@ -462,8 +479,7 @@ function runTableBehaviorFixture() {
   if (
     tableBehavior?.pagination?.readsFrom !== "result.pagination" ||
     tableBehavior?.sorting?.defaultDirection !== "desc" ||
-    tableBehavior?.totals?.allFilteredRows !==
-      "separate_aggregate_query_required"
+    tableBehavior?.totals?.mode !== "server"
   ) {
     throw new Error(
       "Generated manifest must preserve full table behavior guidance.",
@@ -471,6 +487,597 @@ function runTableBehaviorFixture() {
   }
   typecheckGeneratedFilesIfAvailable({ workspaceDir });
   assertServerTableQueryFactoryBehavior({ workspaceDir });
+}
+
+function runMatrixSdkTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "matrix-sdk-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  const source = summary.sources[0];
+  const measure = summary.views[0].fields[0];
+  const dimension = {
+    name: "region",
+    label: "Region",
+    role: "dimension",
+    dataType: "string",
+    sourceKey: source.sourceKey,
+  };
+  summary.inputs = [];
+  summary.filterContracts = [];
+  summary.views = [
+    {
+      id: "sales_matrix",
+      title: "Sales Matrix",
+      visual: "matrix",
+      queryKind: "matrix",
+      sdkBuilder: "semaphor.matrix",
+      fields: [measure, dimension],
+      sdkSpec: {
+        builder: "semaphor.matrix",
+        spec: {
+          source,
+          rows: [{ field: dimension }],
+          values: [{ field: measure, aggregate: "SUM" }],
+          totals: { rows: true },
+        },
+      },
+    },
+  ];
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `Expected matrix SDK totals fixture to pass:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runServerPaginatedLocalTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "server-paginated-local-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  summary.views[0].visual = "table";
+  summary.views[0].queryKind = "records";
+  summary.views[0].sdkBuilder = "semaphor.records";
+  summary.views[0].sdkSpec.builder = "semaphor.records";
+  delete summary.views[0].sdkSpec.spec.totals;
+  summary.views[0].visualSpec = {
+    visualType: "table",
+    tableBehavior: {
+      tableMode: "server_paginated",
+      height: {
+        maxPx: 560,
+        scroll: "both",
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: "server",
+        pageSize: 100,
+        readsFrom: "result.pagination",
+      },
+      sorting: {
+        mode: "server",
+        defaultField: "sale_date",
+        defaultDirection: "desc",
+        resetPageOnChange: true,
+      },
+      totals: {
+        mode: "local",
+        label: "Current page",
+      },
+      serverSideRequired: true,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `Expected server-paginated local totals fixture to pass:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runInvalidTableTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "invalid-table-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  summary.views[0].visual = "table";
+  summary.views[0].visualSpec = {
+    visualType: "table",
+    tableBehavior: {
+      tableMode: "server_paginated",
+      height: {
+        maxPx: 560,
+        scroll: "both",
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: "server",
+        pageSize: 100,
+        readsFrom: "result.pagination",
+      },
+      sorting: {
+        mode: "server",
+        defaultField: "sale_date",
+        defaultDirection: "desc",
+        resetPageOnChange: true,
+      },
+      totals: {
+        mode: "server",
+        measures: [summary.views[0].fields[0]],
+      },
+      serverSideRequired: true,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected invalid server totals fixture to fail.");
+  }
+  if (
+    !result.stdout.includes(
+      "sdkSpec.spec.totals.mode must be server when tableBehavior.totals.mode is server",
+    )
+  ) {
+    throw new Error(
+      `Expected invalid server totals fixture to report records-only totals guidance:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runHiddenSdkTableTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "hidden-sdk-table-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  summary.views[0].visual = "table";
+  summary.views[0].sdkSpec.spec.totals = {
+    mode: "server",
+    measures: [summary.views[0].fields[0]],
+  };
+  summary.views[0].visualSpec = {
+    visualType: "table",
+    tableBehavior: {
+      tableMode: "bounded",
+      height: {
+        maxPx: 560,
+        scroll: "both",
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: "none",
+      },
+      sorting: {
+        mode: "client_for_bounded_rows",
+      },
+      totals: {
+        mode: "none",
+      },
+      serverSideRequired: false,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected hidden SDK totals fixture to fail.");
+  }
+  if (
+    !result.stdout.includes(
+      "sdkSpec.spec.totals is only allowed when tableBehavior.totals.mode is server",
+    )
+  ) {
+    throw new Error(
+      `Expected hidden SDK totals fixture to report totals contract drift:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runHiddenSdkTotalsWithoutTableBehaviorFixture() {
+  const workspaceDir = path.join(tempRoot, "hidden-sdk-totals-without-table-behavior");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  summary.views[0].sdkSpec.spec.totals = {
+    mode: "server",
+    measures: [summary.views[0].fields[0]],
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected hidden SDK totals without table behavior fixture to fail.");
+  }
+  if (
+    !result.stdout.includes(
+      "sdkSpec.spec.totals is only allowed when tableBehavior.totals.mode is server",
+    )
+  ) {
+    throw new Error(
+      `Expected hidden SDK totals without table behavior fixture to report totals contract drift:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runPresentationServerTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "presentation-server-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  summary.views.push({
+    id: "presentation_table",
+    title: "Presentation Table",
+    visual: "table",
+    computation: { kind: "presentation_only" },
+    visualSpec: {
+      visualType: "table",
+      tableBehavior: {
+        tableMode: "server_paginated",
+        height: {
+          maxPx: 560,
+          scroll: "both",
+          stickyHeader: true,
+        },
+        pagination: {
+          mode: "server",
+          pageSize: 100,
+          readsFrom: "result.pagination",
+        },
+        sorting: {
+          mode: "server",
+          defaultField: "sale_date",
+          defaultDirection: "desc",
+          resetPageOnChange: true,
+        },
+        totals: {
+          mode: "server",
+          measures: [summary.views[0].fields[0]],
+        },
+        serverSideRequired: true,
+      },
+    },
+  });
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected presentation server totals fixture to fail.");
+  }
+  if (
+    !result.stdout.includes(
+      "visualSpec.tableBehavior.totals.mode server is only supported for semaphor.records views",
+    ) ||
+    !result.stdout.includes(
+      "sdkSpec.spec.totals.mode must be server when tableBehavior.totals.mode is server",
+    )
+  ) {
+    throw new Error(
+      `Expected presentation server totals fixture to report missing executable records totals contract:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runMismatchedSdkTableTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "mismatched-sdk-table-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  summary.views[0].visual = "table";
+  summary.views[0].sdkSpec.spec.totals = {
+    mode: "server",
+    measures: [
+      {
+        ...summary.views[0].fields[0],
+        sourceKey: "semantic:domain:inventory",
+      },
+    ],
+  };
+  summary.views[0].visualSpec = {
+    visualType: "table",
+    tableBehavior: {
+      tableMode: "server_paginated",
+      height: {
+        maxPx: 560,
+        scroll: "both",
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: "server",
+        pageSize: 100,
+        readsFrom: "result.pagination",
+      },
+      sorting: {
+        mode: "server",
+        defaultField: "sale_date",
+        defaultDirection: "desc",
+        resetPageOnChange: true,
+      },
+      totals: {
+        mode: "server",
+        measures: [summary.views[0].fields[0]],
+      },
+      serverSideRequired: true,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected mismatched SDK totals fixture to fail.");
+  }
+  if (
+    !result.stdout.includes(
+      "sdkSpec.spec.totals.measures.0 must match",
+    )
+  ) {
+    throw new Error(
+      `Expected mismatched SDK totals fixture to report totals measure drift:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runEquivalentTotalsSourceIdentityFixture() {
+  const workspaceDir = path.join(tempRoot, "equivalent-totals-source-identity");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  const sourceKeyMeasure = {
+    ...summary.views[0].fields[0],
+    sourceKey: "semantic:domain:dataset-sales",
+  };
+  const inlineSourceMeasure = {
+    name: summary.views[0].fields[0].name,
+    label: summary.views[0].fields[0].label,
+    role: summary.views[0].fields[0].role,
+    dataType: summary.views[0].fields[0].dataType,
+    aggregate: summary.views[0].fields[0].aggregate,
+    source: {
+      kind: "semantic",
+      domainId: "domain",
+      datasetId: "dataset-sales",
+      datasetName: "sales",
+    },
+  };
+  summary.views[0].visual = "table";
+  summary.views[0].queryKind = "records";
+  summary.views[0].sdkBuilder = "semaphor.records";
+  summary.views[0].sdkSpec.builder = "semaphor.records";
+  summary.views[0].sdkSpec.spec.totals = {
+    mode: "server",
+    measures: [sourceKeyMeasure],
+  };
+  summary.views[0].visualSpec = {
+    visualType: "table",
+    tableBehavior: {
+      tableMode: "server_paginated",
+      height: {
+        maxPx: 560,
+        scroll: "both",
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: "server",
+        pageSize: 100,
+        readsFrom: "result.pagination",
+      },
+      sorting: {
+        mode: "server",
+        defaultField: "sale_date",
+        defaultDirection: "desc",
+        resetPageOnChange: true,
+      },
+      totals: {
+        mode: "server",
+        measures: [inlineSourceMeasure],
+      },
+      serverSideRequired: true,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `Expected equivalent totals source identity fixture to pass:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runMalformedSdkTableTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "malformed-sdk-table-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  summary.views[0].visual = "table";
+  summary.views[0].queryKind = "records";
+  summary.views[0].sdkBuilder = "semaphor.records";
+  summary.views[0].sdkSpec.builder = "semaphor.records";
+  summary.views[0].sdkSpec.spec.totals = {
+    mode: "server",
+  };
+  summary.views[0].visualSpec = {
+    visualType: "table",
+    tableBehavior: {
+      tableMode: "server_paginated",
+      height: {
+        maxPx: 560,
+        scroll: "both",
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: "server",
+        pageSize: 100,
+        readsFrom: "result.pagination",
+      },
+      sorting: {
+        mode: "server",
+        defaultField: "sale_date",
+        defaultDirection: "desc",
+        resetPageOnChange: true,
+      },
+      totals: {
+        mode: "server",
+        measures: [summary.views[0].fields[0]],
+      },
+      serverSideRequired: true,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected malformed SDK totals fixture to fail.");
+  }
+  if (
+    !result.stdout.includes(
+      "sdkSpec.spec.totals.measures must include at least one measure",
+    ) ||
+    !result.stdout.includes("sdkSpec.spec.totals.measures must match")
+  ) {
+    throw new Error(
+      `Expected malformed SDK totals fixture to report invalid and mismatched measures:\n${result.stdout}\n${result.stderr}`,
+    );
+  }
+}
+
+function runSourceLessSdkTableTotalsFixture() {
+  const workspaceDir = path.join(tempRoot, "source-less-sdk-table-totals");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  const summary = validSummary();
+  const sourceLessMeasure = {
+    name: "sales_value",
+    label: "Sales Value",
+    role: "measure",
+    dataType: "number",
+  };
+  summary.views[0].visual = "table";
+  summary.views[0].queryKind = "records";
+  summary.views[0].sdkBuilder = "semaphor.records";
+  summary.views[0].sdkSpec.builder = "semaphor.records";
+  summary.views[0].sdkSpec.spec.totals = {
+    mode: "server",
+    measures: [sourceLessMeasure],
+  };
+  summary.views[0].visualSpec = {
+    visualType: "table",
+    tableBehavior: {
+      tableMode: "server_paginated",
+      height: {
+        maxPx: 560,
+        scroll: "both",
+        stickyHeader: true,
+      },
+      pagination: {
+        mode: "server",
+        pageSize: 100,
+        readsFrom: "result.pagination",
+      },
+      sorting: {
+        mode: "server",
+        defaultField: "sale_date",
+        defaultDirection: "desc",
+        resetPageOnChange: true,
+      },
+      totals: {
+        mode: "server",
+        measures: [sourceLessMeasure],
+      },
+      serverSideRequired: true,
+    },
+  };
+  const summaryPath = path.join(workspaceDir, "codegen-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+
+  const result = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (result.status === 0) {
+    throw new Error("Expected source-less SDK totals fixture to fail.");
+  }
+  for (const expected of [
+    "sdkSpec.spec.totals.measures.0 must include source or sourceKey",
+    "visualSpec.tableBehavior.totals.measures.0 must include source or sourceKey",
+  ]) {
+    if (!result.stdout.includes(expected)) {
+      throw new Error(
+        `Expected source-less SDK totals fixture to report ${expected}:\n${result.stdout}\n${result.stderr}`,
+      );
+    }
+  }
 }
 
 function runMalformedSummaryFixture() {

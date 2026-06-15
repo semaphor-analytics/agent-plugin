@@ -68,6 +68,7 @@ const CODEGEN_RECORDS_SPEC_KEYS = new Set([
   'relationshipHint',
   'limit',
   'pagination',
+  'totals',
   'derivedFields',
 ]);
 
@@ -351,6 +352,7 @@ function validateView(value, path) {
     issues.push(...validateComputation(view.computation, `${path}.computation`));
   }
   if (isPresentationCodegenView(view)) {
+    issues.push(...validateTableTotalsContract(view, path));
     if (view.fields !== undefined) {
       if (!Array.isArray(view.fields)) {
         issues.push(`${path}.fields must be an array.`);
@@ -376,6 +378,7 @@ function validateView(value, path) {
     if (view.sdkSpec !== undefined || view.sdkBuilder !== undefined) {
       issues.push(`${path}.fields must be an array for executable views.`);
     }
+    issues.push(...validateTableTotalsContract(view, path));
     return issues;
   }
   view.fields.forEach((field, index) => {
@@ -402,7 +405,233 @@ function validateView(value, path) {
     queryKind: typeof view.queryKind === 'string' ? view.queryKind : undefined,
     sdkBuilder: typeof view.sdkBuilder === 'string' ? view.sdkBuilder : undefined,
   }));
+  issues.push(...validateTableTotalsContract(view, path));
   return issues;
+}
+
+function validateTableTotalsContract(view, path) {
+  const tableBehavior = asRecord(asRecord(view.visualSpec)?.tableBehavior);
+  const sdkSpec = asRecord(view.sdkSpec);
+  const spec = asRecord(sdkSpec?.spec);
+  const builder = typeof sdkSpec?.builder === 'string' ? sdkSpec.builder : undefined;
+  const recordsSpecTotals =
+    builder === 'semaphor.records' ? asRecord(spec?.totals) : undefined;
+  const issues = [];
+
+  if (!tableBehavior) {
+    if (recordsSpecTotals) {
+      issues.push(
+        `${path}.sdkSpec.spec.totals is only allowed when tableBehavior.totals.mode is server.`,
+      );
+    }
+    return issues;
+  }
+
+  const totals = asRecord(tableBehavior.totals);
+  if (!totals) {
+    if (recordsSpecTotals) {
+      issues.push(
+        `${path}.sdkSpec.spec.totals is only allowed when tableBehavior.totals.mode is server.`,
+      );
+    }
+    return issues;
+  }
+
+  if (totals.mode === 'server') {
+    if (builder !== 'semaphor.records') {
+      issues.push(
+        `${path}.visualSpec.tableBehavior.totals.mode server is only supported for semaphor.records views.`,
+      );
+    }
+    if (!recordsSpecTotals || recordsSpecTotals.mode !== 'server') {
+      issues.push(
+        `${path}.sdkSpec.spec.totals.mode must be server when tableBehavior.totals.mode is server.`,
+      );
+    } else {
+      issues.push(
+        ...validateMatchingTotalsMeasures({
+          left: totals.measures,
+          right: recordsSpecTotals.measures,
+          leftPath: `${path}.visualSpec.tableBehavior.totals.measures`,
+          rightPath: `${path}.sdkSpec.spec.totals.measures`,
+        }),
+      );
+    }
+  }
+  if (totals.mode !== 'server' && recordsSpecTotals) {
+    issues.push(
+      `${path}.sdkSpec.spec.totals is only allowed when tableBehavior.totals.mode is server.`,
+    );
+  }
+
+  if (builder === 'semaphor.sql' && totals.mode !== 'none') {
+    issues.push(
+      `${path}.visualSpec.tableBehavior.totals.mode must be none for semaphor.sql views.`,
+    );
+  }
+  if (builder === 'semaphor.sql' && asRecord(spec?.totals)) {
+    issues.push(`${path}.sdkSpec.spec.totals is not supported for semaphor.sql.`);
+  }
+
+  return issues;
+}
+
+function validateMatchingTotalsMeasures({
+  left,
+  right,
+  leftPath,
+  rightPath,
+}) {
+  if (!Array.isArray(left) || !Array.isArray(right)) {
+    return [`${rightPath} must match ${leftPath}.`];
+  }
+  const issues = [];
+  if (left.length !== right.length) {
+    issues.push(`${rightPath} must match ${leftPath}.`);
+    return issues;
+  }
+  left.forEach((leftMeasure, index) => {
+    if (!totalsMeasuresMatch(asRecord(leftMeasure), asRecord(right[index]))) {
+      issues.push(`${rightPath}.${index} must match ${leftPath}.${index}.`);
+    }
+  });
+  return issues;
+}
+
+function totalsMeasuresMatch(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    left.name === right.name &&
+    (left.role || 'measure') === (right.role || 'measure') &&
+    effectiveTotalsAggregate(left) === effectiveTotalsAggregate(right) &&
+    codegenSourceIdentityMatches(left, right)
+  );
+}
+
+function effectiveTotalsAggregate(field) {
+  return typeof field.aggregate === 'string'
+    ? field.aggregate.toUpperCase()
+    : 'SUM';
+}
+
+function codegenSourceIdentityMatches(left, right) {
+  const leftKeys = codegenSourceIdentityKeys(left);
+  const rightKeys = codegenSourceIdentityKeys(right);
+  if (leftKeys.size > 0 || rightKeys.size > 0) {
+    for (const key of leftKeys) {
+      if (rightKeys.has(key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const leftSource = asRecord(left.source);
+  const rightSource = asRecord(right.source);
+  if (!leftSource || !rightSource || leftSource.kind !== rightSource.kind) {
+    return false;
+  }
+  if (leftSource.kind === 'semantic') {
+    return (
+      leftSource.domainId === rightSource.domainId &&
+      leftSource.datasetName === rightSource.datasetName &&
+      (leftSource.datasetId === undefined ||
+        rightSource.datasetId === undefined ||
+        leftSource.datasetId === rightSource.datasetId)
+    );
+  }
+  if (leftSource.kind === 'physical') {
+    return (
+      leftSource.connectionId === rightSource.connectionId &&
+      leftSource.tableName === rightSource.tableName
+    );
+  }
+  if (leftSource.kind === 'sql') {
+    return leftSource.connectionId === rightSource.connectionId;
+  }
+  return false;
+}
+
+function codegenSourceIdentityKeys(ref) {
+  const sourceKey = typeof ref.sourceKey === 'string'
+    ? ref.sourceKey.trim()
+    : '';
+  if (sourceKey) {
+    return new Set([sourceKey]);
+  }
+
+  return codegenSourceKeysFromSource(asRecord(ref.source));
+}
+
+function codegenSourceKeysFromSource(source) {
+  const keys = new Set();
+  if (!source) {
+    return keys;
+  }
+
+  const sourceKey = typeof source.sourceKey === 'string'
+    ? source.sourceKey.trim()
+    : '';
+  if (sourceKey) {
+    keys.add(sourceKey);
+  }
+
+  if (source.kind === 'semantic') {
+    const domainId = typeof source.domainId === 'string'
+      ? source.domainId
+      : '';
+    const datasetName = typeof source.datasetName === 'string'
+      ? source.datasetName
+      : '';
+    const datasetId = typeof source.datasetId === 'string'
+      ? source.datasetId
+      : '';
+    if (domainId && datasetId) {
+      keys.add(`semantic:${domainId}:datasetId:${datasetId}`);
+      keys.add(`semantic:${domainId}:${datasetId}`);
+    }
+    if (domainId && datasetName) {
+      keys.add(`semantic:${domainId}:datasetName:${datasetName}`);
+      keys.add(`semantic:${domainId}:${datasetName}`);
+    }
+  }
+
+  if (source.kind === 'physical') {
+    const connectionId = typeof source.connectionId === 'string'
+      ? source.connectionId
+      : '';
+    const tableName = typeof source.tableName === 'string'
+      ? source.tableName
+      : '';
+    const databaseName = typeof source.databaseName === 'string'
+      ? source.databaseName
+      : '';
+    const schemaName = typeof source.schemaName === 'string'
+      ? source.schemaName
+      : '';
+    if (connectionId && tableName) {
+      keys.add(
+        ['physical', connectionId, databaseName, schemaName, tableName].join(':'),
+      );
+      keys.add(`physical:${connectionId}:${tableName}`);
+    }
+  }
+
+  if (source.kind === 'sql') {
+    const connectionId = typeof source.connectionId === 'string'
+      ? source.connectionId
+      : '';
+    const dialect = typeof source.dialect === 'string' ? source.dialect : '';
+    const label = typeof source.label === 'string' ? source.label : '';
+    if (connectionId) {
+      keys.add(['sql', connectionId, dialect, label].join(':'));
+      keys.add(`sql:${connectionId}`);
+    }
+  }
+
+  return keys;
 }
 
 function validateFilterContract(value, path) {
@@ -596,6 +825,7 @@ function validateSdkSpec({ value, path, queryKind, sdkBuilder }) {
         ...validateOptionalFieldRef(spec.dateField, `${path}.spec.dateField`),
         ...validateOptionalOrderBy(spec.orderBy, `${path}.spec.orderBy`),
         ...validateOptionalFilters(spec.filters, `${path}.spec.filters`),
+        ...validateRecordsServerTotalsRequest(spec.totals, `${path}.spec.totals`),
       );
       break;
     case 'semaphor.matrix':
@@ -665,6 +895,31 @@ function validateAnalysisOptions(spec, path) {
         }
       }
     }
+  }
+  return issues;
+}
+
+function validateRecordsServerTotalsRequest(value, path) {
+  if (value === undefined) {
+    return [];
+  }
+  const totals = asRecord(value);
+  if (!totals) {
+    return [`${path} must be an object.`];
+  }
+  const issues = [];
+  if (totals.mode !== 'server') {
+    issues.push(`${path}.mode must be server.`);
+  }
+  if (!Array.isArray(totals.measures) || totals.measures.length === 0) {
+    issues.push(`${path}.measures must include at least one measure.`);
+  } else {
+    totals.measures.forEach((measure, index) => {
+      issues.push(...validateSourceBearingFieldRef(measure, `${path}.measures.${index}`));
+      if (asRecord(measure)?.role !== 'measure') {
+        issues.push(`${path}.measures.${index}.role must be measure.`);
+      }
+    });
   }
   return issues;
 }
@@ -909,6 +1164,33 @@ function validateFieldRef(value, path) {
   return issues;
 }
 
+function validateSourceBearingFieldRef(value, path) {
+  const fieldRef = asRecord(value);
+  const issues = validateFieldRef(value, path);
+  if (!fieldRef) {
+    return issues;
+  }
+
+  if (typeof fieldRef.sourceKey === 'string' && fieldRef.sourceKey.trim()) {
+    return issues;
+  }
+
+  if (fieldRef.source !== undefined) {
+    const sourceIssues = validateSource(fieldRef.source, `${path}.source`);
+    if (sourceIssues.length === 0) {
+      return issues;
+    }
+    issues.push(...sourceIssues);
+    return issues;
+  }
+
+  const missingSourceIssue = `${path} must include source or sourceKey.`;
+  if (!issues.includes(missingSourceIssue)) {
+    issues.push(missingSourceIssue);
+  }
+  return issues;
+}
+
 function validateVisualSpec(value, path) {
   const visualSpec = asRecord(value);
   if (!visualSpec) {
@@ -1049,15 +1331,46 @@ function validateTableTotals(value, path) {
     return [`${path} must be an object.`];
   }
   const issues = [];
-  if (typeof totals.displayedRows !== 'boolean') {
-    issues.push(`${path}.displayedRows must be a boolean.`);
-  }
   if (
-    totals.allFilteredRows !== 'not_needed' &&
-    totals.allFilteredRows !== 'server_provided' &&
-    totals.allFilteredRows !== 'separate_aggregate_query_required'
+    totals.mode !== 'none' &&
+    totals.mode !== 'server' &&
+    totals.mode !== 'local'
   ) {
-    issues.push(`${path}.allFilteredRows must be a supported totals mode.`);
+    issues.push(`${path}.mode must be none, server, or local.`);
+    return issues;
+  }
+  if (totals.mode === 'none') {
+    if (totals.measures !== undefined) {
+      issues.push(`${path}.measures is not allowed when mode is none.`);
+    }
+    if (totals.label !== undefined) {
+      issues.push(`${path}.label is not allowed when mode is none.`);
+    }
+    return issues;
+  }
+  if (totals.mode === 'server') {
+    if (!Array.isArray(totals.measures) || totals.measures.length === 0) {
+      issues.push(`${path}.measures must include at least one measure when mode is server.`);
+    } else {
+      totals.measures.forEach((measure, index) => {
+        issues.push(...validateSourceBearingFieldRef(measure, `${path}.measures.${index}`));
+        if (asRecord(measure)?.role !== 'measure') {
+          issues.push(`${path}.measures.${index}.role must be measure.`);
+        }
+      });
+    }
+    if (totals.label !== undefined) {
+      issues.push(`${path}.label is not allowed when mode is server.`);
+    }
+    return issues;
+  }
+  if (totals.mode === 'local') {
+    if (totals.label !== 'Displayed rows' && totals.label !== 'Current page') {
+      issues.push(`${path}.label must be Displayed rows or Current page when mode is local.`);
+    }
+    if (totals.measures !== undefined) {
+      issues.push(`${path}.measures is not allowed when mode is local.`);
+    }
   }
   return issues;
 }
