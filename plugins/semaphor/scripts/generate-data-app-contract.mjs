@@ -1078,6 +1078,11 @@ ${fieldEntries}
   },`;
   }).join('\n');
 
+  const tableColumnEntries = contract.views.map((view) => {
+    const tableColumns = tableColumnsForView(view, contract);
+    return `  ${view.name}: ${renderPlainObject(tableColumns)},`;
+  }).join('\n');
+
   const columnKeyEntries = contract.views.map((view) => {
     const accessorFields = accessorFieldsForView(view, contract);
     const keyEntries = accessorFields.map((field) => (
@@ -1108,9 +1113,20 @@ import { fields } from "./fields";
 
 export type SemaphorGeneratedRow = Record<string, unknown>;
 export type SemaphorGeneratedColumns = readonly SemaphorResultColumn[] | null | undefined;
+export type SemaphorGeneratedTableColumn = {
+  readonly key: string;
+  readonly label: string;
+  readonly dataType?: string;
+  readonly sortable?: boolean;
+  readonly sortKey?: string;
+};
 
 export const fieldsForView = {
 ${fieldsForViewEntries}
+} as const;
+
+export const tableColumnsForView = {
+${tableColumnEntries}
 } as const;
 
 export const columnKeysForView = {
@@ -1265,6 +1281,25 @@ function sourcesReferToSameDataset(
   return false;
 }
 `;
+}
+
+function tableColumnsForView(view, contract) {
+  const accessorFields = accessorFieldsForView(view, contract);
+  const sortKeyByFieldName = new Map(
+    (isServerSortableRecordsView(view) ? sortableFieldsForView(view, contract) : [])
+      .map((field) => [field.fieldName, field.key]),
+  );
+  return accessorFields.map((field) => {
+    const fieldName = fieldNameFor(field.raw, contract);
+    const sortKey = fieldName ? sortKeyByFieldName.get(fieldName) : undefined;
+    return removeUndefined({
+      key: field.name,
+      label: field.raw.label || field.raw.name,
+      dataType: field.raw.dataType,
+      sortable: Boolean(sortKey),
+      sortKey,
+    });
+  });
 }
 
 function renderMetadata(contract) {

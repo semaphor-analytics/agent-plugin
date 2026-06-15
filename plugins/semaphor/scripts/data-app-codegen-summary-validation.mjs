@@ -1229,15 +1229,17 @@ function validateRelationshipCandidateField(value, path) {
   }
   if (
     field.role !== undefined &&
-    !['dimension', 'measure', 'date', 'id', 'unknown'].includes(String(field.role))
+    (typeof field.role !== 'string' ||
+      !['dimension', 'measure', 'date', 'id', 'unknown'].includes(field.role))
   ) {
     issues.push(`${path}.role must be dimension, measure, date, id, or unknown.`);
   }
   if (
     field.dataType !== undefined &&
-    !['string', 'number', 'boolean', 'date', 'datetime', 'unknown'].includes(
-      String(field.dataType),
-    )
+    (typeof field.dataType !== 'string' ||
+      !['string', 'number', 'boolean', 'date', 'datetime', 'unknown'].includes(
+        field.dataType,
+      ))
   ) {
     issues.push(
       `${path}.dataType must be string, number, boolean, date, datetime, or unknown.`,

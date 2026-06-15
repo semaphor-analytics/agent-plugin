@@ -818,6 +818,100 @@ function runUnsupportedRelationshipRepairMetadataFixture() {
     );
   }
 
+  const endpointContractMetadataSummary = validSummary();
+  endpointContractMetadataSummary.unsupportedInsights = [
+    {
+      ...summary.unsupportedInsights[0],
+      relationshipCandidate: {
+        source: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "sales",
+          datasetRole: "fact",
+        },
+        sourceFields: [{ name: "campaign_id" }],
+        target: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "campaigns",
+        },
+        targetFields: [{ name: "campaign_id" }],
+      },
+    },
+  ];
+  fs.writeFileSync(
+    summaryPath,
+    JSON.stringify(endpointContractMetadataSummary, null, 2),
+  );
+  const endpointContractMetadataResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (endpointContractMetadataResult.status === 0) {
+    throw new Error(
+      "Expected relationship candidate endpoint non-contract metadata to fail.",
+    );
+  }
+  if (
+    !endpointContractMetadataResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.source.datasetRole is not supported",
+    )
+  ) {
+    throw new Error(
+      `Relationship candidate endpoint non-contract metadata failed for the wrong reason:\n${endpointContractMetadataResult.stdout}\n${endpointContractMetadataResult.stderr}`,
+    );
+  }
+
+  const nonStringFieldVocabularySummary = validSummary();
+  nonStringFieldVocabularySummary.unsupportedInsights = [
+    {
+      ...summary.unsupportedInsights[0],
+      relationshipCandidate: {
+        source: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "sales",
+        },
+        sourceFields: [{
+          name: "campaign_id",
+          role: ["id"],
+          dataType: ["string"],
+        }],
+        target: {
+          kind: "semantic",
+          domainId: "domain",
+          datasetName: "campaigns",
+        },
+        targetFields: [{ name: "campaign_id" }],
+      },
+    },
+  ];
+  fs.writeFileSync(
+    summaryPath,
+    JSON.stringify(nonStringFieldVocabularySummary, null, 2),
+  );
+  const nonStringFieldVocabularyResult = runGenerator({
+    workspaceDir,
+    summaryPath,
+  });
+  if (nonStringFieldVocabularyResult.status === 0) {
+    throw new Error(
+      "Expected relationship candidate non-string field vocabulary to fail.",
+    );
+  }
+  if (
+    !nonStringFieldVocabularyResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.sourceFields.0.role must be dimension, measure, date, id, or unknown",
+    ) ||
+    !nonStringFieldVocabularyResult.stdout.includes(
+      "unsupportedInsights.0.relationshipCandidate.sourceFields.0.dataType must be string, number, boolean, date, datetime, or unknown",
+    )
+  ) {
+    throw new Error(
+      `Relationship candidate non-string field vocabulary failed for the wrong reason:\n${nonStringFieldVocabularyResult.stdout}\n${nonStringFieldVocabularyResult.stderr}`,
+    );
+  }
+
   summary.unsupportedInsights[0].reason = "missing_measure";
   summary.unsupportedInsights[0].relationshipCandidate = {
     source: {
@@ -3416,6 +3510,7 @@ function assertServerTableQueryFactoryBehavior({ workspaceDir }) {
       "export type SemaphorSourceRef = SemaphorSemanticSourceRef | SemaphorPhysicalSourceRef | SemaphorSqlSourceRef;",
       'export type SemaphorDataType = "string" | "number" | "boolean" | "date" | "datetime" | "unknown";',
       "export type SemaphorFieldRef = { name: string; source?: SemaphorSourceRef; sourceKey?: string; label?: string; role?: string; dataType?: SemaphorDataType; aggregate?: string; [key: string]: unknown };",
+      "export type SemaphorResultColumn = { key: string; name?: string; label?: string; aggregate?: string; source?: SemaphorSourceRef };",
       "type RecordsSpec = { source: SemaphorSourceRef; id?: string; label?: string; fields: SemaphorFieldRef[]; dateField?: SemaphorFieldRef; orderBy?: { field: SemaphorFieldRef; direction: 'asc' | 'desc' }; limit?: number; pagination?: unknown };",
       "type AnalysisSpec = { source: SemaphorSourceRef; id?: string; label?: string; measures: SemaphorFieldRef[]; driverMode?: string; includePopulation?: boolean };",
       "type SqlSpec = { source: SemaphorSourceRef; id?: string; label?: string; sql: string; fields?: SemaphorFieldRef[]; limit?: number; pagination?: unknown };",
@@ -3428,6 +3523,7 @@ function assertServerTableQueryFactoryBehavior({ workspaceDir }) {
   fs.writeFileSync(
     runnerPath,
     [
+      'import { tableColumnsForView } from "./src/semaphor/generated/accessors";',
       'import { queries, recordsSortFieldsForView, recordsSortOptionsForView } from "./src/semaphor/generated/queries";',
       "",
       "const defaultQuery = queries.salesKpi();",
@@ -3470,6 +3566,13 @@ function assertServerTableQueryFactoryBehavior({ workspaceDir }) {
       "if (!recordsSortOptionsForView.salesKpi.some((option) => option.key === 'campaignsCreatedAt' && option.field === recordsSortFieldsForView.salesKpi.campaignsCreatedAt)) {",
       "  throw new Error('Expected source-aware generated sort options for UI sort mapping.');",
       "}",
+      "const salesTableColumns = tableColumnsForView.salesKpi;",
+      "if (!salesTableColumns.some((column) => column.key === 'saleCreatedAt' && column.sortKey === 'salesCreatedAt' && column.sortable === true)) {",
+      "  throw new Error(`Expected sale created_at generated table column to carry salesCreatedAt sortKey, got ${JSON.stringify(salesTableColumns)}`);",
+      "}",
+      "if (!salesTableColumns.some((column) => column.key === 'campaignCreatedAt' && column.sortKey === 'campaignsCreatedAt' && column.sortable === true)) {",
+      "  throw new Error(`Expected campaign created_at generated table column to carry campaignsCreatedAt sortKey, got ${JSON.stringify(salesTableColumns)}`);",
+      "}",
       "if (campaignCreatedAtQuery.orderBy?.field !== recordsSortFieldsForView.salesKpi.campaignsCreatedAt) {",
       "  throw new Error('Expected campaign created_at sort to use the campaign source field.');",
       "}",
@@ -3490,6 +3593,9 @@ function assertServerTableQueryFactoryBehavior({ workspaceDir }) {
       "}",
       "if ('paginationOnlyRecords' in recordsSortFieldsForView || 'paginationOnlyRecords' in recordsSortOptionsForView) {",
       "  throw new Error('Expected pagination-only records table to be omitted from server sort fields/options.');",
+      "}",
+      "if (!tableColumnsForView.paginationOnlyRecords.every((column) => column.sortable === false && !('sortKey' in column))) {",
+      "  throw new Error(`Expected pagination-only generated table columns to omit server sort keys, got ${JSON.stringify(tableColumnsForView.paginationOnlyRecords)}`);",
       "}",
       "if (clientPagedRecordsQuery.pagination?.page !== 2 || clientPagedRecordsQuery.pagination?.pageSize !== 10) {",
       "  throw new Error(`Expected non-server-paginated table to preserve sdkSpec pagination, got ${JSON.stringify(clientPagedRecordsQuery.pagination)}`);",
@@ -3521,6 +3627,7 @@ function assertServerTableQueryFactoryBehavior({ workspaceDir }) {
       runnerPath,
       path.join(workspaceDir, "src/semaphor/generated/sources.ts"),
       path.join(workspaceDir, "src/semaphor/generated/fields.ts"),
+      path.join(workspaceDir, "src/semaphor/generated/accessors.ts"),
       path.join(workspaceDir, "src/semaphor/generated/queries.ts"),
     ],
     {
