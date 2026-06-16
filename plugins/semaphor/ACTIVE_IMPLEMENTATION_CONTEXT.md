@@ -12,13 +12,11 @@ Active cross-repo plan:
 
 Current phase:
 
-- MCP fallback schema ownership cleanup. Rich Semaphor MCP schemas must come
-  from live `semaphor-app` MCP `tools/list`. The plugin fallback may expose
-  only operational auth/access-context guidance plus plugin-owned local
-  workflow tools. In no-token project-token sessions, fallback `tools/list`
-  intentionally does not advertise server-owned discovery/planning tools;
-  agents must resolve auth first by passing `workspaceDir` to
-  `semaphor_get_access_context`, using hosted OAuth, or adding a project token.
+- Data App generator fixture ownership cleanup. Deep SDK/codegen behavior
+  tests live in `react-semaphor`; the Agent Plugin generator suite now covers
+  plugin-owned wrapper behavior only: shared module resolution, path safety,
+  file writes, structured JSON output, validation CLI workflow, live validation
+  transport failures, and package distribution guardrails.
 
 ## Ownership Rule
 
@@ -39,46 +37,44 @@ validator, live request shaper, or deterministic update-policy implementation.
 
 In scope:
 
-- remove server-owned semantic/data/planning MCP tools from fallback
-  `tools/list` in `scripts/semaphor-mcp-remote.mjs`;
-- delete plugin fallback schemas for relationship candidates, semantic repair
-  diagnostics, and semantic model patches;
-- keep authenticated live `tools/list` pass-through behavior unchanged;
-- keep plugin-owned local workflow tools:
-  - `semaphor_create_data_app_contract`;
-  - `semaphor_generate_data_app_contract`;
-  - `semaphor_update_data_app_contract`;
-  - `semaphor_validate_data_app_contract`;
-- add package-validation guardrails that fail if rich Semaphor MCP fallback
-  schemas reappear.
+- remove duplicated SDK/codegen behavior fixtures from
+  `scripts/test-generate-data-app-contract.mjs` when equivalent owner-layer
+  coverage exists in `react-semaphor`;
+- keep plugin wrapper fixtures for shared codegen loader resolution,
+  generated-file path safety, deterministic file writing, structured
+  generator/validator JSON, malformed manifest handling, filter-effect report
+  validation, live validation token/fetch failures, and verbose build output;
+- preserve public plugin script names, MCP tool names, JSON issue transport,
+  and generated output paths.
 
 Out of scope:
 
 - changing `react-semaphor` SDK/codegen behavior;
 - changing server-owned MCP schemas in `semaphor-app`;
 - changing generated file names, generated output directory, generated app
-  runtime imports, or generated dashboard UI;
+  runtime imports, generated contract contents, or generated dashboard UI;
 - changing `semaphor-app` planning or execution behavior.
 
 ## Review Guardrails
 
-Reviewers must evaluate this slice against MCP fallback schema ownership only.
+Reviewers must evaluate this slice against Data App generator fixture ownership
+only.
 
 Raise findings for:
 
-- plugin fallback `tools/list` advertising server-owned semantic/data/planning
-  tools such as `semaphor_propose_semantic_model_change`,
-  `semaphor_plan_data_app`, `semaphor_list_datasets`, or
-  `semaphor_get_dataset_schema`;
-- plugin bridge code containing fallback schemas for semantic relationship
-  candidates, semantic repair diagnostics, or semantic model patches;
-- authenticated live `tools/list` no longer passing server tools through;
-- missing local plugin workflow tools for generate/update/validate contract
-  workflows.
+- plugin generator/validator tests no longer covering plugin-owned wrapper
+  concerns such as path safety, shared codegen resolution, structured JSON
+  output, validation CLI failures, or live validation transport errors;
+- reintroduced plugin-side SDK builder allow-lists, source identity matching,
+  table totals semantics, generated query/accessor behavior, or update-policy
+  vocabularies;
+- removal of public plugin workflow compatibility: script names, MCP tool names,
+  generated output paths, or stable structured issue transport.
 
 Do not raise findings asking this slice to change app-side planning, governed
 execution, semantic relationship repair, hosted runtime behavior, generated UI,
-or SDK/codegen contract behavior. Those are not part of this cleanup slice.
+or SDK/codegen contract behavior. Those belong in `react-semaphor` or
+`semaphor-app`, not in this fixture cleanup.
 
 ## Hard Migration Policy
 
@@ -100,11 +96,9 @@ git diff --check
 ```
 
 The plugin wrapper tests depend on the built shared `react-semaphor` codegen
-subpaths during local monorepo tests. If `react-semaphor/src/data-app-codegen/**`
-changed, build `react-semaphor` once before running plugin wrapper tests so
-`react-semaphor/dist/data-app-codegen-node/index.js` is current. This slice does
-not normally require a `react-semaphor` build because it changes plugin wrapper
-ownership only.
+subpaths during local monorepo tests. This slice should not change
+`react-semaphor`; if it does, run the focused `react-semaphor` codegen tests and
+refresh package build output only when the local dist is stale.
 
 Also verify the packaged-startup shape when shared loader resolver behavior
 changes. The deleted wrappers must not be needed for startup:

@@ -535,6 +535,29 @@ function validateMcpBridge() {
       "scripts/data-app-contract-update-policy.mjs: delete legacy update-policy wrapper; use scripts/shared-codegen-loader.mjs",
     );
   }
+  const generatorFixturePath = path.join(
+    root,
+    "scripts/test-generate-data-app-contract.mjs",
+  );
+  if (fs.existsSync(generatorFixturePath)) {
+    const generatorFixtureText = fs.readFileSync(generatorFixturePath, "utf8");
+    for (const forbidden of [
+      "evaluateContractUpdatePolicy",
+      "runContractUpdatePolicyFixture",
+      "runMalformedSdkSpecFixture",
+      "runMalformedMatrixSpecFixture",
+      "runUnsupportedRelationshipRepairMetadataFixture",
+      "runTableBehaviorFixture",
+      "assertAggregateRecordsAccessorBehavior",
+      "assertServerTableQueryFactoryBehavior",
+    ]) {
+      if (generatorFixtureText.includes(forbidden)) {
+        issues.push(
+          `scripts/test-generate-data-app-contract.mjs: deep SDK/codegen behavior fixture ${forbidden} belongs in react-semaphor, not the plugin wrapper suite`,
+        );
+      }
+    }
+  }
   const validatorPath = path.join(
     root,
     "scripts/validate-semaphor-data-app.mjs",
