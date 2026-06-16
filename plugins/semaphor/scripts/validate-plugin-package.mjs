@@ -382,9 +382,9 @@ function validateMcpBridge() {
       "scripts/semaphor-mcp-remote.mjs: local validation tool must call scripts/validate-semaphor-data-app.mjs",
     );
   }
-  if (!bridgeText.includes("GENERATED_CONTRACT_TYPESCRIPT_FILES")) {
+  if (!bridgeText.includes("generatedContractTypescriptFiles")) {
     issues.push(
-      "scripts/semaphor-mcp-remote.mjs: generated contract manifest validation must read the fixed generated contract TypeScript file set",
+      "scripts/semaphor-mcp-remote.mjs: generated contract manifest validation must read generated contract TypeScript files from react-semaphor/data-app-codegen/node",
     );
   }
   if (bridgeText.includes("fs.readdirSync(generatedDir)")) {
@@ -446,6 +446,10 @@ function validateMcpBridge() {
   const updatePolicyPath = path.join(
     root,
     "scripts/data-app-contract-update-policy.mjs",
+  );
+  const generatedContractFilesPath = path.join(
+    root,
+    "scripts/generated-contract-files.mjs",
   );
   if (fs.existsSync(generatorPath)) {
     const generatorText = fs.readFileSync(generatorPath, "utf8");
@@ -512,6 +516,16 @@ function validateMcpBridge() {
         "scripts/shared-codegen-loader.mjs: must expose shared deterministic update policy from react-semaphor/data-app-codegen",
       );
     }
+    if (!sharedCodegenLoaderText.includes("GENERATED_CONTRACT_TYPESCRIPT_FILES")) {
+      issues.push(
+        "scripts/shared-codegen-loader.mjs: must expose generated contract file names from react-semaphor/data-app-codegen",
+      );
+    }
+    if (!sharedCodegenLoaderText.includes("REQUIRED_GENERATED_CONTRACT_FILES")) {
+      issues.push(
+        "scripts/shared-codegen-loader.mjs: must expose required generated contract files from react-semaphor/data-app-codegen",
+      );
+    }
     for (const forbidden of [
       "CODEGEN_SDK_BUILDERS",
       "CODEGEN_METRIC_SPEC_KEYS",
@@ -533,6 +547,11 @@ function validateMcpBridge() {
   if (fs.existsSync(updatePolicyPath)) {
     issues.push(
       "scripts/data-app-contract-update-policy.mjs: delete legacy update-policy wrapper; use scripts/shared-codegen-loader.mjs",
+    );
+  }
+  if (fs.existsSync(generatedContractFilesPath)) {
+    issues.push(
+      "scripts/generated-contract-files.mjs: generated contract file names are SDK/codegen-owned and must be read through scripts/shared-codegen-loader.mjs",
     );
   }
   const generatorFixturePath = path.join(
@@ -572,6 +591,11 @@ function validateMcpBridge() {
     if (!validatorText.includes("validateGeneratedContract")) {
       issues.push(
         "scripts/validate-semaphor-data-app.mjs: validator must delegate generated contract validation to react-semaphor/data-app-codegen",
+      );
+    }
+    if (!validatorText.includes("requiredGeneratedContractFiles")) {
+      issues.push(
+        "scripts/validate-semaphor-data-app.mjs: validator must read required generated contract files from react-semaphor/data-app-codegen",
       );
     }
     if (!validatorText.includes("validateFilterEffectReport")) {
@@ -652,7 +676,6 @@ requireFile("assets/logo-source.png");
 requireFile("scripts/call-semaphor-tool.mjs");
 requireFile("scripts/shared-codegen-loader.mjs");
 requireFile("scripts/detect-react-app.mjs");
-requireFile("scripts/generated-contract-files.mjs");
 requireFile("scripts/generate-data-app-contract.mjs");
 requireFile("scripts/init-semaphor-data-app.mjs");
 requireFile("scripts/semaphor-data-app.mjs");

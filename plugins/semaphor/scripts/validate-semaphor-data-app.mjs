@@ -8,12 +8,10 @@ import {
   buildGeneratedInputOptionIntent,
   buildGeneratedViewExecutionRequest,
   buildGeneratedViewExecutionRequests,
+  generatedContractTypescriptFiles,
+  requiredGeneratedContractFiles,
   validateGeneratedContract,
 } from "./shared-codegen-loader.mjs";
-import {
-  GENERATED_CONTRACT_TYPESCRIPT_FILES,
-  REQUIRED_GENERATED_FILES,
-} from "./generated-contract-files.mjs";
 
 const GENERATED_CONTRACT_DIR = path.join("src", "semaphor", "generated");
 const SCRIPT_OUTPUT_MAX_BUFFER = 64 * 1024 * 1024;
@@ -307,10 +305,11 @@ async function scanDataAppPreflight(root, sources) {
   );
   const usesSdk = sdkSources.length > 0;
   const generatedDir = path.join(root, GENERATED_CONTRACT_DIR);
+  const generatedContractFileNames = await loadGeneratedContractFileNames(root);
   const hasGeneratedContract =
     fs.existsSync(generatedDir) &&
-    REQUIRED_GENERATED_FILES.some((fileName) =>
-      fs.existsSync(path.join(generatedDir, fileName)),
+    (generatedContractFileNames?.requiredFiles || ["contract.manifest.json"]).some(
+      (fileName) => fs.existsSync(path.join(generatedDir, fileName)),
     );
   const usesDataAppRuntime =
     hasGeneratedContract ||
@@ -327,7 +326,13 @@ async function scanDataAppPreflight(root, sources) {
       ),
     );
     if (hasGeneratedContract) {
-      issues.push(...(await scanGeneratedContract(root, generatedDir)));
+      issues.push(
+        ...(await scanGeneratedContract(
+          root,
+          generatedDir,
+          generatedContractFileNames,
+        )),
+      );
     }
     return { issues, advisories, sdkSources, hasGeneratedContract };
   }
@@ -375,7 +380,13 @@ async function scanDataAppPreflight(root, sources) {
   }
 
   if (hasGeneratedContract) {
-    issues.push(...(await scanGeneratedContract(root, generatedDir)));
+    issues.push(
+      ...(await scanGeneratedContract(
+        root,
+        generatedDir,
+        generatedContractFileNames,
+      )),
+    );
     if (!importsGeneratedContract(root, sources)) {
       issues.push(
         issue(
@@ -438,25 +449,45 @@ function importsGeneratedContract(root, sources) {
     );
 }
 
-async function scanGeneratedContract(root, generatedDir) {
+async function scanGeneratedContract(root, generatedDir, generatedContractFileNames) {
+  return scanGeneratedContractWithFileNames(
+    root,
+    generatedDir,
+    generatedContractFileNames || await loadGeneratedContractFileNames(root),
+  );
+}
+
+async function scanGeneratedContractWithFileNames(
+  root,
+  generatedDir,
+  generatedContractFileNames,
+) {
   const issues = [];
-  for (const fileName of REQUIRED_GENERATED_FILES) {
-    const filePath = path.join(generatedDir, fileName);
-    if (!fs.existsSync(filePath)) {
-      issues.push(
-        issue(
-          "missing_generated_contract",
-          `Generated Semaphor contract is incomplete: missing ${GENERATED_CONTRACT_DIR}/${fileName}.`,
-          {
-            filePath: `${GENERATED_CONTRACT_DIR}/${fileName}`,
-            repairHint:
-              "Regenerate the Data App contract with semaphor_generate_data_app_contract.",
-          },
-        ),
-      );
+  if (!generatedContractFileNames?.error) {
+    for (const fileName of generatedContractFileNames.requiredFiles) {
+      const filePath = path.join(generatedDir, fileName);
+      if (!fs.existsSync(filePath)) {
+        issues.push(
+          issue(
+            "missing_generated_contract",
+            `Generated Semaphor contract is incomplete: missing ${GENERATED_CONTRACT_DIR}/${fileName}.`,
+            {
+              filePath: `${GENERATED_CONTRACT_DIR}/${fileName}`,
+              repairHint:
+                "Regenerate the Data App contract with semaphor_generate_data_app_contract.",
+            },
+          ),
+        );
+      }
     }
   }
-  issues.push(...(await validateGeneratedContractManifest(root, generatedDir)));
+  issues.push(
+    ...(await validateGeneratedContractManifestWithFileNames(
+      root,
+      generatedDir,
+      generatedContractFileNames,
+    )),
+  );
 
   for (const filePath of collectSourceFiles(generatedDir)) {
     const location = formatLocation(root, filePath);
@@ -517,6 +548,18 @@ async function scanGeneratedContract(root, generatedDir) {
 }
 
 async function validateGeneratedContractManifest(root, generatedDir) {
+  return validateGeneratedContractManifestWithFileNames(
+    root,
+    generatedDir,
+    await loadGeneratedContractFileNames(root),
+  );
+}
+
+async function validateGeneratedContractManifestWithFileNames(
+  root,
+  generatedDir,
+  generatedContractFileNames,
+) {
   const manifestPath = path.join(generatedDir, "contract.manifest.json");
   if (!fs.existsSync(manifestPath)) {
     return [];
@@ -525,10 +568,32 @@ async function validateGeneratedContractManifest(root, generatedDir) {
   if (manifestRead.issues.length > 0) {
     return manifestRead.issues;
   }
+  if (generatedContractFileNames?.error) {
+    return [
+      diagnostic({
+        code: "invalid_contract_manifest",
+        severity: "error",
+        message: `${formatLocation(root, manifestPath)}: could not load react-semaphor/data-app-codegen/node to read the generated contract file list.`,
+        filePath: formatLocation(root, manifestPath),
+        path: "generatedFiles",
+        repairHint:
+          "Install or link a react-semaphor version that exposes react-semaphor/data-app-codegen/node, then rerun validation.",
+        details: {
+          error:
+            generatedContractFileNames.error instanceof Error
+              ? generatedContractFileNames.error.message
+              : String(generatedContractFileNames.error),
+        },
+      }),
+    ];
+  }
   try {
     const result = await validateGeneratedContract({
       manifest: manifestRead.manifest,
-      generatedFiles: readGeneratedContractFiles(generatedDir),
+      generatedFiles: readGeneratedContractFiles(
+        generatedDir,
+        generatedContractFileNames.typescriptFiles,
+      ),
     }, {
       workspaceDir: root,
     });
@@ -583,9 +648,21 @@ function readGeneratedContractManifest(root, manifestPath) {
   }
 }
 
-function readGeneratedContractFiles(generatedDir) {
+async function loadGeneratedContractFileNames(root) {
+  try {
+    const [typescriptFiles, requiredFiles] = await Promise.all([
+      generatedContractTypescriptFiles({ workspaceDir: root }),
+      requiredGeneratedContractFiles({ workspaceDir: root }),
+    ]);
+    return { requiredFiles, typescriptFiles };
+  } catch (error) {
+    return { error };
+  }
+}
+
+function readGeneratedContractFiles(generatedDir, typescriptFiles) {
   return Object.fromEntries(
-    GENERATED_CONTRACT_TYPESCRIPT_FILES
+    typescriptFiles
       .filter((fileName) => fs.existsSync(path.join(generatedDir, fileName)))
       .map((fileName) => [
         fileName,

@@ -39,6 +39,14 @@ export async function validateGeneratedContract(input, options = {}) {
   return validator(input);
 }
 
+export async function generatedContractTypescriptFiles(options = {}) {
+  return sharedCodegenStringArray("GENERATED_CONTRACT_TYPESCRIPT_FILES", options);
+}
+
+export async function requiredGeneratedContractFiles(options = {}) {
+  return sharedCodegenStringArray("REQUIRED_GENERATED_CONTRACT_FILES", options);
+}
+
 export async function evaluateContractUpdatePolicy(input, options = {}) {
   const evaluator = await sharedCodegenFunction(
     "evaluateSemaphorDataAppContractUpdatePolicy",
@@ -135,6 +143,21 @@ async function sharedCodegenFunction(exportName, options = {}) {
     );
   }
   return candidate;
+}
+
+async function sharedCodegenStringArray(exportName, options = {}) {
+  const sharedCodegen = await importSharedCodegen(options);
+  const candidate = sharedCodegen[exportName];
+  if (
+    !Array.isArray(candidate) ||
+    candidate.length === 0 ||
+    candidate.some((item) => typeof item !== "string" || !item.trim())
+  ) {
+    throw new Error(
+      `react-semaphor/data-app-codegen/node does not expose ${exportName} as a non-empty string array.`,
+    );
+  }
+  return [...candidate];
 }
 
 async function importSharedCodegenFromPath(modulePath) {

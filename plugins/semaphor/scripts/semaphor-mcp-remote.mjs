@@ -7,9 +7,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   evaluateContractUpdatePolicy,
+  generatedContractTypescriptFiles,
   validateGeneratedContract,
 } from "./shared-codegen-loader.mjs";
-import { GENERATED_CONTRACT_TYPESCRIPT_FILES } from "./generated-contract-files.mjs";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
@@ -1644,8 +1644,9 @@ async function readGeneratedContractManifest({ workspaceDir, outputDir }) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const validation = await validateGeneratedContract({
     manifest,
-    generatedFiles: readGeneratedContractFiles(
+    generatedFiles: await readGeneratedContractFiles(
       path.resolve(workspaceDir, outputDir),
+      { workspaceDir },
     ),
   }, { workspaceDir });
   if (Array.isArray(validation?.issues) && validation.issues.length > 0) {
@@ -1661,9 +1662,10 @@ async function readGeneratedContractManifest({ workspaceDir, outputDir }) {
   return manifest;
 }
 
-function readGeneratedContractFiles(generatedDir) {
+async function readGeneratedContractFiles(generatedDir, options = {}) {
+  const generatedContractFiles = await generatedContractTypescriptFiles(options);
   const files = {};
-  for (const fileName of GENERATED_CONTRACT_TYPESCRIPT_FILES) {
+  for (const fileName of generatedContractFiles) {
     const filePath = path.join(generatedDir, fileName);
     if (!fs.existsSync(filePath)) {
       continue;
