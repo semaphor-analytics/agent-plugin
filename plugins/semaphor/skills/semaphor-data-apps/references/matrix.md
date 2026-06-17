@@ -92,8 +92,8 @@ const revenueMatrix = semaphor.matrix({
     },
   ],
   displayLimits: {
-    rows: { limit: 100, by: "value", direction: "top", others: true },
-    columns: { limit: 24, by: "label", direction: "top" },
+    rows: { limit: 100 },
+    columns: { limit: 24 },
   },
   layout: { hierarchy: "tabular", stickyRowHeaders: true },
 });
@@ -111,7 +111,7 @@ For every matrix view, make the plan explicit:
 - value fields and aggregates;
 - row/column/grand totals and subtotal behavior;
 - sort rules;
-- display limits and whether an `Others` bucket is expected;
+- count-only row/column display limits;
 - filters and input handles that should affect the matrix.
 
 ## Rendering Guidance
@@ -169,3 +169,7 @@ asking before adding dependencies.
   unsupported and explain the semantic-model improvement needed.
 - Frontend-only pivoting is acceptable only for tiny presentation-only data
   that is not a governed analytical result.
+- Matrix display limits are count-only in v1: use `{ rows: { limit } }`
+  and/or `{ columns: { limit } }` for axes the matrix actually has. Do not
+  request top/bottom limiting, value-based limiting, or `Others` buckets until
+  Semaphor exposes bounded member-planning support for those behaviors.
