@@ -85,6 +85,11 @@ the token.
 Metric comparison uses structured objects such as
 `comparison: { kind: "previous_period" }`; do not emit string comparison
 aliases.
+Comparison fields in metric results are query-level and describe the
+`primaryMeasure`. For a KPI row where every measure needs its own
+period-over-period delta, define separate single-measure `semaphor.metric`
+queries instead of relying on one multi-measure query to provide per-measure
+comparison values.
 
 ## Sources And Fields
 

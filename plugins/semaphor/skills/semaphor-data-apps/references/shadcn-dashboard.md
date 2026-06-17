@@ -47,6 +47,10 @@ Every generated data app should include:
 - Filter controls near the top when filters affect multiple views.
 - KPI cards that show value, label, comparison or context when available, and
   loading/error states.
+- Date-backed KPI cards should show the SDK comparison badge/value when
+  `semaphor.metric` returns `delta` or `deltaPercent`. If a card selects a
+  secondary measure from a multi-measure metric result, do not reuse the primary
+  measure's comparison badge for that secondary measure.
 - Charts with readable axes, labels, tooltips, and bounded series counts.
 - Tables with sortable headers, right-aligned numeric values, tabular numbers,
   empty states, and totals when totals are meaningful.

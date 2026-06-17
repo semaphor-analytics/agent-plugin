@@ -95,7 +95,7 @@ const revenueMatrix = semaphor.matrix({
     rows: { limit: 100 },
     columns: { limit: 24 },
   },
-  layout: { hierarchy: "tabular", stickyRowHeaders: true },
+  layout: { hierarchy: "compact", stickyRowHeaders: true },
 });
 ```
 
@@ -125,12 +125,9 @@ already have a high-quality matrix or pivot component, prefer the
 starter-included Semaphor matrix component instead of hand-rolling sticky
 headers, sparse cell rendering, empty/error states, and bounded scrolling.
 The starter component is canonical for generated starter/eval apps and handles
-both matrix row-axis modes:
-
-- hierarchy mode: expandable parent rows render as one compact indented sticky
-  row-header column;
-- tabular mode: flat multi-level row axes render as separate sticky row-header
-  columns for each row level.
+the hierarchy-first matrix shape: expandable parent rows render as one compact
+indented sticky row-header column, and pivot columns keep their own expandable
+column hierarchy.
 
 If the host app uses another table/grid/design system, use the starter matrix
 component as a reference implementation for mechanics and adapt the visible
@@ -139,8 +136,8 @@ shell. The hard parts to preserve are:
 - prefer the SDK-returned matrix `grid` projection when present;
 - derive a display grid from `matrixResult` only through the Semaphor matrix
   payload contract, not ad hoc row/column guesses;
-- preserve row hierarchy, flat multi-level row headers, pivot column hierarchy,
-  sparse cell presence, subtotals, row totals, column totals, and grand totals;
+- preserve row hierarchy, pivot column hierarchy, sparse cell presence,
+  subtotals, row totals, column totals, and grand totals;
 - keep row/column collapse state as presentation state only;
 - keep matrix sort/display limits represented in the Semaphor matrix query
   where supported.

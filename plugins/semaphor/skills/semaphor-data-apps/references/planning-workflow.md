@@ -258,7 +258,13 @@ leave the UI shape implicit. If the planner returns a visual spec, use it. If
 the planner returns only the analytical shape, infer the conventional visual
 from the query shape and state the choice explicitly:
 
-- scalar totals or a small set of current values -> KPI strip or KPI card;
+- scalar totals or a small set of current values -> KPI strip or KPI card.
+  When a metric view has a governed date field, request
+  `comparison: { kind: "previous_period" }` on the `semaphor.metric` spec so
+  the SDK can return the governed comparison value and delta. Metric comparison
+  is query-level and applies to the primary measure; when every headline number
+  needs its own period-over-period delta, plan separate single-measure KPI cards
+  instead of one multi-measure KPI strip;
 - time-series values -> line chart or area chart;
 - ranked categories or category comparison -> bar chart;
 - composition/share of whole -> donut or pie chart only when the denominator
@@ -288,8 +294,9 @@ Then list each planned view with enough UI detail to make the visual choice
 auditable:
 
 ```text
-- Application funnel health: KPI strip, semaphor.metric, completion minutes /
-  hours to qualified / days to hire, affected by Date range and Requisition.
+- Application funnel health: KPI cards, semaphor.metric, completion minutes /
+  hours to qualified / days to hire, previous-period comparison when a date
+  field is modeled, affected by Date range and Requisition.
 - Career-site demand trend: line chart, semaphor.records, event value by month,
   affected by Date range and Event hour.
 - Demand by source: donut chart, semaphor.records, event value by traffic
