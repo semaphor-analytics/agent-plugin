@@ -189,3 +189,10 @@ For generated contracts, use the generated helpers (`queries`,
 `queryOptionsForView`, `rowValuesForView`, and `columnKeysForView`) rather than
 manually reconstructing row keys, input bindings, or query options in
 components.
+
+Launch-readiness smoke for generated apps should cover at least one KPI, one
+records/table view, one matrix view, and one visible filter. Verify that the
+same generated input handle reaches every subscribed query, rows are read via
+`columns[].key` or `rowValuesForView`, matrix views consume SDK `grid` or
+`matrixResult`, and each rendered result preserves public SDK state such as
+`isFiltered`, `isEmpty`, `isPartial`, `isValidated`, and `executionResult`.
