@@ -142,6 +142,7 @@ single-source default or invent formats such as `"compact_summary"`.
 The visible planning response must include:
 
 - the selected domain/source and any reasonable alternatives considered;
+- a visual inventory with counts by visual type before the detailed view list;
 - planned views with visual type, query kind, source fields, and whether each
   view is server-backed, derived, presentation-only, unsupported, or SQL
   fallback. Use clear visual labels such as KPI strip, KPI card, line chart,
@@ -460,8 +461,8 @@ unless the user explicitly asks for a developer/debug view. Show business
 labels, filter state, data freshness, query errors, and unsupported modeling
 gaps when they help the user understand the app.
 
-For full UX and table guidance, read [tables.md](references/tables.md). For
-filter composition, read [filters-and-inputs.md](references/filters-and-inputs.md).
+For full UX/table/filter guidance, read [tables.md](references/tables.md) and
+[filters-and-inputs.md](references/filters-and-inputs.md).
 
 ## Design Baseline
 
@@ -478,7 +479,6 @@ the same dashboard usability rules.
 
 Before generating UI, check `samples/`, `src/samples/`, or `examples/`, then
 match layout, filter-chip placement, table affordances, states, and density.
-Starter/eval apps use included samples; existing apps adapt those mechanics.
 Production data-loading still uses `useSemaphorQuery` per [sdk-contract.md](references/sdk-contract.md).
 
 ## Save, Publish, And Validation

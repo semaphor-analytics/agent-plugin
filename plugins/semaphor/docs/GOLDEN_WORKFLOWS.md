@@ -41,10 +41,16 @@ Expected agent behavior:
   instead of silently choosing one,
 - present the next choices as build the plan, revise the plan, choose another
   domain/source, inspect more data, or cancel,
+- include a visual inventory before the detailed view list, with counts such as
+  `4 KPI cards, 2 line charts, 1 donut chart, 1 server-backed detail table`.
+  This must be a summary of the planned views, not a separate invented layout;
 - name the intended visual type for each buildable view in the visible plan,
   such as KPI strip, KPI card, line chart, bar chart, stacked bar chart,
   area chart, pie/donut chart, text/commentary block, table, matrix, filter
   control, or detail panel,
+- for each visual, state the primary measure, dimension/time grain when
+  relevant, and intended card or section placement so the user can understand
+  what will appear before codegen,
 - state the grouped/aggregate query grain for bar, stacked bar, pie/donut, and
   category comparison charts,
 - state the affected views/query ids, non-affected views with reasons, and UI

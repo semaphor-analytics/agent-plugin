@@ -275,6 +275,29 @@ Preserve the accepted visual type during implementation unless the user
 revises the plan or validation proves the visual cannot be supported. Report
 any fallback as a plan deviation, not as an invisible codegen choice.
 
+Before the detailed view list, include a compact visual inventory so the user
+can judge the dashboard shape at a glance. The inventory should count the
+planned visible artifacts by type, for example:
+
+```text
+Visual inventory: 4 KPI cards, 2 line charts, 1 donut chart, 1 bar chart,
+1 server-backed detail table, 1 commentary block.
+```
+
+Then list each planned view with enough UI detail to make the visual choice
+auditable:
+
+```text
+- Application funnel health: KPI strip, semaphor.metric, completion minutes /
+  hours to qualified / days to hire, affected by Date range and Requisition.
+- Career-site demand trend: line chart, semaphor.records, event value by month,
+  affected by Date range and Event hour.
+- Demand by source: donut chart, semaphor.records, event value by traffic
+  source, affected by Date range only.
+- Processing run detail: server-backed detail table, semaphor.records,
+  facility, status, started_at, duration, sortable by started_at and duration.
+```
+
 When building from an accepted plan, keep the implementation traceable:
 
 - map each buildable `plan.views[*]` to an obvious card/insight component;
@@ -328,6 +351,9 @@ Include:
 - selected domain/source plus any reasonable alternatives considered;
 - selected Semaphor sources and why they were chosen;
 - source coverage: included, excluded, unsupported, and not found sources;
+- visual inventory with counts by type, such as KPI cards, trend charts,
+  bar/stacked bar charts, donut/pie charts, matrix views, tables, commentary
+  blocks, and filter controls;
 - planned filters, which views/query ids they affect, which views they do not
   affect and why, whether each filter is dashboard-wide, section-wide, or
   card-local, and how affected cards will show active applied-filter state;
@@ -335,7 +361,9 @@ Include:
   view is server-backed, derived, presentation-only, unsupported, or SQL
   fallback. Use concrete labels such as KPI strip, KPI card, line chart, bar
   chart, stacked bar chart, area chart, pie/donut chart, text/commentary block,
-  table, matrix, filter control, or detail panel;
+  table, matrix, filter control, or detail panel. For each view, include the
+  primary measure, x-axis/category/time grain when relevant, and intended card
+  or section placement;
 - for bar, stacked bar, pie/donut, and category comparison charts, the
   grouped/aggregate query grain that will back the visual;
 - app-local derived fields, why they are needed, and whether they are row-stage
