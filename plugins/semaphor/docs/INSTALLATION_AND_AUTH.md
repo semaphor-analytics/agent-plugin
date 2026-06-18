@@ -120,6 +120,7 @@ semaphor_query_sql_advanced
 semaphor_plan_data_app
 semaphor_generate_data_app_contract
 semaphor_update_data_app_contract
+semaphor_materialize_data_app_contract
 semaphor_validate_data_app_contract
 ```
 
@@ -131,6 +132,7 @@ required. A host that exposes analytics and planning tools but not
 `semaphor_create_data_app_contract`,
 `semaphor_generate_data_app_contract`,
 `semaphor_update_data_app_contract`, or
+`semaphor_materialize_data_app_contract`, or
 `semaphor_validate_data_app_contract` has server/plugin MCP surface drift.
 Agents should stop before editing React source, report the mismatch, and ask
 the user to reload, reinstall, upgrade, or retry against the authenticated
@@ -149,9 +151,8 @@ not cache workspace paths across projects.
 
 - Auth/context/discovery calls use it to read ignored local env files such as
   `.env.local` for the current React app.
-- Contract create/generate/update calls that return
-  `kind: "generated_data_app_contract"` use it to materialize
-  server-returned files under `src/semaphor/generated`.
+- `semaphor_materialize_data_app_contract` calls use it to materialize the
+  server-returned generated contract artifact under `src/semaphor/generated`.
 - Validation calls use it to read
   `contract.manifest.json + generatedFiles` for
   `semaphor_validate_data_app_contract`.

@@ -395,7 +395,7 @@ function validateMcpBridge() {
     "const FALLBACK_TOOLS = [",
     "const scriptDir =",
   );
-  for (const serverOwnedTool of [
+  const forbiddenFallbackServerOwnedTools = [
     "semaphor_get_analysis_context",
     "semaphor_list_semantic_domains",
     "semaphor_list_datasets",
@@ -410,7 +410,8 @@ function validateMcpBridge() {
     "semaphor_generate_data_app_contract",
     "semaphor_update_data_app_contract",
     "semaphor_validate_data_app_contract",
-  ]) {
+  ];
+  for (const serverOwnedTool of forbiddenFallbackServerOwnedTools) {
     const fallbackToolNamePattern = new RegExp(
       `\\bname\\s*:\\s*["']${escapeRegExp(serverOwnedTool)}["']`,
     );
@@ -419,6 +420,16 @@ function validateMcpBridge() {
         `scripts/semaphor-mcp-remote.mjs: fallback tools must not advertise server-owned MCP tool schema ${serverOwnedTool}; use live tools/list from semaphor-app`,
       );
     }
+  }
+  if (
+    /\bname\s*:\s*["']semaphor_materialize_data_app_contract["']/.test(
+      fallbackToolsText,
+    ) &&
+    !/does not require a project token/.test(fallbackToolsText)
+  ) {
+    issues.push(
+      "scripts/semaphor-mcp-remote.mjs: pre-auth materializer fallback must be limited to short-lived generatedContractArtifactId + generatedContractMaterializationToken + workspaceDir and must document that it does not require a project token",
+    );
   }
   for (const forbiddenPath of [
     "scripts/generate-data-app-contract.mjs",
@@ -477,6 +488,37 @@ function scanDistributionText() {
   }
 }
 
+function scanDataAppContractGuidance() {
+  const forbiddenPhrases = [
+    "write returned generated contract payload",
+    "write structuredContent.files exactly",
+    "write the returned src/semaphor/generated payload exactly",
+    "write the returned generated file payload",
+    "semaphor_generate_data_app_contract(planArtifactId, workspaceDir)",
+    "semaphor_generate_data_app_contract with workspaceDir",
+    "semaphor_create_data_app_contract with workspaceDir",
+    "semaphor_update_data_app_contract with workspaceDir",
+    "semaphor_materialize_data_app_contract(generatedContractArtifactId, workspaceDir)",
+    "generatedContractArtifactId plus workspaceDir",
+    "generatedContractArtifactId with workspaceDir",
+  ];
+  const textFiles = collectFiles(root).filter((filePath) =>
+    /\.(md|txt|json)$/.test(filePath),
+  );
+  for (const filePath of textFiles) {
+    const relativePath = path.relative(root, filePath);
+    if (relativePath === "package-lock.json") continue;
+    const text = fs.readFileSync(filePath, "utf8");
+    for (const phrase of forbiddenPhrases) {
+      if (text.includes(phrase)) {
+        issues.push(
+          `${relativePath}: Data App guidance must use generate -> materialize; remove legacy guidance (${phrase})`,
+        );
+      }
+    }
+  }
+}
+
 function collectFiles(current, files = []) {
   for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
     if (entry.name === ".git" || entry.name === "node_modules") continue;
@@ -517,6 +559,7 @@ validateSkillStructure();
 validateDataAppInitializer();
 validateMcpBridge();
 scanDistributionText();
+scanDataAppContractGuidance();
 
 if (issues.length > 0) {
   console.error("Semaphor Agent Plugin package validation failed:");

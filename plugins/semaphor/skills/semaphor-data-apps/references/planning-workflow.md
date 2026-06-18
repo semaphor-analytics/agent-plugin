@@ -111,8 +111,10 @@ semaphor_plan_data_app()
 -> planner returns visible plan plus planArtifactId
 -> present visible plan with views, visual types, filters, file layout, and DevTools setup
 -> user/eval accepts the visible plan
--> semaphor_generate_data_app_contract(planArtifactId, workspaceDir)
--> bridge materializes files under src/semaphor/generated
+-> semaphor_generate_data_app_contract(planArtifactId)
+-> generator returns generatedContractArtifactId and generatedContractMaterializationToken
+-> semaphor_materialize_data_app_contract(generatedContractArtifactId, generatedContractMaterializationToken, workspaceDir)
+-> installed bridge materializes files under src/semaphor/generated
 -> build UI from src/semaphor/generated imports
 -> semaphor_validate_data_app_contract(workspaceDir)
 -> run local typecheck/build and browser smoke checks
@@ -122,18 +124,20 @@ Use `planArtifactId` because real builder runs showed agents can silently drop
 or reshape required fields when reconstructing large JSON payloads inside a
 tool call. The artifact id handoff is deterministic: Semaphor stores the
 canonical codegen summary temporarily after planning, and the generator resolves
-it server-side. In installed-plugin runs, the bridge forwards only
-`planArtifactId` plus ordinary generator arguments to Semaphor and materializes
-the returned files under `src/semaphor/generated`; verify those files exist
-after the first-class generator call and before UI edits. Do not use the helper
-wrapper to recover generator output. Do not pass inline `codegenSummary`,
-`codegenSummaryPath`, or `artifactDir`.
+it server-side. The generator stores the deterministic generated contract as a
+short-lived artifact and returns `generatedContractArtifactId` plus
+`generatedContractMaterializationToken`. In installed-plugin runs, call
+`semaphor_materialize_data_app_contract` with that id, that token, and
+`workspaceDir`; the bridge materializes the artifact files under
+`src/semaphor/generated`. Verify those files exist after the materializer call
+and before UI edits. Do not use the helper wrapper to recover generator output.
+Do not pass inline `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
 
-If the generator returns `structuredContent.files` but the installed plugin
-does not report `localWrite` and `src/semaphor/generated` is still absent, stop
-and classify the run as MCP surface/materialization drift. Do not search for a
-local materializer script, call package helper wrappers, or reconstruct files
-from a large/truncated response.
+If `semaphor_materialize_data_app_contract` returns payload-only output, does
+not report `localWrite`, or leaves `src/semaphor/generated` absent, stop and
+classify the run as MCP surface/materialization drift. Do not search for a local
+materializer script, call package helper wrappers, or reconstruct files from a
+large/truncated response.
 
 `semaphor_validate_data_app_contract` validates the generated Semaphor contract
 payload and manifest integrity. In installed plugin runs, pass `workspaceDir`
@@ -161,7 +165,9 @@ For iterative analytics changes to a generated app, call:
 read the generated contract.manifest.json under src/semaphor/generated
 -> semaphor_plan_data_app_change(current manifest state, goal, operationIntent)
 -> server returns a change planArtifactId when the change is buildable
--> semaphor_update_data_app_contract(planArtifactId, workspaceDir)
+-> semaphor_update_data_app_contract(planArtifactId)
+-> server returns generatedContractArtifactId and generatedContractMaterializationToken
+-> semaphor_materialize_data_app_contract(generatedContractArtifactId, generatedContractMaterializationToken, workspaceDir)
 -> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
 -> bridge materializes regenerated files under src/semaphor/generated
 -> returns migrationReport for review

@@ -56,7 +56,8 @@ Symptom:
 ```text
 The agent can inspect Semaphor data or call semaphor_plan_data_app, but it
 cannot call semaphor_generate_data_app_contract,
-semaphor_update_data_app_contract, or semaphor_validate_data_app_contract.
+semaphor_update_data_app_contract, semaphor_materialize_data_app_contract, or
+semaphor_validate_data_app_contract.
 ```
 
 Expected behavior:
@@ -64,9 +65,12 @@ Expected behavior:
 - hosted analytics and planning tools are visible;
 - server-owned contract generation, update, and validation tools are visible on
   the authenticated Semaphor MCP surface;
-- broad Data App builds call the generator with `workspaceDir`; installed
-  plugin bridge responses report `localWrite` and materialize generated files
-  under `src/semaphor/generated` before UI edits.
+- broad Data App builds call the generator with `planArtifactId`, then call
+  `semaphor_materialize_data_app_contract` with the returned
+  `generatedContractArtifactId` plus `generatedContractMaterializationToken`
+  plus `workspaceDir`; installed plugin bridge
+  responses report `localWrite` and materialize generated files under
+  `src/semaphor/generated` before UI edits.
 
 Fix:
 

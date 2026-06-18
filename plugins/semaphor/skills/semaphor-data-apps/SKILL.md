@@ -33,6 +33,7 @@ public SDK builders/hooks, validate, then save or publish when requested.
    `semaphor_create_data_app_contract`,
    `semaphor_generate_data_app_contract`,
    `semaphor_update_data_app_contract`, or
+   `semaphor_materialize_data_app_contract`, or
    `semaphor_validate_data_app_contract` is missing, stop before source edits
    and classify server/plugin MCP surface drift.
 1. Auth: call `semaphor_get_access_context` before local source inspection.
@@ -47,16 +48,16 @@ public SDK builders/hooks, validate, then save or publish when requested.
 5. Implementation map: include file layout, filter-to-view scope, and SDK
    DevTools setup in that visible plan. Do not dump the dashboard into
    `src/App.tsx`.
-6. Contract generation: only after explicit plan approval, call
-   `semaphor_generate_data_app_contract` with the planner-returned
-   `planArtifactId`. Do not pass inline `codegenSummary`, `codegenSummaryPath`,
-   or `artifactDir`. In installed plugin runs, pass `workspaceDir` and require
-   `src/semaphor/generated` to exist after the tool call. If payload files are
-   returned but no local files are written, stop as MCP surface/materialization
-   drift instead of hand-writing generated files.
-7. Existing generated app: use `semaphor_update_data_app_contract` from the
-   generated manifest or change `planArtifactId`; pass `workspaceDir`, preserve
-   existing views, and do not replay `codegenSummary` or returned file payloads.
+6. Contract generation: after plan approval, call
+   `semaphor_generate_data_app_contract(planArtifactId)`, then
+   `semaphor_materialize_data_app_contract(generatedContractArtifactId,
+   generatedContractMaterializationToken, workspaceDir)`. Require
+   `materialization.status="written"` and
+   `src/semaphor/generated` before UI edits. Do not pass inline
+   `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
+7. Existing generated app: use `semaphor_update_data_app_contract`, then
+   materialize the returned `generatedContractArtifactId` and `generatedContractMaterializationToken`; preserve existing
+   views and do not replay `codegenSummary` or returned file payloads.
 8. Dependencies: ask before installing TanStack/chart libraries, copying
    starter source, or starter scaffolds. Starter/eval apps already include
    Semaphor components; existing apps use host UI first.
@@ -123,16 +124,15 @@ such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
 For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
-preferences })`, present the visible plan and the returned `planArtifactId`,
-and stop. After approval, call `semaphor_generate_data_app_contract` with that
-`planArtifactId`; do not inline or replay `codegenSummary`. Verify
-`src/semaphor/generated` exists before UI edits. If payloads are returned but
-the directory is absent, stop as MCP surface/materialization drift rather than
-searching plugin scripts or reconstructing files. For edits,
-read the current generated `contract.manifest.json`, then call
-`semaphor_update_data_app_contract` with manifest-backed current state or the
-`planArtifactId` returned by `semaphor_plan_data_app_change`; the server
-returns the regenerated contract and migration report.
+preferences })`, present the visible plan and `planArtifactId`, and stop. After
+approval, generate with `planArtifactId`, materialize the returned
+`generatedContractArtifactId` with `generatedContractMaterializationToken` and
+`workspaceDir`, and verify
+`src/semaphor/generated` before UI edits. If materialization is payload-only or
+the directory is absent, stop as MCP surface/materialization drift. For edits,
+read `contract.manifest.json`, call `semaphor_update_data_app_contract` with
+manifest-backed current state or change `planArtifactId`, then materialize the
+returned artifact before UI edits.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
 option queries, or filter bindings manually. Use `queries.someView()` with
@@ -184,7 +184,7 @@ calls for data-app work are:
 - `semaphor_plan_data_app`
 - `semaphor_plan_data_app_change`
 - `semaphor_propose_semantic_model_change` / `semaphor_apply_semantic_model_patch`
-- contract tools: `semaphor_generate_data_app_contract`, `semaphor_create_data_app_contract`, `semaphor_update_data_app_contract`, and `semaphor_validate_data_app_contract`
+- contract tools: `semaphor_generate_data_app_contract`, `semaphor_create_data_app_contract`, `semaphor_update_data_app_contract`, `semaphor_materialize_data_app_contract`, and `semaphor_validate_data_app_contract`
 
 If first-class tools are incomplete, ask the user to reinstall/reload the
 plugin or authenticate. Do not hand-transcribe planner artifacts or generated
