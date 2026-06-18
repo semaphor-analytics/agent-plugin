@@ -101,9 +101,10 @@ Expected agent behavior:
   are needed,
 - format numbers, dates, currencies, and percentages for scanning,
 - run `semaphor_validate_data_app_contract` against the full generated contract
-  payload after generation, and against `manifest` plus `generatedFiles` after
-  files are written, then run local typecheck/build and browser smoke checks
-  after initial SDK wiring and again before final handoff,
+  payload after generation, and then
+  `semaphor_validate_data_app_contract({ workspaceDir })` after files are
+  written, then run local typecheck/build and browser smoke checks after initial
+  SDK wiring and again before final handoff,
 - avoid static fixtures and invented datasets.
 
 Expected validation:

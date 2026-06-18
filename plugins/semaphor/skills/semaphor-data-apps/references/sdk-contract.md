@@ -184,20 +184,23 @@ Common names include `primary`, `contributors`, `segments`, `periodChanges`,
 
 ## Validation
 
-Before save or publish, run the plugin validator and fix structured issues:
-
-```bash
-npx semaphor validate-data-app
-```
+Before save or publish, run the server-owned MCP validator and fix structured
+issues. In installed plugin runs, call
+`semaphor_validate_data_app_contract({ workspaceDir })` after generated files
+are written so the bridge reads the manifest and generated TypeScript files
+deterministically.
 
 For generated contracts, use the generated helpers (`queries`,
-`queryOptionsForView`, `rowValuesForView`, and `columnKeysForView`) rather than
-manually reconstructing row keys, input bindings, or query options in
-components.
+`queryOptionsForView`, `rowValuesForView`, `columnKeysForView`,
+`metricValuesForView`, and `metricMeasureKeysForView`) rather than manually
+reconstructing row keys, metric keys, input bindings, or query options in
+components. Metric result keys may be source-qualified at runtime, so KPI
+components must not index `result.measures` with hand-typed field names.
 
 Launch-readiness smoke for generated apps should cover at least one KPI, one
 records/table view, one matrix view, and one visible filter. Verify that the
 same generated input handle reaches every subscribed query, rows are read via
-`columns[].key` or `rowValuesForView`, matrix views consume SDK `grid` or
-`matrixResult`, and each rendered result preserves public SDK state such as
+`columns[].key` or `rowValuesForView`, KPIs are read through
+`metricValuesForView`, matrix views consume SDK `grid` or `matrixResult`, and
+each rendered result preserves public SDK state such as
 `isFiltered`, `isEmpty`, `isPartial`, `isValidated`, and `executionResult`.

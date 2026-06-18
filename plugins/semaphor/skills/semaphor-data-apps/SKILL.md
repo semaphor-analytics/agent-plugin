@@ -271,7 +271,8 @@ as a required dashboard quality checklist, not optional inspiration.
 - Do not use `ReturnType<typeof useSemaphorQuery>` for helper props. Use
   public SDK result types.
 - Use generated `rowValuesForView`/`columnKeysForView` for row access and
-  `columns[].label` for display. Never use labels or semantic names as row keys.
+  generated `metricValuesForView`/`metricMeasureKeysForView` for KPI and metric
+  value access. Never use labels, semantic names, or hand-typed `result.measures[...]` keys as result keys.
 - Prefer `semaphor_analyze` for governed semantic BI checks,
   `semaphor_matrix` for pivot/matrix checks, and
   `semaphor_query_sql_advanced` only for SQL-first or unsupported analysis.

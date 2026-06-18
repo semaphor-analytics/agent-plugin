@@ -86,5 +86,7 @@ export function RevenueKpi() {
 ```
 
 For generated contracts, prefer the generated `queries`,
-`queryOptionsForView`, `rowValuesForView`, and `columnKeysForView` helpers over
-handwritten row-key or query-option wiring.
+`queryOptionsForView`, `rowValuesForView`, `columnKeysForView`, and
+`metricValuesForView` helpers over handwritten row-key, metric-key, or
+query-option wiring. KPI components should read metric query results through
+generated metric accessors, not through hand-typed `result.measures[...]` keys.
