@@ -141,20 +141,10 @@ Hosted customer default: do not set a server override. The plugin infers the
 Semaphor host from the project token's `apiServiceUrl`, then connects to
 `/api/mcp`.
 
-For local development, self-hosted deployments, tunnels, or dogfooding against
-an unreleased Semaphor app, set the tool-side and browser-side host overrides
-in the target app's ignored `.env.local`:
-
-```bash
-SEMAPHOR_SERVER_URL="http://localhost:3000"
-VITE_SEMAPHOR_SERVER_URL="http://localhost:3000"
-```
-
-The plugin derives MCP as `$SEMAPHOR_SERVER_URL/api/mcp`, and save/publish use
-the same host. Vite browser runtime can only read the `VITE_` form, so use
-`VITE_SEMAPHOR_SERVER_URL` or an explicit `apiBaseUrl` prop for local Data App
-browser routing. Use `SEMAPHOR_MCP_URL` only when the MCP route intentionally
-differs from the Semaphor app host, such as a custom proxy path:
+For self-hosted Semaphor deployments, set `SEMAPHOR_SERVER_URL` to the Semaphor
+app host. The plugin derives MCP as `$SEMAPHOR_SERVER_URL/api/mcp`, and
+save/publish use the same host. Use `SEMAPHOR_MCP_URL` only when the MCP route
+intentionally differs from the Semaphor app host, such as a custom proxy path:
 
 ```bash
 SEMAPHOR_MCP_URL="https://your-semaphor-host.example.com/custom/mcp"

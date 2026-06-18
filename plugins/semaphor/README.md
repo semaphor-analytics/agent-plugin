@@ -30,16 +30,9 @@ https://github.com/semaphor-analytics/agent-plugin
    The plugin helper scripts also accept `SEMAPHOR_PROJECT_TOKEN` from shell
    env or local env files.
 
-   Hosted Semaphor needs no extra server URL. For local development,
-   self-hosted deployments, tunnels, or Semaphor dogfooding, add the optional
-   host override:
-
-   ```bash
-   SEMAPHOR_SERVER_URL="http://localhost:3000"
-   ```
-
-   If `SEMAPHOR_SERVER_URL` is absent, the plugin uses the host encoded in the
-   project token and falls back to `https://semaphor.cloud`.
+   Hosted Semaphor needs no extra server URL. If `SEMAPHOR_SERVER_URL` is
+   absent, the plugin uses the host encoded in the project token and falls back
+   to `https://semaphor.cloud`.
 
 2. Open Codex or Claude Code in your React app repository. If you are starting
    fresh, use `https://github.com/semaphor-analytics/semaphor-data-app-starter`.

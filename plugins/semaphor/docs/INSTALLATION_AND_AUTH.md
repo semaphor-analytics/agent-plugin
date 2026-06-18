@@ -85,23 +85,11 @@ In normal hosted usage, do not set a separate server URL. The plugin connects
 to the Semaphor host encoded in the project token's `apiServiceUrl`, which is
 usually `https://semaphor.cloud`.
 
-For local development, self-hosted deployments, tunnels, or dogfooding against
-an unreleased Semaphor app, set tool-side and browser-side host overrides in
-the same ignored local env file:
-
-```bash
-VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
-SEMAPHOR_SERVER_URL="http://localhost:3000"
-VITE_SEMAPHOR_SERVER_URL="http://localhost:3000"
-```
-
-The plugin derives MCP from that host as `${SEMAPHOR_SERVER_URL}/api/mcp`, and
-the save/publish helpers use the same Semaphor host. Browser-side Vite code can
-only read the `VITE_` form, so local Data App providers should use
-`VITE_SEMAPHOR_SERVER_URL` or an explicit `apiBaseUrl` prop when they must route
-to local Semaphor. If
-`SEMAPHOR_SERVER_URL` is not set and the token does not contain `apiServiceUrl`,
-the plugin defaults to `https://semaphor.cloud`.
+For self-hosted Semaphor deployments, `SEMAPHOR_SERVER_URL` may be set to the
+Semaphor app host. The plugin derives MCP from that host as
+`${SEMAPHOR_SERVER_URL}/api/mcp`, and the save/publish helpers use the same
+Semaphor host. If `SEMAPHOR_SERVER_URL` is not set and the token does not
+contain `apiServiceUrl`, the plugin defaults to `https://semaphor.cloud`.
 
 Set `SEMAPHOR_MCP_URL` only when the MCP route intentionally differs from the
 Semaphor app host, such as a custom proxy path. `SEMAPHOR_MCP_URL` must be the
@@ -114,7 +102,7 @@ first-class callable tools. The plugin exposes two MCP servers:
 
 ```text
 semaphor          hosted OAuth MCP for login and project discovery
-semaphor-project  project-token MCP bridge for scoped/local development
+semaphor-project  project-token MCP bridge for project-scoped token mode
 ```
 
 The exact namespace is host-specific, but the available tools should include:
@@ -327,7 +315,7 @@ snapshots, build artifacts, validation output, or screenshots.
 Common setup failures:
 
 - missing project token in shell env or local env;
-- stale or incorrect `SEMAPHOR_SERVER_URL` override;
+- stale or incorrect self-hosted `SEMAPHOR_SERVER_URL` override;
 - stale or incorrect `SEMAPHOR_MCP_URL` override;
 - expired or unauthorized project token;
 - OAuth login available but the local app runtime token was not minted or was

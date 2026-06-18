@@ -232,7 +232,7 @@ function missingSemaphorAuthResponse(message) {
             "If hosted OAuth tools are not exposed, the OAuth app connection requires reauthentication, or the semaphor MCP is not logged in, ask the user to use the current host MCP OAuth login or reauthentication flow for the server named semaphor, then say try again. In Codex, the command is codex mcp login semaphor; in Claude Code or another host, use that host MCP server authentication UI or command. Also mention that this thread may not detect the refreshed MCP login; if try again still reports missing auth, start a new thread after logging in.",
             "For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.",
             "If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.",
-            "For local development, add SEMAPHOR_SERVER_URL=http://localhost:3000 to the same .env.local. Hosted Semaphor defaults to https://semaphor.cloud.",
+            "Hosted Semaphor needs no server URL override. For self-hosted Semaphor, set SEMAPHOR_SERVER_URL to the Semaphor app host.",
           ].join(" "),
         },
       ],
