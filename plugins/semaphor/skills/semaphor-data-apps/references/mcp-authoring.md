@@ -54,11 +54,16 @@ React app repository root if the project token lives in that app's
 the same call with `workspaceDir`. In multi-root Codex sessions, do not let the
 agent infer a project token from another open root; pass `workspaceDir`
 explicitly for project-token mode or use OAuth. The Semaphor bridge uses
-`workspaceDir` only to read local env files, removes it before forwarding the
-tool arguments to Semaphor, does not cache workspace roots across projects, and
-ignores ambiguous multi-root client root lists. If the current workspace has no
-active token, use OAuth or ask for a token instead of relying on a previously
-used project.
+`workspaceDir` to read local env files for auth/context calls. For contract
+create/generate/update calls that return
+`kind: "generated_data_app_contract"`, it materializes server-returned files
+under `src/semaphor/generated`; for validation calls, it reads those files back
+for `semaphor_validate_data_app_contract`. It removes `workspaceDir` before
+forwarding tool arguments to Semaphor, does not cache workspace roots across
+projects, ignores ambiguous multi-root client root lists, and rejects generated
+contract paths that escape the workspace or pass through symlinks. If the
+current workspace has no active token, use OAuth or ask for a token instead of
+relying on a previously used project.
 
 The project-token bridge intentionally keeps unauthenticated fallback
 `tools/list` minimal: access-context guidance only. Rich discovery, planning,

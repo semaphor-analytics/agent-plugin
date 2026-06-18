@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -24,15 +26,48 @@ const serverOwnedToolResponse = requiredServerTools.map((name) => ({
   description: `${name} from mocked live Semaphor MCP`,
   inputSchema: {
     type: "object",
-    properties: {},
+    properties: name === "semaphor_generate_data_app_contract"
+      ? { planArtifactId: { type: "string" } }
+      : {},
+    ...(name === "semaphor_generate_data_app_contract"
+      ? { required: ["planArtifactId"] }
+      : {}),
     additionalProperties: false,
   },
 }));
+
+function assertMessageIncludes(message, expected) {
+  assert.ok(
+    String(message || "").includes(expected),
+    `Expected message to include "${expected}", got "${message}"`,
+  );
+}
+
+async function assertFileMissing(filePath) {
+  try {
+    await readFile(filePath, "utf8");
+  } catch (error) {
+    assert.equal(error?.code, "ENOENT");
+    return;
+  }
+  assert.fail(`Expected file to be missing: ${filePath}`);
+}
 
 async function main() {
   await assertUnauthenticatedFallbackOnly();
   await assertAuthenticatedToolsListProxiesLiveSurface();
   await assertAuthenticatedToolsListPreservesLiveErrors();
+  await assertGeneratorResponseFilesAreMaterializedLocally();
+  await assertUpdateContractResponseFilesAreMaterializedLocally();
+  await assertNonContractToolPayloadDoesNotMaterializeLocally();
+  await assertGeneratorPreflightsBeforeWritingFiles();
+  await assertGeneratorRejectsProjectFileOverwrite();
+  await assertGeneratorRejectsSymlinkedGeneratedDirectory();
+  await assertValidatorWorkspaceDirReadsGeneratedFilesLocally();
+  await assertValidatorStripsOutputDirWithProvidedPayload();
+  await assertValidatorWorkspaceDirFindsCustomOutputDir();
+  await assertValidatorRejectsAmbiguousGeneratedManifests();
+  await assertValidatorOutputDirSelectsNestedManifest();
   console.log("Semaphor MCP bridge tests passed.");
 }
 
@@ -83,6 +118,32 @@ async function assertAuthenticatedToolsListProxiesLiveSurface() {
         `${tool.name} should preserve server additionalProperties`,
       );
     }
+    const generatorTool = response.result.tools.find((tool) =>
+      tool.name === "semaphor_generate_data_app_contract"
+    );
+    assert.equal(
+      generatorTool.inputSchema.properties.planArtifactId.type,
+      "string",
+      "generator tool should expose server-owned planArtifactId",
+    );
+    assert.equal(
+      generatorTool.inputSchema.required?.includes("planArtifactId"),
+      true,
+      "generator tool should require planArtifactId",
+    );
+    assert.equal(
+      generatorTool.inputSchema.properties.codegenSummaryPath,
+      undefined,
+      "generator tool should not expose legacy codegenSummaryPath",
+    );
+    const validatorTool = response.result.tools.find((tool) =>
+      tool.name === "semaphor_validate_data_app_contract"
+    );
+    assert.equal(
+      validatorTool.inputSchema.properties.outputDir.type,
+      "string",
+      "validator tool should expose bridge-local outputDir hint",
+    );
   } finally {
     await bridge.stop();
     await server.stop();
@@ -120,6 +181,659 @@ async function assertAuthenticatedToolsListPreservesLiveErrors() {
     await bridge.stop();
     await server.stop();
   }
+}
+
+async function assertGeneratorResponseFilesAreMaterializedLocally() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-write-"));
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        kind: "generated_data_app_contract",
+        outputDir: "src/semaphor/generated",
+        filePaths: {
+          "index.ts": "src/semaphor/generated/index.ts",
+          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
+        },
+        files: {
+          "index.ts": "export const generated = true;\n",
+          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+        },
+      },
+      content: [{ type: "text", text: "Generated 2 files." }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: {
+        name: "semaphor_generate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+          planArtifactId: "dap_plan_test",
+          outputDir: "src/semaphor/generated",
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.equal(calls[0].body.params.arguments.planArtifactId, "dap_plan_test");
+    assert.equal(calls[0].body.params.arguments.workspaceDir, undefined);
+    assert.equal(
+      response.result.structuredContent.localWrite.schemaVersion,
+      "semaphor-bridge-local-write/v1",
+    );
+    assert.equal(response.result.structuredContent.localWrite.fileCount, 2);
+    assert.equal(
+      await readFile(path.join(appDir, "src/semaphor/generated/index.ts"), "utf8"),
+      "export const generated = true;\n",
+    );
+    assert.equal(
+      await readFile(path.join(appDir, "src/semaphor/generated/contract.manifest.json"), "utf8"),
+      "{\n  \"ok\": true,\n  \"generatedFilePaths\": {\n    \"index.ts\": \"src/semaphor/generated/index.ts\"\n  }\n}\n",
+    );
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertUpdateContractResponseFilesAreMaterializedLocally() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-update-"));
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        kind: "generated_data_app_contract",
+        outputDir: "src/semaphor/generated",
+        filePaths: {
+          "index.ts": "src/semaphor/generated/index.ts",
+          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
+        },
+        files: {
+          "index.ts": "export const updated = true;\n",
+          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+        },
+      },
+      content: [{ type: "text", text: "Updated 2 files." }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/call",
+      params: {
+        name: "semaphor_update_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+          planArtifactId: "dap_plan_change_test",
+          outputDir: "src/semaphor/generated",
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.equal(calls[0].body.params.arguments.workspaceDir, undefined);
+    assert.equal(response.result.structuredContent.localWrite.fileCount, 2);
+    assert.equal(
+      await readFile(path.join(appDir, "src/semaphor/generated/index.ts"), "utf8"),
+      "export const updated = true;\n",
+    );
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertNonContractToolPayloadDoesNotMaterializeLocally() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-non-contract-"));
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        kind: "generated_data_app_contract",
+        outputDir: "src/semaphor/generated",
+        filePaths: {
+          "index.ts": "src/semaphor/generated/index.ts",
+          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
+        },
+        files: {
+          "index.ts": "export const shouldNotWrite = true;\n",
+          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+        },
+      },
+      content: [{ type: "text", text: "Unexpected generated payload." }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 13,
+      method: "tools/call",
+      params: {
+        name: "semaphor_get_data_app_sdk_guidance",
+        arguments: {
+          workspaceDir: appDir,
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.equal(response.result.structuredContent.localWrite, undefined);
+    await assertFileMissing(path.join(appDir, "src/semaphor/generated/index.ts"));
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertGeneratorPreflightsBeforeWritingFiles() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-preflight-"));
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        kind: "generated_data_app_contract",
+        outputDir: "src/semaphor/generated",
+        filePaths: {
+          "index.ts": "src/semaphor/generated/index.ts",
+        },
+        files: {
+          "index.ts": "export const partial = true;\n",
+          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+        },
+      },
+      content: [{ type: "text", text: "Generated 2 files." }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 12,
+      method: "tools/call",
+      params: {
+        name: "semaphor_generate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+          planArtifactId: "dap_plan_test",
+          outputDir: "src/semaphor/generated",
+        },
+      },
+    });
+    assertMessageIncludes(
+      response.error?.message,
+      "contract.manifest.json is missing filePaths entry",
+    );
+    await assertFileMissing(path.join(appDir, "src/semaphor/generated/index.ts"));
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertGeneratorRejectsProjectFileOverwrite() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-overwrite-"));
+  const packageJsonPath = path.join(appDir, "package.json");
+  await writeFile(packageJsonPath, "{\"name\":\"safe-app\"}\n", "utf8");
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        kind: "generated_data_app_contract",
+        outputDir: "src/semaphor/generated",
+        filePaths: {
+          "index.ts": "package.json",
+          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
+        },
+        files: {
+          "index.ts": "{\"name\":\"overwritten\"}\n",
+          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+        },
+      },
+      content: [{ type: "text", text: "Generated 2 files." }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 9,
+      method: "tools/call",
+      params: {
+        name: "semaphor_generate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+          planArtifactId: "dap_plan_test",
+          outputDir: "src/semaphor/generated",
+        },
+      },
+    });
+    assertMessageIncludes(response.error?.message, "must stay under src/semaphor/generated");
+    assert.equal(await readFile(packageJsonPath, "utf8"), "{\"name\":\"safe-app\"}\n");
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertGeneratorRejectsSymlinkedGeneratedDirectory() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-symlink-"));
+  const outsideDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-outside-"));
+  await mkdir(path.join(appDir, "src/semaphor"), { recursive: true });
+  try {
+    await symlink(outsideDir, path.join(appDir, "src/semaphor/generated"), "dir");
+  } catch (error) {
+    if (error?.code === "EPERM" || error?.code === "EACCES") {
+      await rm(appDir, { recursive: true, force: true });
+      await rm(outsideDir, { recursive: true, force: true });
+      return;
+    }
+    throw error;
+  }
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        kind: "generated_data_app_contract",
+        outputDir: "src/semaphor/generated",
+        filePaths: {
+          "index.ts": "src/semaphor/generated/index.ts",
+          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
+        },
+        files: {
+          "index.ts": "export const generated = true;\n",
+          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+        },
+      },
+      content: [{ type: "text", text: "Generated 2 files." }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: {
+        name: "semaphor_generate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+          planArtifactId: "dap_plan_test",
+          outputDir: "src/semaphor/generated",
+        },
+      },
+    });
+    assertMessageIncludes(response.error?.message, "must not contain symlinks");
+    await assertFileMissing(path.join(outsideDir, "index.ts"));
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+    await rm(outsideDir, { recursive: true, force: true });
+  }
+}
+
+async function assertValidatorWorkspaceDirReadsGeneratedFilesLocally() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-validate-"));
+  const generatedDir = path.join(appDir, "src/semaphor/generated");
+  await mkdir(generatedDir, { recursive: true });
+  const manifest = {
+    schemaVersion: "semaphor-data-app-generated-contract-manifest/v1",
+    generatedContentHash: "test-hash",
+    generatedFilePaths: {
+      "index.ts": "src/semaphor/generated/index.ts",
+      "metadata.ts": "src/semaphor/generated/metadata.ts",
+      "future-contract.ts": "src/semaphor/generated/future-contract.ts",
+    },
+  };
+  await writeFile(
+    path.join(generatedDir, "contract.manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    "utf8",
+  );
+  await writeFile(
+    path.join(generatedDir, "index.ts"),
+    "export const generated = true;\n",
+    "utf8",
+  );
+  await writeFile(
+    path.join(generatedDir, "metadata.ts"),
+    "export const metadata = {} as const;\n",
+    "utf8",
+  );
+  await writeFile(
+    path.join(generatedDir, "future-contract.ts"),
+    "export const future = true;\n",
+    "utf8",
+  );
+  await writeFile(
+    path.join(generatedDir, "stale-helper.ts"),
+    "export const stale = true;\n",
+    "utf8",
+  );
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        ok: true,
+        kind: "data_app_contract_validation",
+        issues: [],
+      },
+      content: [{ type: "text", text: "valid" }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: {
+        name: "semaphor_validate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body.method, "tools/call");
+    assert.deepEqual(calls[0].body.params.arguments.manifest, manifest);
+    assert.deepEqual(calls[0].body.params.arguments.generatedFiles, {
+      "future-contract.ts": "export const future = true;\n",
+      "index.ts": "export const generated = true;\n",
+      "metadata.ts": "export const metadata = {} as const;\n",
+    });
+    assert.equal(
+      calls[0].body.params.arguments.generatedFiles["stale-helper.ts"],
+      undefined,
+      "validation should not forward unrelated TypeScript files from src/semaphor/generated",
+    );
+    assert.equal(calls[0].body.params.arguments.workspaceDir, undefined);
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertValidatorStripsOutputDirWithProvidedPayload() {
+  const manifest = {
+    schemaVersion: "semaphor-data-app-generated-contract-manifest/v1",
+    generatedContentHash: "test-hash",
+    generatedFilePaths: {
+      "index.ts": "src/semaphor/generated/foo/index.ts",
+    },
+  };
+  const generatedFiles = {
+    "index.ts": "export const generated = true;\n",
+  };
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        ok: true,
+        kind: "data_app_contract_validation",
+        issues: [],
+      },
+      content: [{ type: "text", text: "valid" }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 14,
+      method: "tools/call",
+      params: {
+        name: "semaphor_validate_data_app_contract",
+        arguments: {
+          outputDir: "src/semaphor/generated/foo",
+          manifest,
+          generatedFiles,
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.deepEqual(calls[0].body.params.arguments.manifest, manifest);
+    assert.deepEqual(calls[0].body.params.arguments.generatedFiles, generatedFiles);
+    assert.equal(calls[0].body.params.arguments.outputDir, undefined);
+  } finally {
+    await bridge.stop();
+    await server.stop();
+  }
+}
+
+async function assertValidatorWorkspaceDirFindsCustomOutputDir() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-validate-custom-"));
+  const generatedDir = path.join(appDir, "src/semaphor/generated/foo");
+  await mkdir(generatedDir, { recursive: true });
+  const manifest = {
+    schemaVersion: "semaphor-data-app-generated-contract-manifest/v1",
+    generatedContentHash: "test-hash",
+    generatedFilePaths: {
+      "index.ts": "src/semaphor/generated/foo/index.ts",
+    },
+  };
+  await writeFile(
+    path.join(generatedDir, "contract.manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    "utf8",
+  );
+  await writeFile(
+    path.join(generatedDir, "index.ts"),
+    "export const generated = true;\n",
+    "utf8",
+  );
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        ok: true,
+        kind: "data_app_contract_validation",
+        issues: [],
+      },
+      content: [{ type: "text", text: "valid" }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: {
+        name: "semaphor_validate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.deepEqual(calls[0].body.params.arguments.manifest, manifest);
+    assert.deepEqual(calls[0].body.params.arguments.generatedFiles, {
+      "index.ts": "export const generated = true;\n",
+    });
+    assert.equal(calls[0].body.params.arguments.workspaceDir, undefined);
+    assert.equal(calls[0].body.params.arguments.outputDir, undefined);
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertValidatorRejectsAmbiguousGeneratedManifests() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-ambiguous-"));
+  await writeGeneratedContractFixture({
+    appDir,
+    outputDir: "src/semaphor/generated",
+    exportName: "defaultGenerated",
+  });
+  await writeGeneratedContractFixture({
+    appDir,
+    outputDir: "src/semaphor/generated/foo",
+    exportName: "nestedGenerated",
+  });
+
+  const calls = [];
+  const server = await startMockMcpServer(calls);
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 15,
+      method: "tools/call",
+      params: {
+        name: "semaphor_validate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+        },
+      },
+    });
+    assertMessageIncludes(response.error?.message, "Multiple generated contract manifests");
+    assert.equal(calls.length, 0);
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertValidatorOutputDirSelectsNestedManifest() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-select-nested-"));
+  await writeGeneratedContractFixture({
+    appDir,
+    outputDir: "src/semaphor/generated",
+    exportName: "defaultGenerated",
+  });
+  const nestedManifest = await writeGeneratedContractFixture({
+    appDir,
+    outputDir: "src/semaphor/generated/foo",
+    exportName: "nestedGenerated",
+  });
+
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        ok: true,
+        kind: "data_app_contract_validation",
+        issues: [],
+      },
+      content: [{ type: "text", text: "valid" }],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
+    SEMAPHOR_MCP_URL: server.url,
+  });
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 16,
+      method: "tools/call",
+      params: {
+        name: "semaphor_validate_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+          outputDir: "src/semaphor/generated/foo",
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.deepEqual(calls[0].body.params.arguments.manifest, nestedManifest);
+    assert.deepEqual(calls[0].body.params.arguments.generatedFiles, {
+      "index.ts": "export const nestedGenerated = true;\n",
+    });
+    assert.equal(calls[0].body.params.arguments.workspaceDir, undefined);
+    assert.equal(calls[0].body.params.arguments.outputDir, undefined);
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function writeGeneratedContractFixture({ appDir, outputDir, exportName }) {
+  const generatedDir = path.join(appDir, outputDir);
+  await mkdir(generatedDir, { recursive: true });
+  const manifest = {
+    schemaVersion: "semaphor-data-app-generated-contract-manifest/v1",
+    generatedContentHash: "test-hash",
+    generatedFilePaths: {
+      "index.ts": `${outputDir}/index.ts`,
+    },
+  };
+  await writeFile(
+    path.join(generatedDir, "contract.manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    "utf8",
+  );
+  await writeFile(
+    path.join(generatedDir, "index.ts"),
+    `export const ${exportName} = true;\n`,
+    "utf8",
+  );
+  return manifest;
 }
 
 function startBridge(extraEnv) {
@@ -242,7 +956,9 @@ async function startMockMcpServer(calls, options = {}) {
         id: parsed.id,
         ...(options.error
           ? { error: options.error }
-          : { result: { tools: serverOwnedToolResponse } }),
+          : parsed.method === "tools/call"
+            ? { result: options.callResult || { isError: false, content: [] } }
+            : { result: { tools: serverOwnedToolResponse } }),
       }));
     });
   });

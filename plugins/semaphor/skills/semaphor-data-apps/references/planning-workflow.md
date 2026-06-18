@@ -10,15 +10,16 @@ Use Semaphor planner tools as the source of truth for broad analytical work:
 
 - New app or broad dashboard/app request:
   after domain approval, call `semaphor_plan_data_app` with `domainId`,
-  `goal`, `responseFormat: "codegen_summary"`, and any known
-  `datasetName`/`datasetNames` or `preferences`. Present the returned plan and
-  stop. Generate files only after the user accepts the visible plan.
+  `goal`, and any known `datasetName`/`datasetNames` or `preferences`. Present
+  the returned visible plan and retain the returned `planArtifactId`. Stop.
+  Generate files only after the user accepts the visible plan.
 - Substantial existing-app analytical edit:
-  for generated apps, read the current generated `contract.manifest.json`, then
-  call `semaphor_update_data_app_contract` with `currentManifest`, `goal`, and
-  structured `operationIntent`. It returns a regenerated file payload and
-  migration report. Use `semaphor_plan_data_app_change` directly only for
-  preview/debug workflows that must not change generated files.
+  for generated apps, read the current generated `contract.manifest.json` as
+  the durable current-state record, then use server-owned change planning and
+  `semaphor_update_data_app_contract`. Prefer the canonical two-step flow:
+  `semaphor_plan_data_app_change` returns a change `planArtifactId`, then
+  `semaphor_update_data_app_contract` regenerates from that artifact. Do not
+  extract or replay `codegenSummary` as an agent-authored tool payload.
 
 Do not replace planner output with an agent-invented plan. Present the returned
 plan or change plan, then wait for the user's decision before editing files.
@@ -31,14 +32,12 @@ For broad dashboard-style creation, pass a view budget large enough for a
 balanced first proposal while keeping the generated app reviewable. Use
 `preferences.maxViews: 12` by default, or up to 20 for user-requested wider
 coverage. The default 8-view single-source plan is not a hard cap.
-For broad dashboard planning, pass `responseFormat: "codegen_summary"` exactly.
-Do not pass `responseFormat: "compact_summary"` or another invented compact
-format; the supported planner response formats are `full` and
-`codegen_summary`. If an invalid response format is rejected, retry once with
-`codegen_summary` instead of falling back to a full raw plan because chat output
-looks truncated. Never shrink `maxViews` just because the returned planner JSON
-is verbose; keep the artifact bounded by using the codegen summary or
-summarizing fields and bindings, not by throwing away planned visual coverage.
+Do not pass legacy planner format knobs such as `"codegen_summary"` or invented
+formats such as `"compact_summary"`. The planner returns a visible summary plus
+`planArtifactId`; generation resolves the canonical codegen summary
+server-side. Never shrink `maxViews` just because the returned planner JSON is
+verbose; keep the visible plan bounded by summarizing fields and bindings, not
+by throwing away planned visual coverage.
 
 ## Project And Domain Selection Gate
 
@@ -108,20 +107,36 @@ For accepted greenfield/broad plans, materialize the accepted planner artifact
 before UI edits:
 
 ```text
-semaphor_plan_data_app(responseFormat: "codegen_summary")
+semaphor_plan_data_app()
+-> planner returns visible plan plus planArtifactId
 -> present visible plan with views, visual types, filters, file layout, and DevTools setup
 -> user/eval accepts the visible plan
--> semaphor_generate_data_app_contract(codegenSummary)
+-> semaphor_generate_data_app_contract(planArtifactId)
 -> write structuredContent.files exactly to structuredContent.filePaths
 -> build UI from src/semaphor/generated imports
--> semaphor_validate_data_app_contract(generatedContractPayload or manifest + generatedFiles)
+-> semaphor_validate_data_app_contract(workspaceDir)
 -> run local typecheck/build and browser smoke checks
 ```
 
+Use `planArtifactId` because real builder runs showed agents can silently drop
+or reshape required fields when reconstructing large JSON payloads inside a
+tool call. The artifact id handoff is deterministic: Semaphor stores the
+canonical codegen summary temporarily after planning, and the generator resolves
+it server-side. In installed-plugin runs, the bridge forwards only
+`planArtifactId` plus ordinary generator arguments to Semaphor and materializes
+the returned files under `src/semaphor/generated`; verify those files exist
+after the first-class generator call and before UI edits. Do not use the helper
+wrapper to recover generator output. Do not pass inline `codegenSummary`,
+`codegenSummaryPath`, or `artifactDir`.
+
 `semaphor_validate_data_app_contract` validates the generated Semaphor contract
-payload and manifest integrity. It does not run the local app build or inspect a
-workspace path. After writing files, still run the app's typecheck/build and
-browser smoke checks. Browser smoke should verify governed data renders,
+payload and manifest integrity. In installed plugin runs, pass `workspaceDir`
+after files are written; the bridge locates the generated manifest under
+`src/semaphor/generated` and forwards the manifest plus generated TypeScript
+contents to Semaphor. If generation used a generated subdirectory, pass the
+same `outputDir`. It does not run the local app build. After writing files,
+still run the app's typecheck/build and browser smoke checks. Browser smoke
+should verify governed data renders,
 DevTools traces include generated query ids/input option query ids, and filter
 selections re-run affected subscribed queries.
 
@@ -137,9 +152,10 @@ manifest hash still matches the generated TypeScript files.
 For iterative analytics changes to a generated app, call:
 
 ```text
-read src/semaphor/generated/contract.manifest.json
--> semaphor_update_data_app_contract(currentManifest, goal, operationIntent)
--> server plans the change from currentManifest.codegenSummary
+read the generated contract.manifest.json under src/semaphor/generated
+-> semaphor_plan_data_app_change(current manifest state, goal, operationIntent)
+-> server returns a change planArtifactId when the change is buildable
+-> semaphor_update_data_app_contract(planArtifactId)
 -> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
 -> returns regenerated structuredContent.files and migrationReport
 -> write structuredContent.files exactly to structuredContent.filePaths
@@ -308,9 +324,9 @@ auditable:
 When building from an accepted plan, keep the implementation traceable:
 
 - map each buildable `plan.views[*]` to an obvious card/insight component;
-- keep Semaphor sources, field refs, shared filters, input option specs, and
-  query specs in `src/semaphor/*` modules instead of burying them inside
-  `App.tsx` or one large dashboard component;
+- import Semaphor sources, field refs, shared filters, input option specs, and
+  query specs from `src/semaphor/generated` instead of recreating them in
+  `App.tsx` or handwritten `src/semaphor/*` modules;
 - keep `App.tsx` focused on the provider, app shell, layout composition, and
   imported sections; it should not own repeated query specs, many query hooks,
   chart/table implementations, or formatting helpers;
@@ -324,10 +340,8 @@ stronger convention and the plan has more than two data-bearing views, use a
 small inspectable structure such as:
 
 ```text
-src/semaphor/queries.ts
-src/semaphor/inputs.ts
-src/semaphor/sources.ts
-src/semaphor/fields.ts
+src/semaphor/generated/index.ts
+src/semaphor/generated/contract.manifest.json
 src/components/layout/FilterBar.tsx
 src/components/cards/<ViewName>Card.tsx
 src/utils/formatting.ts
@@ -335,7 +349,7 @@ src/utils/formatting.ts
 
 Do not replace one huge `App.tsx` with one huge `Dashboard.tsx`; repeated
 planned views should become separate card/view components, while shared query
-definitions and input specs remain in `src/semaphor/*`.
+definitions and input specs remain generated under `src/semaphor/generated`.
 
 DevTools setup should be planned before edits too: mount one root
 `<SemaphorDevtools />`, enable provider debug only for local/authoring

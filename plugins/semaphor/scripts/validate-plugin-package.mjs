@@ -363,6 +363,8 @@ function validateMcpBridge() {
     "runDataAppContractGenerator",
     "generate-data-app-contract.mjs",
     "validate-semaphor-data-app.mjs",
+    "codegenSummaryPath",
+    "bridgeArtifactDirectories",
   ]) {
     if (bridgeText.includes(forbidden)) {
       issues.push(

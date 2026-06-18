@@ -48,15 +48,14 @@ public SDK builders/hooks, validate, then save or publish when requested.
    DevTools setup in that visible plan. Do not dump the dashboard into
    `src/App.tsx`.
 6. Contract generation: only after explicit plan approval, call
-   `semaphor_generate_data_app_contract` with the planner's canonical
-   `codegenSummary`, or call `semaphor_create_data_app_contract` for an
-   approved one-step build. These tools return generated file payloads; write
-   `structuredContent.files` exactly to `structuredContent.filePaths`, then
-   import generated sources, fields, inputs, queries, and bindings.
-7. Existing generated app: use `semaphor_update_data_app_contract` so the
-   current generated manifest or codegen summary drives change planning and
-   regeneration; write the returned generated file payload exactly and
-   preserve existing views by default.
+   `semaphor_generate_data_app_contract` with the planner-returned
+   `planArtifactId`. Do not pass inline `codegenSummary`, `codegenSummaryPath`,
+   or `artifactDir`. Verify `src/semaphor/generated` exists after the
+   first-class tool call, or write returned payload files exactly.
+7. Existing generated app: use `semaphor_update_data_app_contract` from the
+   generated manifest or change `planArtifactId`; write the returned payload
+   exactly, preserve existing views by default, and do not replay
+   `codegenSummary` as an agent-authored tool payload.
 8. Dependencies: ask before installing TanStack/chart libraries, copying
    starter source, or starter scaffolds. Starter/eval apps already include
    Semaphor components; existing apps use host UI first.
@@ -126,14 +125,14 @@ such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
 For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
-preferences, responseFormat: "codegen_summary" })`, present the visible plan,
-and stop. After approval, call
-`semaphor_generate_data_app_contract({ codegenSummary })` with the canonical
-planner output, or call `semaphor_create_data_app_contract` when the user has
-explicitly approved a one-step build. For substantial edits to a generated app,
+preferences })`, present the visible plan and the returned `planArtifactId`,
+and stop. After approval, call `semaphor_generate_data_app_contract` with that
+`planArtifactId`; do not inline or replay `codegenSummary`. Verify
+`src/semaphor/generated` exists before UI edits. For edits,
 read the current generated `contract.manifest.json`, then call
-`semaphor_update_data_app_contract({ currentManifest, goal, operationIntent })`;
-the server returns the regenerated file payload and migration report.
+`semaphor_update_data_app_contract` with manifest-backed current state or the
+`planArtifactId` returned by `semaphor_plan_data_app_change`; the server
+returns the regenerated file payload and migration report.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
 option queries, or filter bindings manually. Use `queries.someView()` with
@@ -150,9 +149,9 @@ generator intentionally rejects zero-executable-view plans by default.
 
 For broad dashboard-style app creation, prefer `preferences.maxViews` around
 12 so the generated app remains reviewable. Use a larger explicit budget up to
-20 only when the user asks for wider coverage. Use
-`responseFormat: "codegen_summary"` exactly; do not shrink to the 8-view
-single-source default or invent formats such as `"compact_summary"`.
+20 only when the user asks for wider coverage. Do not shrink to the 8-view
+single-source default or invent planner format knobs such as
+`"compact_summary"` or legacy `"codegen_summary"`.
 
 The visible planning response must include:
 
@@ -368,11 +367,11 @@ handles, each filter's subscribed views, and the root SDK DevTools wiring.
 Treat this as part of the implementation contract. `App.tsx` should stay a
 provider/page-shell/composition file, not a home for repeated `semaphor.*`
 specs, many `useSemaphorQuery` calls, chart/table implementations, or
-row-formatting helpers. Unless the host app has an equivalent convention, put
-Semaphor sources, field refs, shared filters, input option specs, and query
-specs under `src/semaphor/*`, and put repeated data-bearing views in separate
-card/view components. Use `references/planning-workflow.md` for the default
-file layout and filter-scope map before broad codegen.
+row-formatting helpers. For generated apps, Semaphor sources, field refs,
+shared filters, input option specs, and query specs live in
+`src/semaphor/generated`; custom source files should import those generated
+exports and focus on layout, controls, cards, charts, tables, formatting, and
+states. Put repeated data-bearing views in separate card/view components.
 
 For tiny one-view apps, a compact structure is fine, but keep query ownership
 obvious for future edits.

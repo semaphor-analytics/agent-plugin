@@ -149,10 +149,23 @@ and do not pass workspace roots to the MCP process. In that case, direct
 `semaphor-project` MCP calls may not see the React app's `.env.local`
 automatically. Agents should retry the project-token tool call with an internal
 `workspaceDir` argument set to the current React app repository root. The
-bridge uses that path only to read ignored local env files, then strips
-`workspaceDir` before forwarding the request to Semaphor. The bridge does not
-cache workspace paths across projects. If the current workspace has no active
-token, use the hosted OAuth path or add a token for that workspace.
+bridge strips `workspaceDir` before forwarding the request to Semaphor and does
+not cache workspace paths across projects.
+
+`workspaceDir` has two local bridge effects:
+
+- Auth/context/discovery calls use it to read ignored local env files such as
+  `.env.local` for the current React app.
+- Contract create/generate/update calls that return
+  `kind: "generated_data_app_contract"` use it to materialize
+  server-returned files under `src/semaphor/generated`.
+- Validation calls use it to read
+  `contract.manifest.json + generatedFiles` for
+  `semaphor_validate_data_app_contract`.
+
+The bridge rejects generated contract paths that escape `workspaceDir` or pass
+through symlinks. If the current workspace has no active token, use the hosted
+OAuth path or add a token for that workspace.
 
 Production-ready auth behavior:
 

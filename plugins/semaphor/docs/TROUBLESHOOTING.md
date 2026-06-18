@@ -627,12 +627,14 @@ arbitrary React source.
 
 For agent repair loops, prefer structured output:
 
-Call `semaphor_validate_data_app_contract` with the full
-`generatedContractPayload` returned by `semaphor_generate_data_app_contract`.
-After files are written, pass both `manifest` from
-`src/semaphor/generated/contract.manifest.json` and `generatedFiles` containing
-the generated TypeScript file contents. Manifest-only validation is not enough
-because it cannot detect hand-edited or stale generated files.
+After files are written, call
+`semaphor_validate_data_app_contract({ workspaceDir })`. In installed plugin
+runs, the bridge locates the generated `contract.manifest.json` under
+`src/semaphor/generated`, reads the generated TypeScript file contents, and
+forwards them to Semaphor. If multiple generated manifests exist, pass the
+matching `outputDir` under `src/semaphor/generated`.
+Manifest-only validation is not enough because it cannot detect hand-edited or
+stale generated files.
 
 The MCP tool returns structured issues in `structuredContent`. Use those stable
 codes and `repairHint` instead of parsing terminal prose.

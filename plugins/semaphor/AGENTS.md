@@ -61,9 +61,10 @@ Codex, Claude Code, and future coding-agent hosts.
 
 For customer React apps, prefer the app's own typecheck/build scripts plus:
 
-`semaphor_validate_data_app_contract` with the full generated contract payload
-returned by generation, or with `src/semaphor/generated/contract.manifest.json`
-plus every generated TypeScript file from `src/semaphor/generated`.
+`semaphor_validate_data_app_contract({ workspaceDir })` after generation files
+are written. The installed plugin bridge reads
+`src/semaphor/generated/contract.manifest.json` plus the generated TypeScript
+files and forwards them to the server validator.
 
 Do not validate with the manifest alone. Manifest-only validation skips
 generated-file drift detection and can let hand-edited or stale generated files

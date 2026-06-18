@@ -32,9 +32,9 @@ Expected agent behavior:
   and stop for approval before generating files or editing source,
 - for broad dashboard creation, request a balanced planner budget, normally
   `preferences.maxViews: 15` and up to 20 for wide coverage; do not treat the
-  8-view default as a cap or shrink the plan because the artifact is verbose,
-  and use `responseFormat: "codegen_summary"` exactly. Do not use invented
-  response formats such as `"compact_summary"`,
+  8-view default as a cap or shrink the plan because the artifact is verbose.
+  Do not use legacy planner format knobs such as `"codegen_summary"` or
+  invented response formats such as `"compact_summary"`,
 - generate only after the user accepts the visible plan or gives a narrow
   explicit build instruction for a previously reviewed plan,
 - when the user did not name a domain, present relevant domain/app options
@@ -59,18 +59,22 @@ Expected agent behavior:
 - include the intended file/component layout, filter-to-card wiring map, and
   SDK DevTools setup before editing,
 - keep `App.tsx` as a provider/page-shell/composition file for broad apps,
-  with Semaphor specs in `src/semaphor/*` and repeated data-bearing views in
-  separate card/view components; do not dump a full dashboard into one giant
-  `App.tsx` or one giant replacement dashboard component,
-- generate from the returned `sources`, `inputs`, `views`, `sdkSpec`,
-  unsupported gaps, and assumptions instead of improvising query specs,
+  with generated Semaphor analytics wiring imported from
+  `src/semaphor/generated` and repeated data-bearing views in separate
+  card/view components; do not dump a full dashboard into one giant `App.tsx`
+  or one giant replacement dashboard component,
+- generate from the returned `planArtifactId`; use the visible plan's
+  `sources`, `inputs`, `views`, `sdkSpec`, unsupported gaps, and assumptions to
+  explain the implementation instead of improvising query specs,
 - if a generated app is changed later, call
-  `semaphor_update_data_app_contract` and use its migration report before
-  presentation edits; pass the current generated manifest or codegen summary so
-  Semaphor can reject unrelated views, inputs, and filter scopes before the
-  agent writes returned files,
-- create KPI, trend, table, and filter views using `semaphor.*` query/input
-  builders plus `useSemaphorQuery`,
+  `semaphor_update_data_app_contract` from manifest-backed current state or a
+  change `planArtifactId` and use its migration report before presentation
+  edits; do not extract or replay `codegenSummary` as an agent-authored tool
+  payload,
+- render generated KPI, trend, table, and filter views from the generated
+  queries, input handles, and query option helpers plus `useSemaphorQuery`;
+  reserve direct `semaphor.*` query/input builders for narrow manual SDK edits
+  outside the generated-contract flow,
 - give every runtime query spec a stable explicit `id`,
 - include local/dev `<SemaphorDevtools />` with the provider debug bridge gated
   to authoring environments,
@@ -266,26 +270,28 @@ Expected agent behavior:
 
 Expected validation:
 
-- run `semaphor_validate_data_app_contract` on the full generated payload, or
-  on `manifest` plus `generatedFiles` after files are written,
+- run `semaphor_validate_data_app_contract({ workspaceDir })` after files are
+  written so the bridge validates the local generated files,
 - run the app's typecheck/build scripts when present,
 - open the app locally when practical and verify real data renders.
 
 For broad greenfield Data Apps, the normal codegen path is:
 
 1. Resolve project/domain.
-2. Call `semaphor_plan_data_app` with `domainId`, `goal`,
-   `responseFormat: "codegen_summary"`, and planner `preferences` such as
-   `maxViews: 15`.
+2. Call `semaphor_plan_data_app` with `domainId`, `goal`, and planner
+   `preferences` such as `maxViews: 15`.
 3. Present the visible plan, including view names, visual types, filters,
-   file/component layout, and SDK DevTools setup. Stop for approval.
+   file/component layout, SDK DevTools setup, and the returned `planArtifactId`.
+   Stop for approval.
 4. After approval, call `semaphor_generate_data_app_contract` with the
-   canonical `codegenSummary` returned by planning.
+   returned `planArtifactId`.
 5. Build the React UI from the generated `src/semaphor/generated` exports.
-6. Run `semaphor_validate_data_app_contract` on the full generated payload.
-   After files are written, rerun it with `manifest` plus `generatedFiles` from
-   `src/semaphor/generated` so generated TypeScript drift is detected. Then run
-   local typecheck/build and browser smoke checks before final handoff.
+6. Run `semaphor_validate_data_app_contract({ workspaceDir })` after files are
+   written so the bridge reads the generated manifest and TypeScript files
+   under `src/semaphor/generated` and Semaphor detects generated TypeScript
+   drift. If generation used a generated subdirectory, pass the same
+   `outputDir`. Then run local typecheck/build and browser smoke checks before
+   final handoff.
 
 Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.

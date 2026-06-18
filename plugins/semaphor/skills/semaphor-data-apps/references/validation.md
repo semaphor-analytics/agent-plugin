@@ -12,9 +12,11 @@ Before reporting completion, run the strongest available checks:
   `generatedContractPayload` returned by `semaphor_generate_data_app_contract`
   immediately after generation;
 - for final validation after files are written, call
-  `semaphor_validate_data_app_contract` with both `manifest` from
-  `src/semaphor/generated/contract.manifest.json` and `generatedFiles` read
-  from every generated TypeScript file in `src/semaphor/generated`;
+  `semaphor_validate_data_app_contract({ workspaceDir })`. In installed plugin
+  runs, the bridge locates the generated `contract.manifest.json` under
+  `src/semaphor/generated`, reads every generated TypeScript file listed by the
+  manifest, then forwards `manifest + generatedFiles` to the server validator.
+  If multiple generated manifests exist, pass the matching `outputDir`;
 - the target app's typecheck script, when present;
 - the target app's build script, when present and reasonable;
 - a browser smoke check for generated dashboards when practical.
@@ -22,8 +24,10 @@ Before reporting completion, run the strongest available checks:
 `semaphor_validate_data_app_contract` is the MCP contract validator. It requires
 generated file contents, not only `contract.manifest.json`, so Semaphor can
 compare the manifest hash against the generated TypeScript files and catch
-hand-edited or stale generated output. It does not run local npm scripts,
-inspect arbitrary React source, or prove browser interactions.
+hand-edited or stale generated output. In installed plugin runs, prefer
+`workspaceDir` so the bridge performs that local file read deterministically.
+It does not run local npm scripts, inspect arbitrary React source, or prove
+browser interactions.
 
 ## What Semaphor Owns
 
