@@ -1,51 +1,33 @@
 # Validation
 
-Use validation to prove the app can run and that Semaphor can understand the
-analytics contract. Do not treat plugin-local source scanning as proof of
-analytics correctness.
+Use validation to prove the generated contract is intact, the target app builds,
+and the rendered experience actually applies Semaphor inputs. Do not treat
+plugin-local source scanning as proof of analytics correctness.
 
 ## What To Run
 
 Before reporting completion, run the strongest available checks:
 
-- `semaphor_validate_data_app_contract` when the host exposes it;
-- `node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>`;
+- `semaphor_validate_data_app_contract` with the full
+  `generatedContractPayload` returned by `semaphor_generate_data_app_contract`
+  immediately after generation;
+- for final validation after files are written, call
+  `semaphor_validate_data_app_contract` with both `manifest` from
+  `src/semaphor/generated/contract.manifest.json` and `generatedFiles` read
+  from every generated TypeScript file in `src/semaphor/generated`;
 - the target app's typecheck script, when present;
 - the target app's build script, when present and reasonable;
 - a browser smoke check for generated dashboards when practical.
 
-The plugin-local validator is a deterministic preflight. It checks package
-setup, public SDK availability, root provider/DevTools wiring, generated
-contract completeness, generated contract hygiene, and optional local
-typecheck/build. It intentionally does not infer analytics semantics from
-React source text.
-
-When browser smoke captures a Semaphor DevTools bridge snapshot, pass it into
-validation:
-
-```bash
-node <plugin>/scripts/validate-semaphor-data-app.mjs \
-  --dir <app> \
-  --devtools-snapshot out/devtools-snapshot.json
-```
-
-After changing visible filters, pass a filter-effect report too:
-
-```bash
-node <plugin>/scripts/validate-semaphor-data-app.mjs \
-  --dir <app> \
-  --filter-effect-report out/filter-effect-report.json
-```
-
-The filter-effect report is browser-smoke evidence. It should include a
-`checks` or `filterEffects` array with each generated `inputId` and either
-`passed: true` or one of `changedQueryIds`, `reranQueryIds`,
-`affectedViewIds`, or `changedViewIds` containing a subscribed generated query
-id.
+`semaphor_validate_data_app_contract` is the MCP contract validator. It requires
+generated file contents, not only `contract.manifest.json`, so Semaphor can
+compare the manifest hash against the generated TypeScript files and catch
+hand-edited or stale generated output. It does not run local npm scripts,
+inspect arbitrary React source, or prove browser interactions.
 
 ## What Semaphor Owns
 
-Semaphor planner, generated contract, validation route, execution route, and
+Semaphor planner, generated contract, validation tool, execution route, and
 DevTools/runtime traces own analytics correctness:
 
 - source and field validity;

@@ -118,6 +118,13 @@ first-class callable tools. The plugin exposes:
 - `semaphor`: hosted OAuth MCP for login and project discovery.
 - `semaphor-project`: project-token MCP bridge for scoped/local development.
 
+For Data App builds, verify that the authenticated Semaphor MCP surface exposes
+planning and server-owned contract tools, including `semaphor_plan_data_app`,
+`semaphor_generate_data_app_contract`,
+`semaphor_update_data_app_contract`, and
+`semaphor_validate_data_app_contract`. If planning tools are visible but the
+contract tools are not, reload or reinstall the plugin before building.
+
 ### Upgrade
 
 ```bash
@@ -191,6 +198,13 @@ first-class callable tools. The plugin exposes:
 
 - `semaphor`: hosted OAuth MCP for login and project discovery.
 - `semaphor-project`: project-token MCP bridge for scoped/local development.
+
+For Data App builds, verify that the authenticated Semaphor MCP surface exposes
+planning and server-owned contract tools, including `semaphor_plan_data_app`,
+`semaphor_generate_data_app_contract`,
+`semaphor_update_data_app_contract`, and
+`semaphor_validate_data_app_contract`. If planning tools are visible but the
+contract tools are not, reload or reinstall the plugin before building.
 
 If a tool call asks for OAuth on first use, complete the login through the
 `/mcp` slash command in your Claude Code session, then re-run the request.

@@ -39,11 +39,32 @@ function validatePackageJson() {
   const pkg = readJson("package.json");
   requireString(pkg, "name", "package.json");
   requireString(pkg, "version", "package.json");
-  if (!pkg?.scripts?.["validate:data-app"]) {
-    issues.push("package.json: missing validate:data-app script");
+  if (pkg?.engines?.node !== ">=18") {
+    issues.push(
+      "package.json: engines.node must be >=18 because plugin scripts use modern Node runtime APIs such as fetch",
+    );
   }
-  if (!pkg?.scripts?.["test:generator"]) {
-    issues.push("package.json: missing test:generator script");
+  for (const forbiddenScript of [
+    "validate:data-app",
+    "test:generator",
+  ]) {
+    if (pkg?.scripts?.[forbiddenScript]) {
+      issues.push(
+        `package.json: hard migration forbids ${forbiddenScript}; use server-owned MCP contract tools instead`,
+      );
+    }
+  }
+
+  const repoRootPackageJsonPath = path.resolve(root, "../..", "package.json");
+  if (fs.existsSync(repoRootPackageJsonPath)) {
+    const repoRootPackageJson = JSON.parse(
+      fs.readFileSync(repoRootPackageJsonPath, "utf8"),
+    );
+    if (repoRootPackageJson?.scripts?.["validate:data-app"]) {
+      issues.push(
+        "../../package.json: hard migration forbids validate:data-app root wrapper; use server-owned MCP contract validation tools instead",
+      );
+    }
   }
 }
 
@@ -154,6 +175,11 @@ function validateVersionSync() {
           `${relativePath}: helper-reported MCP version ${match[1]} must match package.json version ${expectedVersion}`,
         );
       }
+    }
+    if (/new URL\(import\.meta\.url\)\.pathname/.test(text)) {
+      issues.push(
+        `${relativePath}: use fileURLToPath(import.meta.url) instead of URL.pathname so packaged scripts resolve correctly on Windows`,
+      );
     }
   }
 
@@ -328,64 +354,21 @@ function validateMcpBridge() {
     return;
   }
   const bridgeText = fs.readFileSync(bridgePath, "utf8");
-  if (!bridgeText.includes("semaphor_validate_data_app_contract")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: must expose semaphor_validate_data_app_contract as a first-class local MCP tool",
-    );
-  }
-  if (!bridgeText.includes("semaphor_generate_data_app_contract")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: must expose semaphor_generate_data_app_contract as a first-class local MCP tool",
-    );
-  }
-  if (!bridgeText.includes("semaphor_create_data_app_contract")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: must expose semaphor_create_data_app_contract for eval paths or explicitly approved one-step builds",
-    );
-  }
-  if (
-    !bridgeText.includes(
-      "Normal interactive greenfield builds should call semaphor_plan_data_app first",
-    )
-  ) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: create-contract tool description must preserve the plan-first interactive workflow",
-    );
-  }
-  if (!bridgeText.includes("targetViewIds: [...]")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: fix_warnings operationIntent description must document required targetViewIds",
-    );
-  }
-  if (!bridgeText.includes("semaphor_update_data_app_contract")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: must expose semaphor_update_data_app_contract for generated app changes",
-    );
-  }
-  if (!bridgeText.includes("migrationReport")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: update tool must return a migrationReport for presentation edits",
-    );
-  }
-  if (!bridgeText.includes("filterEffectReportPath")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: validation tool must expose filterEffectReportPath for browser filter QA",
-    );
-  }
-  if (!bridgeText.includes("generate-data-app-contract.mjs")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: local generation tool must call scripts/generate-data-app-contract.mjs",
-    );
-  }
-  if (!bridgeText.includes("validate-semaphor-data-app.mjs")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: local validation tool must call scripts/validate-semaphor-data-app.mjs",
-    );
-  }
-  if (!bridgeText.includes("generatedContractTypescriptFiles")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: generated contract manifest validation must read generated contract TypeScript files from react-semaphor/data-app-codegen/node",
-    );
+  for (const forbidden of [
+    "const LOCAL_TOOLS",
+    "createLocalDataAppContract",
+    "generateLocalDataAppContract",
+    "updateLocalDataAppContract",
+    "validateLocalDataAppContract",
+    "runDataAppContractGenerator",
+    "generate-data-app-contract.mjs",
+    "validate-semaphor-data-app.mjs",
+  ]) {
+    if (bridgeText.includes(forbidden)) {
+      issues.push(
+        `scripts/semaphor-mcp-remote.mjs: hard migration forbids plugin-local Data App contract MCP handling (${forbidden}); proxy live Semaphor MCP tools instead`,
+      );
+    }
   }
   if (bridgeText.includes("fs.readdirSync(generatedDir)")) {
     issues.push(
@@ -408,7 +391,7 @@ function validateMcpBridge() {
   const fallbackToolsText = textBetween(
     bridgeText,
     "const FALLBACK_TOOLS = [",
-    "const LOCAL_TOOLS = [",
+    "const scriptDir =",
   );
   for (const serverOwnedTool of [
     "semaphor_get_analysis_context",
@@ -421,6 +404,10 @@ function validateMcpBridge() {
     "semaphor_plan_data_app",
     "semaphor_plan_data_app_change",
     "semaphor_get_data_app_runtime_token",
+    "semaphor_create_data_app_contract",
+    "semaphor_generate_data_app_contract",
+    "semaphor_update_data_app_contract",
+    "semaphor_validate_data_app_contract",
   ]) {
     const fallbackToolNamePattern = new RegExp(
       `\\bname\\s*:\\s*["']${escapeRegExp(serverOwnedTool)}["']`,
@@ -431,181 +418,18 @@ function validateMcpBridge() {
       );
     }
   }
-  const generatorPath = path.join(
-    root,
+  for (const forbiddenPath of [
     "scripts/generate-data-app-contract.mjs",
-  );
-  const sharedCodegenLoaderPath = path.join(
-    root,
     "scripts/shared-codegen-loader.mjs",
-  );
-  const legacySummaryValidationPath = path.join(
-    root,
-    "scripts/data-app-codegen-summary-validation.mjs",
-  );
-  const updatePolicyPath = path.join(
-    root,
-    "scripts/data-app-contract-update-policy.mjs",
-  );
-  const generatedContractFilesPath = path.join(
-    root,
-    "scripts/generated-contract-files.mjs",
-  );
-  if (fs.existsSync(generatorPath)) {
-    const generatorText = fs.readFileSync(generatorPath, "utf8");
-    if (!generatorText.includes("contract.manifest.json")) {
-      issues.push(
-        "scripts/generate-data-app-contract.mjs: generator must write contract.manifest.json for iterative planning and drift detection",
-      );
-    }
-    if (!generatorText.includes("importSharedCodegen")) {
-      issues.push(
-        "scripts/generate-data-app-contract.mjs: generator wrapper must resolve shared react-semaphor/data-app-codegen/node",
-      );
-    }
-    if (!generatorText.includes("generateSemaphorDataAppContract")) {
-      issues.push(
-        "scripts/generate-data-app-contract.mjs: generator wrapper must call shared generateSemaphorDataAppContract",
-      );
-    }
-    if (!generatorText.includes("generatedContract.files")) {
-      issues.push(
-        "scripts/generate-data-app-contract.mjs: generator wrapper must write shared generatedContract.files",
-      );
-    }
-    for (const forbidden of [
-      "function buildContract(",
-      "function renderFiles(",
-      "function renderQueries(",
-      "function renderAccessors(",
-      "function sourceKey(",
-      "recordsSortFieldsForView =",
-      "tableColumnsForView =",
-    ]) {
-      if (generatorText.includes(forbidden)) {
-        issues.push(
-          `scripts/generate-data-app-contract.mjs: must not contain duplicated shared generator logic (${forbidden})`,
-        );
-      }
-    }
-    const sharedCodegenLoaderText = fs.existsSync(sharedCodegenLoaderPath)
-      ? fs.readFileSync(sharedCodegenLoaderPath, "utf8")
-      : "";
-    if (fs.existsSync(legacySummaryValidationPath)) {
-      issues.push(
-        "scripts/data-app-codegen-summary-validation.mjs: delete legacy validation wrapper; use scripts/shared-codegen-loader.mjs",
-      );
-    }
-    if (!sharedCodegenLoaderText.includes("react-semaphor/data-app-codegen/node")) {
-      issues.push(
-        "scripts/shared-codegen-loader.mjs: must resolve react-semaphor/data-app-codegen/node",
-      );
-    }
-    if (sharedCodegenLoaderText.includes("await importSharedCodegen();")) {
-      issues.push(
-        "scripts/shared-codegen-loader.mjs: must resolve react-semaphor/data-app-codegen/node lazily inside validation calls, not at module load",
-      );
-    }
-    if (!sharedCodegenLoaderText.includes("validateSemaphorGeneratedContract")) {
-      issues.push(
-        "scripts/shared-codegen-loader.mjs: must expose shared generated contract validation from react-semaphor/data-app-codegen",
-      );
-    }
-    if (!sharedCodegenLoaderText.includes("evaluateSemaphorDataAppContractUpdatePolicy")) {
-      issues.push(
-        "scripts/shared-codegen-loader.mjs: must expose shared deterministic update policy from react-semaphor/data-app-codegen",
-      );
-    }
-    if (!sharedCodegenLoaderText.includes("GENERATED_CONTRACT_TYPESCRIPT_FILES")) {
-      issues.push(
-        "scripts/shared-codegen-loader.mjs: must expose generated contract file names from react-semaphor/data-app-codegen",
-      );
-    }
-    if (!sharedCodegenLoaderText.includes("REQUIRED_GENERATED_CONTRACT_FILES")) {
-      issues.push(
-        "scripts/shared-codegen-loader.mjs: must expose required generated contract files from react-semaphor/data-app-codegen",
-      );
-    }
-    for (const forbidden of [
-      "CODEGEN_SDK_BUILDERS",
-      "CODEGEN_METRIC_SPEC_KEYS",
-      "CODEGEN_RECORDS_SPEC_KEYS",
-      "CODEGEN_MATRIX_SPEC_KEYS",
-      "CODEGEN_SQL_SPEC_KEYS",
-      "validateSdkSpec",
-      "validateCodegenView",
-      "validateCodegenFieldRef",
-      "validateMatchingTotalsMeasures",
-    ]) {
-      if (sharedCodegenLoaderText.includes(forbidden)) {
-        issues.push(
-          `scripts/shared-codegen-loader.mjs: must not contain duplicated SDK/codegen validation logic (${forbidden})`,
-        );
-      }
-    }
-  }
-  if (fs.existsSync(updatePolicyPath)) {
-    issues.push(
-      "scripts/data-app-contract-update-policy.mjs: delete legacy update-policy wrapper; use scripts/shared-codegen-loader.mjs",
-    );
-  }
-  if (fs.existsSync(generatedContractFilesPath)) {
-    issues.push(
-      "scripts/generated-contract-files.mjs: generated contract file names are SDK/codegen-owned and must be read through scripts/shared-codegen-loader.mjs",
-    );
-  }
-  const generatorFixturePath = path.join(
-    root,
     "scripts/test-generate-data-app-contract.mjs",
-  );
-  if (fs.existsSync(generatorFixturePath)) {
-    const generatorFixtureText = fs.readFileSync(generatorFixturePath, "utf8");
-    for (const forbidden of [
-      "evaluateContractUpdatePolicy",
-      "runContractUpdatePolicyFixture",
-      "runMalformedSdkSpecFixture",
-      "runMalformedMatrixSpecFixture",
-      "runUnsupportedRelationshipRepairMetadataFixture",
-      "runTableBehaviorFixture",
-      "assertAggregateRecordsAccessorBehavior",
-      "assertServerTableQueryFactoryBehavior",
-    ]) {
-      if (generatorFixtureText.includes(forbidden)) {
-        issues.push(
-          `scripts/test-generate-data-app-contract.mjs: deep SDK/codegen behavior fixture ${forbidden} belongs in react-semaphor, not the plugin wrapper suite`,
-        );
-      }
-    }
-  }
-  const validatorPath = path.join(
-    root,
     "scripts/validate-semaphor-data-app.mjs",
-  );
-  if (fs.existsSync(validatorPath)) {
-    const validatorText = fs.readFileSync(validatorPath, "utf8");
-    if (!validatorText.includes("contract.manifest.json")) {
+    "scripts/data-app-codegen-summary-validation.mjs",
+    "scripts/data-app-contract-update-policy.mjs",
+    "scripts/generated-contract-files.mjs",
+  ]) {
+    if (fs.existsSync(path.join(root, forbiddenPath))) {
       issues.push(
-        "scripts/validate-semaphor-data-app.mjs: validator must require contract.manifest.json",
-      );
-    }
-    if (!validatorText.includes("validateGeneratedContract")) {
-      issues.push(
-        "scripts/validate-semaphor-data-app.mjs: validator must delegate generated contract validation to react-semaphor/data-app-codegen",
-      );
-    }
-    if (!validatorText.includes("requiredGeneratedContractFiles")) {
-      issues.push(
-        "scripts/validate-semaphor-data-app.mjs: validator must read required generated contract files from react-semaphor/data-app-codegen",
-      );
-    }
-    if (!validatorText.includes("validateFilterEffectReport")) {
-      issues.push(
-        "scripts/validate-semaphor-data-app.mjs: validator must support filter-effect report validation",
-      );
-    }
-    if (!validatorText.includes("--filter-effect-report")) {
-      issues.push(
-        "scripts/validate-semaphor-data-app.mjs: validator CLI must expose --filter-effect-report",
+        `${forbiddenPath}: hard migration forbids plugin-local Data App contract generator/validator wrappers; use server-owned MCP contract tools instead`,
       );
     }
   }
@@ -674,12 +498,10 @@ requireFile("assets/composer-icon.png");
 requireFile("assets/logo.png");
 requireFile("assets/logo-source.png");
 requireFile("scripts/call-semaphor-tool.mjs");
-requireFile("scripts/shared-codegen-loader.mjs");
 requireFile("scripts/detect-react-app.mjs");
-requireFile("scripts/generate-data-app-contract.mjs");
 requireFile("scripts/init-semaphor-data-app.mjs");
 requireFile("scripts/semaphor-data-app.mjs");
-requireFile("scripts/test-generate-data-app-contract.mjs");
+requireFile("scripts/test-mcp-bridge.mjs");
 requireDirectory("skills");
 requireDirectory("scripts");
 requireDirectory("docs");

@@ -81,9 +81,9 @@ codex mcp login semaphor
 ```
 
 In Claude Code or another agent host, use that host's MCP server
-authentication UI or command. Then wait for the user to say "try again". If
-the host needs a fresh session before refreshed OAuth tools appear, say that
-explicitly.
+authentication UI or command. Then wait for the user to say "try again". Also
+say that this thread may not detect the refreshed MCP login; if "try again"
+still reports missing auth, start a new thread after logging in.
 
 After OAuth login, start with:
 

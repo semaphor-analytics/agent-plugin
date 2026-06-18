@@ -20,7 +20,7 @@ files, SDK declarations, helper scripts, or generated app source. Resolve the
 project before codegen so every later discovery, plan, and runtime token is
 scoped to the correct governed project.
 
-There are two server names:
+There are two authentication/server modes:
 
 - `semaphor`: hosted OAuth MCP. Use this for first-run login and project
   discovery when no project token is configured.
@@ -28,6 +28,18 @@ There are two server names:
   already has `VITE_SEMAPHOR_PROJECT_TOKEN` or `SEMAPHOR_PROJECT_TOKEN`, when
   working against local/self-hosted Semaphor, or when save/publish validation
   needs the project-token scope.
+
+Both modes must expose the same logical Data App authoring surface after auth.
+OAuth can additionally list/select projects; project-token mode is already
+scoped to one project. Data App contract tools are server-owned Semaphor MCP
+tools, not plugin-local generators:
+`semaphor_create_data_app_contract`,
+`semaphor_generate_data_app_contract`,
+`semaphor_update_data_app_contract`, and
+`semaphor_validate_data_app_contract`. If planning tools are visible but these
+contract tools are missing, stop before source edits and report server/plugin
+MCP surface drift. Do not manually transcribe planner output into
+`src/semaphor/*`.
 
 Start with one of:
 
@@ -49,12 +61,12 @@ active token, use OAuth or ask for a token instead of relying on a previously
 used project.
 
 The project-token bridge intentionally keeps unauthenticated fallback
-`tools/list` minimal: access-context guidance plus plugin-owned local workflow
-tools only. Rich discovery, planning, semantic repair, and runtime-token tools
-come from live Semaphor `tools/list` after auth is available. If no project
-token is found, resolve auth first by retrying `semaphor_get_access_context`
-with `workspaceDir`, using hosted OAuth, or asking the user to add a project
-token. Do not use `call:mcp` for normal app authoring.
+`tools/list` minimal: access-context guidance only. Rich discovery, planning,
+contract generation, semantic repair, and runtime-token tools come from live
+Semaphor `tools/list` after auth is available. If no project token is found,
+resolve auth first by retrying `semaphor_get_access_context` with
+`workspaceDir`, using hosted OAuth, or asking the user to add a project token.
+Do not use `call:mcp` for normal app authoring.
 
 When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an
 interactive hosted session. Start with `semaphor_get_access_context`, then
@@ -80,9 +92,10 @@ codex mcp login semaphor
 ```
 
 For Claude Code or another agent host, use that host's MCP server
-authentication UI or command. Then ask them to say "try again". If the host
-does not expose refreshed OAuth tools until a new session starts, say that as a
-host limitation. For project-token mode, ask them to add
+authentication UI or command. Then ask them to say "try again". Also say that
+this thread may not detect the refreshed MCP login; if "try again" still
+reports missing auth, start a new thread after logging in. For project-token
+mode, ask them to add
 `VITE_SEMAPHOR_PROJECT_TOKEN` to the target app's ignored `.env.local` and
 retry with `workspaceDir`.
 

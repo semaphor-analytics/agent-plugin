@@ -9,15 +9,16 @@ accepts a plan or gives a narrow explicit implementation instruction.
 Use Semaphor planner tools as the source of truth for broad analytical work:
 
 - New app or broad dashboard/app request:
-  after domain approval, call `semaphor_plan_data_app` with `workspaceDir`,
-  `domainId`, `goal`, `responseFormat: "codegen_summary"`, and any known
+  after domain approval, call `semaphor_plan_data_app` with `domainId`,
+  `goal`, `responseFormat: "codegen_summary"`, and any known
   `datasetName`/`datasetNames` or `preferences`. Present the returned plan and
   stop. Generate files only after the user accepts the visible plan.
 - Substantial existing-app analytical edit:
-  for generated apps, call `semaphor_update_data_app_contract` with `goal`,
-  structured `operationIntent`, and `workspaceDir`; it reads the generated
-  manifest as current state. Use `semaphor_plan_data_app_change` directly only
-  for preview/debug workflows that must not write files.
+  for generated apps, read the current generated `contract.manifest.json`, then
+  call `semaphor_update_data_app_contract` with `currentManifest`, `goal`, and
+  structured `operationIntent`. It returns a regenerated file payload and
+  migration report. Use `semaphor_plan_data_app_change` directly only for
+  preview/debug workflows that must not change generated files.
 
 Do not replace planner output with an agent-invented plan. Present the returned
 plan or change plan, then wait for the user's decision before editing files.
@@ -110,20 +111,19 @@ before UI edits:
 semaphor_plan_data_app(responseFormat: "codegen_summary")
 -> present visible plan with views, visual types, filters, file layout, and DevTools setup
 -> user/eval accepts the visible plan
--> semaphor_generate_data_app_contract(workspaceDir, planArtifactPath)
+-> semaphor_generate_data_app_contract(codegenSummary)
+-> write structuredContent.files exactly to structuredContent.filePaths
 -> build UI from src/semaphor/generated imports
--> semaphor_validate_data_app_contract(workspaceDir)
+-> semaphor_validate_data_app_contract(generatedContractPayload or manifest + generatedFiles)
+-> run local typecheck/build and browser smoke checks
 ```
 
-After browser smoke captures a Semaphor DevTools bridge snapshot, pass it to
-`semaphor_validate_data_app_contract` as `devtoolsSnapshotPath`. This requires
-generated query ids and generated input option query ids to appear in DevTools
-traces. It proves registration/execution visibility; still compare traces or
-values after changing filters to prove filter effect.
-
-`planArtifactPath` must point at the canonical
-top-level `semaphor-data-app-codegen-summary/v1` JSON object. Do not pass a
-full plan, eval `plan.json`, `{ codegenSummary }`, or `{ summary }` wrapper.
+`semaphor_validate_data_app_contract` validates the generated Semaphor contract
+payload and manifest integrity. It does not run the local app build or inspect a
+workspace path. After writing files, still run the app's typecheck/build and
+browser smoke checks. Browser smoke should verify governed data renders,
+DevTools traces include generated query ids/input option query ids, and filter
+selections re-run affected subscribed queries.
 
 The generated files own Semaphor source refs, fields, visible input specs,
 input option queries, view query specs, and per-view filter binding helpers.
@@ -137,20 +137,20 @@ manifest hash still matches the generated TypeScript files.
 For iterative analytics changes to a generated app, call:
 
 ```text
-semaphor_update_data_app_contract(workspaceDir, goal, operationIntent)
--> reads src/semaphor/generated/contract.manifest.json
--> calls semaphor_plan_data_app_change with the manifest codegenSummary
+read src/semaphor/generated/contract.manifest.json
+-> semaphor_update_data_app_contract(currentManifest, goal, operationIntent)
+-> server plans the change from currentManifest.codegenSummary
 -> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
--> regenerates src/semaphor/generated from the updated summary
+-> returns regenerated structuredContent.files and migrationReport
+-> write structuredContent.files exactly to structuredContent.filePaths
 ```
 
-For Inspector/runtime warning cleanup, pass
-`operationIntent: { kind: "fix_warnings", targetViewIds: [...] }`. The update
-tool allows only targeted `fields`/`sdkSpec` corrections and fails before
-writing files if the planner proposes unrelated views, inputs, or filter
-contract changes. For user-requested edits such as visual title changes, use
-`operationIntent.kind: "edit"` with the target view ids so the normal iterative
-update path remains available.
+For user-requested edits such as visual title changes or metric aggregate
+repairs, use `operationIntent.kind: "edit"` with target view ids so the update
+policy can reject unrelated views, inputs, or filter contract changes before
+the agent writes returned files. If Inspector/runtime warning cleanup requires
+a diagnostic operation kind not yet supported by the server planner, stop and
+report that planner capability gap instead of patching generated files by hand.
 
 Do not inspect `App.tsx` to reconstruct query specs, filter bindings, source
 refs, or option queries. Inspect UI files only to decide where the changed

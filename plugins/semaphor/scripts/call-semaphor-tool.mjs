@@ -3,9 +3,9 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const pluginRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_TIMEOUT_MS = 30000;
 const MCP_PROTOCOL_VERSION = '2024-11-05';
 

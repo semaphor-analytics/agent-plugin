@@ -66,9 +66,9 @@ Expected agent behavior:
   unsupported gaps, and assumptions instead of improvising query specs,
 - if a generated app is changed later, call
   `semaphor_update_data_app_contract` and use its migration report before
-  presentation edits; for Inspector/runtime warning cleanup pass
-  `operationIntent: { kind: "fix_warnings", targetViewIds }` so unrelated
-  views, inputs, and filter scopes are rejected before files are regenerated,
+  presentation edits; pass the current generated manifest or codegen summary so
+  Semaphor can reject unrelated views, inputs, and filter scopes before the
+  agent writes returned files,
 - create KPI, trend, table, and filter views using `semaphor.*` query/input
   builders plus `useSemaphorQuery`,
 - give every runtime query spec a stable explicit `id`,
@@ -96,9 +96,10 @@ Expected agent behavior:
   `@tanstack/react-virtual` when richer table state and virtualized rendering
   are needed,
 - format numbers, dates, currencies, and percentages for scanning,
-- run `semaphor_validate_data_app_contract` when exposed, or the plugin
-  validation script fallback, after initial SDK wiring and again before final
-  handoff,
+- run `semaphor_validate_data_app_contract` against the full generated contract
+  payload after generation, and against `manifest` plus `generatedFiles` after
+  files are written, then run local typecheck/build and browser smoke checks
+  after initial SDK wiring and again before final handoff,
 - avoid static fixtures and invented datasets.
 
 Expected validation:
@@ -265,22 +266,26 @@ Expected agent behavior:
 
 Expected validation:
 
-- run `node scripts/validate-semaphor-data-app.mjs --dir <app>`,
+- run `semaphor_validate_data_app_contract` on the full generated payload, or
+  on `manifest` plus `generatedFiles` after files are written,
 - run the app's typecheck/build scripts when present,
 - open the app locally when practical and verify real data renders.
 
 For broad greenfield Data Apps, the normal codegen path is:
 
 1. Resolve project/domain.
-2. Call `semaphor_plan_data_app` with `workspaceDir`, `domainId`, `goal`,
+2. Call `semaphor_plan_data_app` with `domainId`, `goal`,
    `responseFormat: "codegen_summary"`, and planner `preferences` such as
    `maxViews: 15`.
 3. Present the visible plan, including view names, visual types, filters,
    file/component layout, and SDK DevTools setup. Stop for approval.
 4. After approval, call `semaphor_generate_data_app_contract` with the
-   canonical codegen-summary artifact written by planning.
+   canonical `codegenSummary` returned by planning.
 5. Build the React UI from the generated `src/semaphor/generated` exports.
-6. Run `semaphor_validate_data_app_contract` before final handoff.
+6. Run `semaphor_validate_data_app_contract` on the full generated payload.
+   After files are written, rerun it with `manifest` plus `generatedFiles` from
+   `src/semaphor/generated` so generated TypeScript drift is detected. Then run
+   local typecheck/build and browser smoke checks before final handoff.
 
 Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.
@@ -365,7 +370,7 @@ Expected agent behavior:
 Expected validation:
 
 - rerun the failed command,
-- rerun `validate:data-app`,
+- rerun `semaphor_validate_data_app_contract` when generated contract files changed,
 - browser smoke test when the issue was runtime-visible.
 
 ## 7. Prepare For Save Or Publish
@@ -441,9 +446,9 @@ Expected validation:
   `plan_app`, `save_draft`, and `publish`.
 - Use `columns[].key` for row access and `columns[].label` for display.
 - Keep customer app structure intact.
-- Treat plugin validation advisories as guidance unless running explicit
-  `--strict` quality gates.
-- When automating validation repairs, consume
-  `semaphor_validate_data_app_contract.structuredContent` or
-  `validate-semaphor-data-app.mjs --json`. Use stable issue codes and
-  `repairHint`; do not parse human terminal output to decide the repair.
+- Treat app typecheck/build advisories as guidance unless running explicit
+  strict quality gates.
+- When automating generated-contract repairs, consume
+  `semaphor_validate_data_app_contract.structuredContent`. Use stable issue
+  codes and `repairHint`; do not parse human terminal output to decide the
+  repair.

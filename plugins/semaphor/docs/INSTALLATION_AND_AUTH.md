@@ -124,10 +124,25 @@ semaphor_get_data_app_runtime_token
 semaphor_analyze
 semaphor_matrix
 semaphor_query_sql_advanced
+semaphor_plan_data_app
+semaphor_generate_data_app_contract
+semaphor_update_data_app_contract
+semaphor_validate_data_app_contract
 ```
 
 Hosts that include the server name in the tool namespace should expose a
 Semaphor-shaped namespace instead of a generic bridge name.
+
+For Data App generation, the complete server-owned Semaphor surface is
+required. A host that exposes analytics and planning tools but not
+`semaphor_create_data_app_contract`,
+`semaphor_generate_data_app_contract`,
+`semaphor_update_data_app_contract`, or
+`semaphor_validate_data_app_contract` has server/plugin MCP surface drift.
+Agents should stop before editing React source, report the mismatch, and ask
+the user to reload, reinstall, upgrade, or retry against the authenticated
+Semaphor MCP server. They should not manually transcribe planner output into
+generated contract files.
 
 Some agent hosts launch plugin MCP servers from the installed plugin directory
 and do not pass workspace roots to the MCP process. In that case, direct
@@ -146,10 +161,10 @@ Production-ready auth behavior:
   configured a local token yet.
 - Project-token server `semaphor-project` is the deterministic app-local path.
   If the bridge cannot resolve a token during `tools/list`, it exposes only
-  access-context guidance plus plugin-owned local workflow tools. Resolve auth
-  first by retrying `semaphor_get_access_context` with `workspaceDir`, using
-  hosted OAuth, or adding a project token; rich discovery and planning tools
-  come from live Semaphor `tools/list` after auth is available.
+  access-context guidance. Resolve auth first by retrying
+  `semaphor_get_access_context` with `workspaceDir`, using hosted OAuth, or
+  adding a project token; rich discovery, planning, and contract tools come
+  from live Semaphor `tools/list` after auth is available.
 - `call:mcp` is a diagnostic fallback for debugging and eval forensics only.
   Do not use it for ordinary customer app authoring.
   It is not the normal app-building path.

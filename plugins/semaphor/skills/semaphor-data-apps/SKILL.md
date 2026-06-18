@@ -28,6 +28,13 @@ public SDK builders/hooks, validate, then save or publish when requested.
 
 ## Workflow Gates
 
+0. Tool surface: authenticated `semaphor` OAuth or `semaphor-project`
+   project-token MCP must expose one logical Data App surface. If
+   `semaphor_create_data_app_contract`,
+   `semaphor_generate_data_app_contract`,
+   `semaphor_update_data_app_contract`, or
+   `semaphor_validate_data_app_contract` is missing, stop before source edits
+   and classify server/plugin MCP surface drift.
 1. Auth: call `semaphor_get_access_context` before local source inspection.
 2. Project: if OAuth exposes multiple projects and the user did not name one,
    ask the user to select the project before domain discovery or planning.
@@ -41,11 +48,15 @@ public SDK builders/hooks, validate, then save or publish when requested.
    DevTools setup in that visible plan. Do not dump the dashboard into
    `src/App.tsx`.
 6. Contract generation: only after explicit plan approval, call
-   `semaphor_generate_data_app_contract` with the planner's canonical artifact.
-   Import generated sources, fields, inputs, queries, and bindings.
+   `semaphor_generate_data_app_contract` with the planner's canonical
+   `codegenSummary`, or call `semaphor_create_data_app_contract` for an
+   approved one-step build. These tools return generated file payloads; write
+   `structuredContent.files` exactly to `structuredContent.filePaths`, then
+   import generated sources, fields, inputs, queries, and bindings.
 7. Existing generated app: use `semaphor_update_data_app_contract` so the
-   generated manifest drives change planning and regeneration; preserve
-   existing views by default.
+   current generated manifest or codegen summary drives change planning and
+   regeneration; write the returned generated file payload exactly and
+   preserve existing views by default.
 8. Dependencies: ask before installing TanStack/chart libraries, copying
    starter source, or starter scaffolds. Starter/eval apps already include
    Semaphor components; existing apps use host UI first.
@@ -73,7 +84,9 @@ analytics while waiting for auth: no placeholder dashboard shell, static mock
 analytics, generic integration points, or token-missing UI. For hosted OAuth,
 ask the user to use the host MCP OAuth flow for `semaphor` and then say "try
 again" (Codex example: `codex mcp login semaphor`; Claude Code uses its MCP
-server auth UI/command). For project-token mode, ask for
+server auth UI/command). Also mention that this thread may not detect the
+refreshed MCP login; if "try again" still reports missing auth, start a new
+thread after logging in. For project-token mode, ask for
 `VITE_SEMAPHOR_PROJECT_TOKEN` in the app's ignored `.env.local`; for local
 Semaphor, also ask for `SEMAPHOR_SERVER_URL=http://localhost:3000` for plugin
 tools and `VITE_SEMAPHOR_SERVER_URL=http://localhost:3000` for browser runtime
@@ -112,13 +125,15 @@ specific previously presented plan, then edit. If the request is a narrow edit
 such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
-For broad new Data App requests, call `semaphor_plan_data_app({ workspaceDir,
-domainId, goal, preferences, responseFormat: "codegen_summary" })`, present the
-visible plan, and stop. After approval, call
-`semaphor_generate_data_app_contract({ workspaceDir, planArtifactPath })` with
-the canonical planner artifact. For substantial edits to a generated app, use
-`semaphor_update_data_app_contract({ workspaceDir, goal, operationIntent })`;
-for warning cleanup use `operationIntent: { kind: "fix_warnings", targetViewIds }`.
+For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
+preferences, responseFormat: "codegen_summary" })`, present the visible plan,
+and stop. After approval, call
+`semaphor_generate_data_app_contract({ codegenSummary })` with the canonical
+planner output, or call `semaphor_create_data_app_contract` when the user has
+explicitly approved a one-step build. For substantial edits to a generated app,
+read the current generated `contract.manifest.json`, then call
+`semaphor_update_data_app_contract({ currentManifest, goal, operationIntent })`;
+the server returns the regenerated file payload and migration report.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
 option queries, or filter bindings manually. Use `queries.someView()` with
@@ -170,14 +185,11 @@ calls for data-app work are:
 - `semaphor_plan_data_app`
 - `semaphor_plan_data_app_change`
 - `semaphor_propose_semantic_model_change` / `semaphor_apply_semantic_model_patch`
-- `semaphor_generate_data_app_contract`
-- `semaphor_create_data_app_contract`
-- `semaphor_update_data_app_contract`
+- contract tools: `semaphor_generate_data_app_contract`, `semaphor_create_data_app_contract`, `semaphor_update_data_app_contract`, and `semaphor_validate_data_app_contract`
 
-If these first-class tools are not exposed in the host session, say that the
-host did not expose Semaphor MCP tools and ask the user to reinstall/reload the
-plugin or authenticate. The fallback wrapper is for plugin debugging and evals;
-ordinary app authoring should not inspect plugin internals to find it.
+If first-class tools are incomplete, ask the user to reinstall/reload the
+plugin or authenticate. Do not hand-transcribe planner artifacts or generated
+contract files. The fallback wrapper is for debugging/evals only.
 
 For planning details, read [planning-workflow.md](references/planning-workflow.md).
 
@@ -483,17 +495,5 @@ Production data-loading still uses `useSemaphorQuery` per [sdk-contract.md](refe
 
 ## Save, Publish, And Validation
 
-Use the plugin helper for Semaphor-hosted lifecycle writes:
-
-```bash
-npm run load:data-app -- --data-app-id <data-app-id>
-npm run save:data-app -- --dir <app> --project-id <project-id> --title "<title>"
-npm run prepare:publish -- --dir <app>
-npm run publish:data-app -- --dir <app> --project-id <project-id> --title "<title>"
-```
-
-```bash
-node <plugin>/scripts/validate-semaphor-data-app.mjs --dir <app>
-```
-
-Lifecycle: [publish-lifecycle.md](references/publish-lifecycle.md). Validation: [validation.md](references/validation.md).
+Read [publish-lifecycle.md](references/publish-lifecycle.md) before lifecycle
+writes, and [validation.md](references/validation.md) before final checks.

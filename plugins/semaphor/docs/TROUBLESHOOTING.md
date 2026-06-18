@@ -49,6 +49,38 @@ customer workflow.
 
 Owner layer: plugin host integration or plugin MCP packaging.
 
+## Planner Visible But Contract Tools Missing
+
+Symptom:
+
+```text
+The agent can inspect Semaphor data or call semaphor_plan_data_app, but it
+cannot call semaphor_generate_data_app_contract,
+semaphor_update_data_app_contract, or semaphor_validate_data_app_contract.
+```
+
+Expected behavior:
+
+- hosted analytics and planning tools are visible;
+- server-owned contract generation, update, and validation tools are visible on
+  the authenticated Semaphor MCP surface;
+- broad Data App builds write the returned generated contract payload under
+  `src/semaphor/generated` before UI edits.
+
+Fix:
+
+- reload or reinstall the Semaphor plugin in the current host;
+- verify that the installed plugin exposes both `semaphor` and
+  `semaphor-project`;
+- rerun the host's MCP/auth setup if the project bridge is not mounted.
+
+Do not continue by hand-writing Semaphor sources, fields, inputs, queries,
+option queries, or filter bindings from planner output. That produces apps that
+may compile but apply filters to views without the generated relationship and
+scope metadata.
+
+Owner layer: plugin host integration or installed plugin version.
+
 ## Missing Project Token
 
 Symptom:
@@ -580,33 +612,30 @@ Expected agent behavior:
 Owner layer: customer app integration or SDK type exports if public SDK types
 are missing.
 
-## `validate:data-app` Preflight Output
+## Contract Validation Output
 
 Symptom:
 
 ```text
-Validation advisories:
+Generated contract validation issues:
 ```
 
-Default advisories are not blockers. The plugin-local validator is a
-deterministic preflight for package setup, SDK availability,
-provider/DevTools wiring, generated contract completeness, generated contract
-hygiene, and local typecheck/build.
+Generated-contract validation is owned by the live Semaphor MCP surface. It
+checks the generated payload, manifest, generated TypeScript file contents, and
+analytics contract hygiene; it does not run local npm scripts or inspect
+arbitrary React source.
 
 For agent repair loops, prefer structured output:
 
-```bash
-node <installed-semaphor-plugin>/scripts/validate-semaphor-data-app.mjs --dir <app> --json
-```
+Call `semaphor_validate_data_app_contract` with the full
+`generatedContractPayload` returned by `semaphor_generate_data_app_contract`.
+After files are written, pass both `manifest` from
+`src/semaphor/generated/contract.manifest.json` and `generatedFiles` containing
+the generated TypeScript file contents. Manifest-only validation is not enough
+because it cannot detect hand-edited or stale generated files.
 
-The JSON contract is `{ ok, issues, advisories }`. Issues include stable codes
-such as `missing_provider`, `missing_devtools_bridge`,
-`missing_generated_contract`, `generated_contract_not_imported`,
-`invalid_contract_manifest`, `missing_option_traces`, `filter_effect_failed`,
-`typecheck_failed`, and `build_failed`. Use those codes and `repairHint`
-instead of parsing terminal prose. The MCP
-`semaphor_validate_data_app_contract` tool returns the same structured issues
-in `structuredContent`.
+The MCP tool returns structured issues in `structuredContent`. Use those stable
+codes and `repairHint` instead of parsing terminal prose.
 
 It does not prove analytics semantics. Use Semaphor planner/validation,
 execution results, and DevTools traces to prove filter applicability,

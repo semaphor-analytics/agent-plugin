@@ -34,11 +34,14 @@ Codex, Claude Code, and future coding-agent hosts.
 - Before writing code for a broad Data App, decide and state the implementation
   map: file organization, query ids, which filters apply to which cards/views,
   which views are intentionally not affected, and how root SDK DevTools will be
-  enabled. Keep `App.tsx` as a small provider/page-shell/composition file, put
-  Semaphor source refs, field refs, inputs, and query specs in `src/semaphor/*`,
-  and put repeated data-bearing views in separate card/view components. Do not
-  generate a thousand-line `App.tsx` or simply move the same problem into one
-  giant dashboard component.
+  enabled. Keep `App.tsx` as a small provider/page-shell/composition file, write
+  Semaphor source refs, field refs, inputs, query specs, and filter bindings
+  only from the server-generated contract under `src/semaphor/generated`, and
+  put repeated data-bearing views in separate card/view components. Do not
+  hand-author parallel contract modules such as `src/semaphor/sources.ts`,
+  `src/semaphor/fields.ts`, `src/semaphor/inputs.ts`, or
+  `src/semaphor/queries.ts`. Do not generate a thousand-line `App.tsx` or simply
+  move the same problem into one giant dashboard component.
 - Do not add a host-specific analytics language. Missing analytical behavior
   belongs in Semaphor's shared MCP, SDK, validation, or execution contracts.
 - If a generated Data App filter or joined view requires a semantic
@@ -58,10 +61,14 @@ Codex, Claude Code, and future coding-agent hosts.
 
 For customer React apps, prefer the app's own typecheck/build scripts plus:
 
-```bash
-npm run validate:data-app -- --dir /path/to/customer-app
-```
+`semaphor_validate_data_app_contract` with the full generated contract payload
+returned by generation, or with `src/semaphor/generated/contract.manifest.json`
+plus every generated TypeScript file from `src/semaphor/generated`.
+
+Do not validate with the manifest alone. Manifest-only validation skips
+generated-file drift detection and can let hand-edited or stale generated files
+pass.
 
 Use the target app's package manager and scripts when they differ. The
-Semaphor validator is a preflight for common SDK and publish issues; the app's
-own build remains the authoritative local app check.
+Semaphor MCP validator checks generated contract integrity and file drift; the
+app's own build remains the authoritative local app check.
