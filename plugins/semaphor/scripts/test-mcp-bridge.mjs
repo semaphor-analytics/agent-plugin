@@ -352,6 +352,10 @@ async function assertGeneratorResponseWithoutWorkspaceDirIsMarkedPayloadOnly() {
       response.result.structuredContent.nextAgentAction,
       "semaphor_generate_data_app_contract",
     );
+    assertMessageIncludes(
+      response.result.structuredContent.nextAgentAction,
+      "wrong/stale MCP surface drift",
+    );
     await assertFileMissing(path.join(appDir, "src/semaphor/generated/index.ts"));
   } finally {
     await bridge.stop();
@@ -400,6 +404,10 @@ async function assertUpdateResponseWithoutWorkspaceDirRetriesSameTool() {
     assertMessageIncludes(
       response.result.structuredContent.nextAgentAction,
       "semaphor_update_data_app_contract",
+    );
+    assertMessageIncludes(
+      response.result.structuredContent.nextAgentAction,
+      "wrong/stale MCP surface drift",
     );
     assert.ok(
       !response.result.structuredContent.nextAgentAction.includes(

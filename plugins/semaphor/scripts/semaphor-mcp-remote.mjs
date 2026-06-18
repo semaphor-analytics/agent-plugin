@@ -583,7 +583,7 @@ function annotateGeneratedContractPayloadOnly(result, toolName) {
         : undefined,
     },
     nextAgentAction:
-      `Retry ${retryToolName} through the installed bridge with workspaceDir and require materialization.status="written" before UI edits.`,
+      `Retry ${retryToolName} through the installed Semaphor Agent Plugin bridge with workspaceDir and require materialization.status="written" before UI edits. If workspaceDir is not advertised or accepted, or the retry still returns payload_only/not_written, stop and report wrong/stale MCP surface drift; do not hand-write generated files.`,
   };
 }
 
