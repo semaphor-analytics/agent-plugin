@@ -27,6 +27,11 @@ lowest-friction first run. Use project-token mode when the app already has a
 known project scope, when working against local/self-hosted Semaphor, or when
 local runtime/publish needs a deterministic project token.
 
+Both paths must expose the same project-scoped Data App authoring capabilities
+after auth. OAuth can additionally list/select projects; project-token mode is
+already scoped to one project. The hard migration is about removing the old
+planner-vs-generator capability split, not about removing OAuth login.
+
 ## OAuth Login
 
 If the hosted `semaphor` MCP server is not already authenticated, or if an
