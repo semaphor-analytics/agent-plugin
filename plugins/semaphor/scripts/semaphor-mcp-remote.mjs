@@ -12,6 +12,12 @@ const DEFAULT_GENERATED_CONTRACT_OUTPUT_DIR = "src/semaphor/generated";
 const GENERATED_CONTRACT_MATERIALIZATION_TOOLS = new Set([
   "semaphor_materialize_data_app_contract",
 ]);
+const GENERATED_CONTRACT_PAYLOAD_TOOLS = new Set([
+  "semaphor_create_data_app_contract",
+  "semaphor_generate_data_app_contract",
+  "semaphor_update_data_app_contract",
+  "semaphor_materialize_data_app_contract",
+]);
 const WORKSPACE_HINT_SCHEMA = {
   type: "object",
   properties: {
@@ -42,7 +48,7 @@ const FALLBACK_TOOLS = [
   {
     name: "semaphor_materialize_data_app_contract",
     description:
-      "Materialize a short-lived generated contract artifact returned by hosted OAuth generation. This local bridge fallback accepts generatedContractArtifactId, generatedContractMaterializationToken, and workspaceDir, fetches the artifact by scoped capability, writes src/semaphor/generated, and does not require a project token.",
+      "Materialize a short-lived generated contract artifact returned by Semaphor generation. This local bridge fallback accepts generatedContractArtifactId, generatedContractMaterializationToken, and workspaceDir, fetches the artifact by scoped capability, writes src/semaphor/generated, and does not require a project token. It preserves the same generated-contract workflow for OAuth and project-token auth modes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -175,15 +181,18 @@ async function forwardRequest(message) {
 
   if (message.method === "tools/call") {
     const toolArguments = message.params?.arguments;
+    if (
+      message.params?.name === "semaphor_materialize_data_app_contract" &&
+      firstBridgeWorkspaceDirectory(toolArguments)
+    ) {
+      return materializeGeneratedContractArtifactWithoutToken(message);
+    }
     const context = await resolveSemaphorContext({
       allowMissing: false,
       includeClientRoots: true,
       toolArguments,
     });
     if (!context?.token) {
-      if (message.params?.name === "semaphor_materialize_data_app_contract") {
-        return materializeGeneratedContractArtifactWithoutToken(message);
-      }
       return missingSemaphorAuthResponse(message);
     }
     const response = await postMcpJsonRpc(await prepareToolCallMessage(message), context);
@@ -263,7 +272,7 @@ function missingSemaphorAuthResponse(message) {
             "If hosted OAuth tools are exposed, use the MCP server named semaphor and call semaphor_list_projects.",
             "If hosted OAuth tools are not exposed, the OAuth app connection requires reauthentication, or the semaphor MCP is not logged in, ask the user to use the current host MCP OAuth login or reauthentication flow for the server named semaphor, then say try again. In Codex, the command is codex mcp login semaphor; in Claude Code or another host, use that host MCP server authentication UI or command. Also mention that this thread may not detect the refreshed MCP login; if try again still reports missing auth, start a new thread after logging in.",
             "For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.",
-            "If the token is already in .env.local, retry the Semaphor tool call with workspaceDir set to the React app root.",
+            "If the token is already in the React app .env.local, launch the agent from that app root or call semaphor_get_access_context with workspaceDir set to the React app root.",
             "Hosted Semaphor needs no server URL override. For self-hosted Semaphor, set SEMAPHOR_SERVER_URL to the Semaphor app host.",
           ].join(" "),
         },
@@ -567,14 +576,20 @@ async function materializeGeneratedContractArtifactWithoutToken(message) {
       error: {
         code: -32602,
         message:
-          "semaphor_materialize_data_app_contract requires generatedContractMaterializationToken when no project token is configured.",
+          "semaphor_materialize_data_app_contract requires generatedContractMaterializationToken for installed-bridge local materialization.",
       },
     };
   }
 
+  const context = await resolveSemaphorContext({
+    allowMissing: true,
+    includeClientRoots: true,
+    toolArguments: message.params?.arguments,
+  });
   const payload = await fetchGeneratedContractArtifactPayload({
     artifactId: artifactId.trim(),
     materializationToken: materializationToken.trim(),
+    baseUrl: context?.token ? inferServerUrlFromMcpUrl(context.mcpUrl) : undefined,
   });
   const normalized = {
     jsonrpc: "2.0",
@@ -594,8 +609,9 @@ async function materializeGeneratedContractArtifactWithoutToken(message) {
 async function fetchGeneratedContractArtifactPayload({
   artifactId,
   materializationToken,
+  baseUrl,
 }) {
-  const baseUrl = resolveSemaphorServerBaseUrl();
+  const resolvedBaseUrl = baseUrl || resolveSemaphorServerBaseUrl();
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
@@ -604,7 +620,7 @@ async function fetchGeneratedContractArtifactPayload({
   let response;
   try {
     response = await fetch(
-      `${baseUrl}/api/v1/data-app/generated-contract-artifact/${encodeURIComponent(artifactId)}`,
+      `${resolvedBaseUrl}/api/v1/data-app/generated-contract-artifact/${encodeURIComponent(artifactId)}`,
       {
         headers: {
           accept: "application/json",
@@ -723,10 +739,15 @@ function sortKeysDeep(value) {
 function materializeGeneratedContractResponse(message, normalized) {
   if (
     message.method !== "tools/call" ||
-    !GENERATED_CONTRACT_MATERIALIZATION_TOOLS.has(message.params?.name) ||
+    !GENERATED_CONTRACT_PAYLOAD_TOOLS.has(message.params?.name) ||
     normalized?.error ||
     normalized?.result?.isError
   ) {
+    return normalized;
+  }
+
+  if (!GENERATED_CONTRACT_MATERIALIZATION_TOOLS.has(message.params?.name)) {
+    annotateGeneratedContractPayloadOnly(normalized.result, message.params?.name);
     return normalized;
   }
 
@@ -793,9 +814,11 @@ function annotateGeneratedContractPayloadOnly(result, toolName) {
     ? toolName
     : "the same generated-contract tool";
   result.structuredContent = {
-    ...(result.structuredContent && typeof result.structuredContent === "object"
-      ? result.structuredContent
-      : payload),
+    ...payloadOnlyGeneratedContractMetadata(
+      result.structuredContent && typeof result.structuredContent === "object"
+        ? result.structuredContent
+        : payload,
+    ),
     materialization: {
       mode: "payload_only",
       status: "not_written",
@@ -805,15 +828,22 @@ function annotateGeneratedContractPayloadOnly(result, toolName) {
       fileCount: payload.files && typeof payload.files === "object"
         ? Object.keys(payload.files).length
         : undefined,
-      filePaths: payload.filePaths && typeof payload.filePaths === "object"
-        ? Object.values(payload.filePaths).filter((value) => typeof value === "string").sort()
-        : undefined,
     },
     nextAgentAction:
       retryToolName === "semaphor_materialize_data_app_contract"
         ? "Retry semaphor_materialize_data_app_contract through the installed Semaphor Agent Plugin bridge with workspaceDir and require materialization.status=\"written\" before UI edits. If workspaceDir is not advertised or accepted, stop and report wrong/stale MCP surface drift; do not hand-write generated files."
         : "Call semaphor_materialize_data_app_contract with generatedContractArtifactId, generatedContractMaterializationToken, and workspaceDir through the installed Semaphor Agent Plugin bridge. Require materialization.status=\"written\" before UI edits; do not hand-write generated files.",
   };
+}
+
+function payloadOnlyGeneratedContractMetadata(payload) {
+  const metadata = { ...(payload || {}) };
+  delete metadata.files;
+  delete metadata.filePaths;
+  delete metadata.manifest;
+  delete metadata.manifestPath;
+  delete metadata.localWrite;
+  return metadata;
 }
 
 function firstBridgeWorkspaceDirectory(toolArguments) {
@@ -829,21 +859,7 @@ function generatedContractPayloadFromResult(result) {
   if (result.structuredContent && typeof result.structuredContent === "object") {
     return result.structuredContent;
   }
-  const text = Array.isArray(result.content)
-    ? result.content
-        .filter((item) => item?.type === "text" && typeof item.text === "string")
-        .map((item) => item.text)
-        .join("\n")
-        .trim()
-    : "";
-  if (!text || (text[0] !== "{" && text[0] !== "[")) {
-    return null;
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 function writeGeneratedContractFiles({ workspaceDir, files, filePaths, manifest, outputDir }) {

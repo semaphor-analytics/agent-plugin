@@ -35,11 +35,18 @@ scoped to one project. Data App contract tools are server-owned Semaphor MCP
 tools, not plugin-local generators:
 `semaphor_create_data_app_contract`,
 `semaphor_generate_data_app_contract`,
-`semaphor_update_data_app_contract`, and
+`semaphor_update_data_app_contract`,
+`semaphor_materialize_data_app_contract`, and
 `semaphor_validate_data_app_contract`. If planning tools are visible but these
 contract tools are missing, stop before source edits and report server/plugin
 MCP surface drift. Do not manually transcribe planner output into
 `src/semaphor/*`.
+
+Do not confuse auth mode with local filesystem capability. The remote Semaphor
+MCP server does not write local files for OAuth or project-token calls. The
+installed bridge is the only local filesystem actor, and only for explicit
+bridge-local flows such as materializing a generated-contract artifact into
+`src/semaphor/generated` or reading generated files for validation.
 
 Start with one of:
 
@@ -48,14 +55,17 @@ Start with one of:
   semantic-domain count, fallback connection count, and next discovery tool.
 
 When using `semaphor-project` in Codex or another host that launches plugin MCP
-servers from the plugin install directory, pass `workspaceDir` as the current
-React app repository root if the project token lives in that app's
-`.env.local`. If a first call reports that no project token was found, retry
-the same call with `workspaceDir`. In multi-root Codex sessions, do not let the
-agent infer a project token from another open root; pass `workspaceDir`
-explicitly for project-token mode or use OAuth. The Semaphor bridge uses
-`workspaceDir` to read local env files for auth/context calls. For local
-generated contract writes, call `semaphor_materialize_data_app_contract` with
+servers from the plugin install directory, prefer launching the agent from the
+React app root when the project token lives in that app's `.env.local`. If the
+first auth check reports that no project token was found, retry
+`semaphor_get_access_context` with `workspaceDir` set to the React app root. In
+multi-root Codex sessions, do not let the agent infer a project token from
+another open root; either use OAuth or pass `workspaceDir` only to bridge-local
+tools that advertise it. The Semaphor bridge uses `workspaceDir` to read local
+env files for auth/context calls. Do not pass `workspaceDir` to
+`semaphor_create_data_app_contract`, `semaphor_generate_data_app_contract`, or
+`semaphor_update_data_app_contract`. For local generated contract writes, call
+`semaphor_materialize_data_app_contract` with
 the server-returned `generatedContractArtifactId`,
 `generatedContractMaterializationToken`, and `workspaceDir`; the
 bridge materializes that artifact under `src/semaphor/generated`. For

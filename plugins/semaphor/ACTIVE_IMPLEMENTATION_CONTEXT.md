@@ -6,6 +6,13 @@ Hard-migrate the Semaphor agent plugin to one logical Data App MCP surface.
 Data App contract creation, generation, update, and validation are server-owned
 MCP tools exposed by live Semaphor `tools/list` after auth.
 
+OAuth and project-token MCP auth modes must expose the same project-scoped Data
+App capabilities after project scope is known. OAuth may additionally list and
+select projects; project-token mode is already scoped. Do not introduce a
+planner/generator/materializer capability split by auth mode. Local file writes
+are an installed-bridge capability layered on top of the same generated-contract
+artifact workflow, not a different MCP behavior.
+
 The plugin bridge may still:
 
 - read a project token from process env, current working directory, configured
@@ -22,10 +29,9 @@ The plugin bridge may still:
   local bridge hint, not a server generator input;
 - expose only auth/access guidance plus the narrow
   `semaphor_materialize_data_app_contract` artifact materializer before
-  project-token auth is available. This exception exists so a user can generate
-  through hosted OAuth and then use the installed bridge to materialize the
-  short-lived `generatedContractArtifactId` locally without adding a project
-  token;
+  project-token auth is available. This exception exists so a user can
+  materialize a server-generated short-lived `generatedContractArtifactId`
+  locally without adding a project token to the target workspace;
 - proxy live Semaphor MCP tools after auth.
 
 The plugin bridge and plugin package must not:
@@ -63,8 +69,8 @@ Raise findings for:
 - docs, skills, or eval prompts telling agents to use local contract wrappers,
   `planArtifactPath`, `codegenSummaryPath`, inline codegen artifacts, or
   app file paths for generation;
-- docs, skills, or eval prompts telling agents to hand-write returned
-  generated contract payload files when `localWrite` is absent or
+- docs, skills, or eval prompts telling agents to reconstruct generated
+  contract files from hosted tool output when `localWrite` is absent or
   `src/semaphor/generated` was not materialized by the installed plugin bridge;
 - docs, skills, or eval prompts telling agents to pass `workspaceDir` to
   `semaphor_generate_data_app_contract`,

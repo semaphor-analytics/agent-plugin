@@ -107,9 +107,9 @@ For accepted greenfield/broad plans, materialize the accepted planner artifact
 before UI edits:
 
 ```text
-semaphor_plan_data_app()
--> planner returns visible plan plus planArtifactId
--> present visible plan with views, visual types, filters, file layout, and DevTools setup
+semaphor_plan_data_app(responseDetail: "plan_summary")
+-> planner returns right-sized visible plan summary plus planArtifactId
+-> present visible plan summary with views, visual types, filters, unsupported gaps, and DevTools setup
 -> user/eval accepts the visible plan
 -> semaphor_generate_data_app_contract(planArtifactId)
 -> generator returns generatedContractArtifactId and generatedContractMaterializationToken
@@ -135,9 +135,10 @@ Do not pass inline `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
 
 If `semaphor_materialize_data_app_contract` returns payload-only output, does
 not report `localWrite`, or leaves `src/semaphor/generated` absent, stop and
-classify the run as MCP surface/materialization drift. Do not search for a local
-materializer script, call package helper wrappers, or reconstruct files from a
-large/truncated response.
+classify the run as MCP surface/materialization drift. Hosted MCP cannot write
+local files, and payload-only output is not a partial success for local app
+builds. Do not search for a local materializer script, call package helper
+wrappers, or reconstruct files from a large/truncated response.
 
 `semaphor_validate_data_app_contract` validates the generated Semaphor contract
 payload and manifest integrity. In installed plugin runs, pass `workspaceDir`

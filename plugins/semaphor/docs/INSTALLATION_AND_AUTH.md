@@ -32,6 +32,14 @@ after auth. OAuth can additionally list/select projects; project-token mode is
 already scoped to one project. The hard migration is about removing the old
 planner-vs-generator capability split, not about removing OAuth login.
 
+Auth mode must not change MCP semantics. The remote Semaphor MCP server is
+metadata/artifact oriented and does not write local files, whether the caller
+authenticated with OAuth or a project token. Local filesystem reads/writes are
+only performed by the installed Agent Plugin bridge on explicit bridge-local
+flows such as generated-contract materialization and validation workspace
+reads. Treat `workspaceDir` as a bridge hint, never as a server-side MCP
+argument.
+
 ## OAuth Login
 
 If the hosted `semaphor` MCP server is not already authenticated, or if an

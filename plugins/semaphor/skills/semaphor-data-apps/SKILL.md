@@ -124,21 +124,21 @@ such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
 For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
-preferences })`, present the visible plan and `planArtifactId`, and stop. After
-approval, generate with `planArtifactId`, materialize the returned
-`generatedContractArtifactId` with `generatedContractMaterializationToken` and
-`workspaceDir`, and verify
+preferences, responseDetail: "plan_summary" })`, present the visible plan
+summary and `planArtifactId`, and stop. Use `responseDetail: "full"` only for
+debugging planner internals. After approval, generate with `planArtifactId`;
+materialize with `generatedContractArtifactId`,
+`generatedContractMaterializationToken`, and `workspaceDir`; verify
 `src/semaphor/generated` before UI edits. If materialization is payload-only or
-the directory is absent, stop as MCP surface/materialization drift. For edits,
-read `contract.manifest.json`, call `semaphor_update_data_app_contract` with
-manifest-backed current state or change `planArtifactId`, then materialize the
-returned artifact before UI edits.
+absent, stop as MCP surface/materialization drift. Do not write files from tool
+output. For edits, read `contract.manifest.json`, call
+`semaphor_update_data_app_contract`, then materialize the returned artifact.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
 option queries, or filter bindings manually. Use `queries.someView()` with
 `queryOptionsForView.someView(inputHandles)`; for server tables, derive UI sort
 choices from generated `recordsSortOptionsForView`.
-If contract generation fails twice, report a planner/generator/tooling failure instead of hand-writing generated files.
+If contract generation or materialization fails twice, report a tooling failure instead of hand-writing generated files.
 Treat generated `contract.manifest.json` as the durable contract for changes.
 
 A blocked plan with zero executable views is not an implementation plan. Do

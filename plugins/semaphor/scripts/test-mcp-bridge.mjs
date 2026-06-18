@@ -71,10 +71,10 @@ async function main() {
   await assertUnauthenticatedFallbackTools();
   await assertUnauthenticatedMaterializeFetchesArtifactAndWritesLocally();
   await assertUnauthenticatedMaterializeIgnoresWorkspaceHostOverrides();
+  await assertAuthenticatedMaterializeUsesWorkspaceHostOverrides();
   await assertAuthenticatedToolsListProxiesLiveSurface();
   await assertAuthenticatedToolsListPreservesLiveErrors();
   await assertMaterializeResponseFilesAreMaterializedLocally();
-  await assertTextOnlyMaterializeResponseFilesAreMaterializedLocally();
   await assertGeneratorResponseWithoutWorkspaceDirIsMarkedPayloadOnly();
   await assertUpdateResponseWithoutWorkspaceDirPointsToMaterializeTool();
   await assertMaterializeWithWorkspaceDirFailsWhenPayloadCannotMaterialize();
@@ -247,6 +247,68 @@ async function assertUnauthenticatedMaterializeIgnoresWorkspaceHostOverrides() {
   }
 }
 
+async function assertAuthenticatedMaterializeUsesWorkspaceHostOverrides() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-project-token-host-"));
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    artifactPayload: generatedContractArtifactPayload({
+      generatedContractArtifactId: "dap_contract_self_hosted",
+      outputDir: "src/semaphor/generated",
+      filePaths: {
+        "index.ts": "src/semaphor/generated/index.ts",
+        "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
+      },
+      files: {
+        "index.ts": "export const selfHosted = true;\n",
+        "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+      },
+      materialization: {
+        mode: "payload_only",
+        status: "not_written",
+      },
+    }),
+  });
+  await writeFile(
+    path.join(appDir, ".env.local"),
+    [
+      "VITE_SEMAPHOR_PROJECT_TOKEN=test-project-token",
+      `SEMAPHOR_SERVER_URL=${server.url.replace(/\/api\/mcp$/u, "")}`,
+      "",
+    ].join("\n"),
+  );
+  const bridge = startBridge({});
+  try {
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 22,
+      method: "tools/call",
+      params: {
+        name: "semaphor_materialize_data_app_contract",
+        arguments: {
+          workspaceDir: appDir,
+          generatedContractArtifactId: "dap_contract_self_hosted",
+          generatedContractMaterializationToken: "dap_contract_materialize_test",
+        },
+      },
+    });
+    assert.equal(response.result.isError, false);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, "GET");
+    assert.equal(
+      calls[0].url,
+      "/api/v1/data-app/generated-contract-artifact/dap_contract_self_hosted",
+    );
+    assert.equal(
+      await readFile(path.join(appDir, "src/semaphor/generated/index.ts"), "utf8"),
+      "export const selfHosted = true;\n",
+    );
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
 async function assertAuthenticatedToolsListProxiesLiveSurface() {
   const calls = [];
   const server = await startMockMcpServer(calls);
@@ -376,29 +438,22 @@ async function assertMaterializeResponseFilesAreMaterializedLocally() {
 
   const calls = [];
   const server = await startMockMcpServer(calls, {
-    callResult: {
-      isError: false,
-      structuredContent: {
-        kind: "generated_data_app_contract",
-        generatedContractArtifactId: "dap_contract_test",
-        outputDir: "src/semaphor/generated",
-        filePaths: {
-          "index.ts": "src/semaphor/generated/index.ts",
-          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
-        },
-        files: {
-          "index.ts": "export const generated = true;\n",
-          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
-        },
-        materialization: {
-          mode: "payload_only",
-          status: "not_written",
-        },
-        nextAgentAction:
-          "Call semaphor_materialize_data_app_contract with generatedContractArtifactId and generatedContractMaterializationToken.",
+    artifactPayload: generatedContractArtifactPayload({
+      generatedContractArtifactId: "dap_contract_test",
+      outputDir: "src/semaphor/generated",
+      filePaths: {
+        "index.ts": "src/semaphor/generated/index.ts",
+        "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
       },
-      content: [{ type: "text", text: "Generated 2 files." }],
-    },
+      files: {
+        "index.ts": "export const generated = true;\n",
+        "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+      },
+      materialization: {
+        mode: "payload_only",
+        status: "not_written",
+      },
+    }),
   });
   const bridge = startBridge({
     SEMAPHOR_PROJECT_TOKEN: "test-project-token",
@@ -420,14 +475,17 @@ async function assertMaterializeResponseFilesAreMaterializedLocally() {
     });
     assert.equal(response.result.isError, false);
     assert.equal(
-      calls[0].body.params.arguments.generatedContractArtifactId,
-      "dap_contract_test",
+      calls[0].url,
+      "/api/v1/data-app/generated-contract-artifact/dap_contract_test",
     );
     assert.equal(
-      calls[0].body.params.arguments.generatedContractMaterializationToken,
+      calls[0].materializationToken,
       "dap_contract_materialize_test",
     );
-    assert.equal(calls[0].body.params.arguments.workspaceDir, undefined);
+    assert.equal(
+      response.result.structuredContent.generatedContractArtifactId,
+      "dap_contract_test",
+    );
     assert.equal(
       response.result.structuredContent.localWrite.schemaVersion,
       "semaphor-bridge-local-write/v1",
@@ -442,60 +500,7 @@ async function assertMaterializeResponseFilesAreMaterializedLocally() {
     );
     assert.equal(
       await readFile(path.join(appDir, "src/semaphor/generated/contract.manifest.json"), "utf8"),
-      "{\n  \"ok\": true,\n  \"generatedFilePaths\": {\n    \"index.ts\": \"src/semaphor/generated/index.ts\"\n  }\n}\n",
-    );
-  } finally {
-    await bridge.stop();
-    await server.stop();
-    await rm(appDir, { recursive: true, force: true });
-  }
-}
-
-async function assertTextOnlyMaterializeResponseFilesAreMaterializedLocally() {
-  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-text-write-"));
-  const payload = {
-    kind: "generated_data_app_contract",
-    outputDir: "src/semaphor/generated",
-    filePaths: {
-      "index.ts": "src/semaphor/generated/index.ts",
-      "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
-    },
-    files: {
-      "index.ts": "export const generatedFromText = true;\n",
-      "contract.manifest.json": "{\n  \"ok\": true\n}\n",
-    },
-  };
-
-  const calls = [];
-  const server = await startMockMcpServer(calls, {
-    callResult: {
-      isError: false,
-      content: [{ type: "text", text: JSON.stringify(payload) }],
-    },
-  });
-  const bridge = startBridge({
-    SEMAPHOR_PROJECT_TOKEN: "test-project-token",
-    SEMAPHOR_MCP_URL: server.url,
-  });
-  try {
-    const response = await bridge.request({
-      jsonrpc: "2.0",
-      id: 19,
-      method: "tools/call",
-      params: {
-        name: "semaphor_materialize_data_app_contract",
-        arguments: {
-          workspaceDir: appDir,
-          generatedContractArtifactId: "dap_contract_test",
-        },
-      },
-    });
-    assert.equal(response.result.structuredContent.materialization.mode, "local_write");
-    assert.equal(response.result.structuredContent.materialization.status, "written");
-    assert.equal(response.result.structuredContent.localWrite.fileCount, 2);
-    assert.equal(
-      await readFile(path.join(appDir, "src/semaphor/generated/index.ts"), "utf8"),
-      "export const generatedFromText = true;\n",
+      "{\n  \"schemaVersion\": \"semaphor-data-app-generated-contract-manifest/v1\",\n  \"generatedFilePaths\": {\n    \"index.ts\": \"src/semaphor/generated/index.ts\"\n  }\n}\n",
     );
   } finally {
     await bridge.stop();
@@ -553,6 +558,10 @@ async function assertGeneratorResponseWithoutWorkspaceDirIsMarkedPayloadOnly() {
     assert.equal(response.result.structuredContent.localWrite, undefined);
     assert.equal(response.result.structuredContent.materialization.mode, "payload_only");
     assert.equal(response.result.structuredContent.materialization.status, "not_written");
+    assert.equal(response.result.structuredContent.files, undefined);
+    assert.equal(response.result.structuredContent.filePaths, undefined);
+    assert.equal(response.result.structuredContent.manifest, undefined);
+    assert.equal(response.result.structuredContent.materialization.filePaths, undefined);
     assertMessageIncludes(
       response.result.structuredContent.nextAgentAction,
       "semaphor_materialize_data_app_contract",
@@ -629,16 +638,7 @@ async function assertMaterializeWithWorkspaceDirFailsWhenPayloadCannotMaterializ
   const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-no-files-"));
 
   const calls = [];
-  const server = await startMockMcpServer(calls, {
-    callResult: {
-      isError: false,
-      structuredContent: {
-        kind: "generated_data_app_contract",
-        outputDir: "src/semaphor/generated",
-      },
-      content: [{ type: "text", text: "Generated payload omitted files." }],
-    },
-  });
+  const server = await startMockMcpServer(calls);
   const bridge = startBridge({
     SEMAPHOR_PROJECT_TOKEN: "test-project-token",
     SEMAPHOR_MCP_URL: server.url,
@@ -656,8 +656,10 @@ async function assertMaterializeWithWorkspaceDirFailsWhenPayloadCannotMaterializ
         },
       },
     });
-    assertMessageIncludes(response.error?.message, "cannot materialize");
-    assertMessageIncludes(response.error?.message, "Do not reconstruct generated files");
+    assertMessageIncludes(
+      response.error?.message,
+      "requires generatedContractMaterializationToken",
+    );
     await assertFileMissing(path.join(appDir, "src/semaphor/generated/index.ts"));
   } finally {
     await bridge.stop();
@@ -719,21 +721,17 @@ async function assertGeneratorPreflightsBeforeWritingFiles() {
 
   const calls = [];
   const server = await startMockMcpServer(calls, {
-    callResult: {
-      isError: false,
-      structuredContent: {
-        kind: "generated_data_app_contract",
-        outputDir: "src/semaphor/generated",
-        filePaths: {
-          "index.ts": "src/semaphor/generated/index.ts",
-        },
-        files: {
-          "index.ts": "export const partial = true;\n",
-          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
-        },
+    artifactPayload: generatedContractArtifactPayload({
+      generatedContractArtifactId: "dap_contract_test",
+      outputDir: "src/semaphor/generated",
+      filePaths: {
+        "index.ts": "src/semaphor/generated/index.ts",
       },
-      content: [{ type: "text", text: "Generated 2 files." }],
-    },
+      files: {
+        "index.ts": "export const partial = true;\n",
+        "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+      },
+    }),
   });
   const bridge = startBridge({
     SEMAPHOR_PROJECT_TOKEN: "test-project-token",
@@ -749,6 +747,7 @@ async function assertGeneratorPreflightsBeforeWritingFiles() {
         arguments: {
           workspaceDir: appDir,
           generatedContractArtifactId: "dap_contract_test",
+          generatedContractMaterializationToken: "dap_contract_materialize_test",
         },
       },
     });
@@ -771,22 +770,18 @@ async function assertGeneratorRejectsProjectFileOverwrite() {
 
   const calls = [];
   const server = await startMockMcpServer(calls, {
-    callResult: {
-      isError: false,
-      structuredContent: {
-        kind: "generated_data_app_contract",
-        outputDir: "src/semaphor/generated",
-        filePaths: {
-          "index.ts": "package.json",
-          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
-        },
-        files: {
-          "index.ts": "{\"name\":\"overwritten\"}\n",
-          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
-        },
+    artifactPayload: generatedContractArtifactPayload({
+      generatedContractArtifactId: "dap_contract_test",
+      outputDir: "src/semaphor/generated",
+      filePaths: {
+        "index.ts": "package.json",
+        "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
       },
-      content: [{ type: "text", text: "Generated 2 files." }],
-    },
+      files: {
+        "index.ts": "{\"name\":\"overwritten\"}\n",
+        "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+      },
+    }),
   });
   const bridge = startBridge({
     SEMAPHOR_PROJECT_TOKEN: "test-project-token",
@@ -802,6 +797,7 @@ async function assertGeneratorRejectsProjectFileOverwrite() {
         arguments: {
           workspaceDir: appDir,
           generatedContractArtifactId: "dap_contract_test",
+          generatedContractMaterializationToken: "dap_contract_materialize_test",
         },
       },
     });
@@ -831,22 +827,18 @@ async function assertGeneratorRejectsSymlinkedGeneratedDirectory() {
 
   const calls = [];
   const server = await startMockMcpServer(calls, {
-    callResult: {
-      isError: false,
-      structuredContent: {
-        kind: "generated_data_app_contract",
-        outputDir: "src/semaphor/generated",
-        filePaths: {
-          "index.ts": "src/semaphor/generated/index.ts",
-          "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
-        },
-        files: {
-          "index.ts": "export const generated = true;\n",
-          "contract.manifest.json": "{\n  \"ok\": true\n}\n",
-        },
+    artifactPayload: generatedContractArtifactPayload({
+      generatedContractArtifactId: "dap_contract_test",
+      outputDir: "src/semaphor/generated",
+      filePaths: {
+        "index.ts": "src/semaphor/generated/index.ts",
+        "contract.manifest.json": "src/semaphor/generated/contract.manifest.json",
       },
-      content: [{ type: "text", text: "Generated 2 files." }],
-    },
+      files: {
+        "index.ts": "export const generated = true;\n",
+        "contract.manifest.json": "{\n  \"ok\": true\n}\n",
+      },
+    }),
   });
   const bridge = startBridge({
     SEMAPHOR_PROJECT_TOKEN: "test-project-token",
@@ -862,6 +854,7 @@ async function assertGeneratorRejectsSymlinkedGeneratedDirectory() {
         arguments: {
           workspaceDir: appDir,
           generatedContractArtifactId: "dap_contract_test",
+          generatedContractMaterializationToken: "dap_contract_materialize_test",
         },
       },
     });
