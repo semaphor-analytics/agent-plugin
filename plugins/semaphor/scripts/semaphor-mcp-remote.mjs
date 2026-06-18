@@ -505,16 +505,27 @@ function materializeGeneratedContractResponse(message, normalized) {
 
   const workspaceDir = firstBridgeWorkspaceDirectory(message.params?.arguments);
   if (!workspaceDir) {
+    annotateGeneratedContractPayloadOnly(normalized.result, message.params?.name);
     return normalized;
   }
 
   const payload = generatedContractPayloadFromResult(normalized.result);
-  if (
-    payload?.kind !== "generated_data_app_contract" ||
-    !payload?.files ||
-    !payload?.filePaths
-  ) {
-    return normalized;
+  if (payload?.kind !== "generated_data_app_contract") {
+    throw new Error(
+      [
+        `${message.params?.name} was called with workspaceDir, but Semaphor did not return a generated contract payload.`,
+        "Local Data App builds require installed-bridge materialization before UI edits.",
+        "Do not reconstruct generated files from tool text; retry through the installed Semaphor Agent Plugin bridge or report MCP surface/materialization drift.",
+      ].join(" "),
+    );
+  }
+  if (!payload.files || !payload.filePaths) {
+    throw new Error(
+      [
+        `${message.params?.name} returned a generated contract payload without files/filePaths, so the installed bridge cannot materialize src/semaphor/generated.`,
+        "Do not reconstruct generated files from a large or truncated response; report MCP surface/materialization drift.",
+      ].join(" "),
+    );
   }
 
   const writeSummary = writeGeneratedContractFiles({
@@ -525,14 +536,55 @@ function materializeGeneratedContractResponse(message, normalized) {
     outputDir: payload.outputDir,
   });
 
-  if (normalized.result.structuredContent && typeof normalized.result.structuredContent === "object") {
-    normalized.result.structuredContent = {
-      ...normalized.result.structuredContent,
-      localWrite: writeSummary,
-    };
-  }
+  normalized.result.structuredContent = {
+    ...(normalized.result.structuredContent &&
+    typeof normalized.result.structuredContent === "object"
+      ? normalized.result.structuredContent
+      : payload),
+    localWrite: writeSummary,
+    materialization: {
+      mode: "local_write",
+      status: "written",
+      workspaceDir: writeSummary.workspaceDir,
+      outputDir: payload.outputDir || DEFAULT_GENERATED_CONTRACT_OUTPUT_DIR,
+      fileCount: writeSummary.fileCount,
+      filePaths: writeSummary.filePaths,
+    },
+    nextAgentAction:
+      "Import from src/semaphor/generated, then run Semaphor validation, typecheck, build, and browser smoke checks.",
+  };
 
   return normalized;
+}
+
+function annotateGeneratedContractPayloadOnly(result, toolName) {
+  const payload = generatedContractPayloadFromResult(result);
+  if (payload?.kind !== "generated_data_app_contract") {
+    return;
+  }
+  const retryToolName = typeof toolName === "string" && toolName.trim()
+    ? toolName
+    : "the same generated-contract tool";
+  result.structuredContent = {
+    ...(result.structuredContent && typeof result.structuredContent === "object"
+      ? result.structuredContent
+      : payload),
+    materialization: {
+      mode: "payload_only",
+      status: "not_written",
+      reason:
+        "No workspaceDir was provided, so generated files were not written locally.",
+      outputDir: payload.outputDir || DEFAULT_GENERATED_CONTRACT_OUTPUT_DIR,
+      fileCount: payload.files && typeof payload.files === "object"
+        ? Object.keys(payload.files).length
+        : undefined,
+      filePaths: payload.filePaths && typeof payload.filePaths === "object"
+        ? Object.values(payload.filePaths).filter((value) => typeof value === "string").sort()
+        : undefined,
+    },
+    nextAgentAction:
+      `Retry ${retryToolName} through the installed bridge with workspaceDir and require materialization.status="written" before UI edits.`,
+  };
 }
 
 function firstBridgeWorkspaceDirectory(toolArguments) {

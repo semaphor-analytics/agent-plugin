@@ -111,8 +111,8 @@ semaphor_plan_data_app()
 -> planner returns visible plan plus planArtifactId
 -> present visible plan with views, visual types, filters, file layout, and DevTools setup
 -> user/eval accepts the visible plan
--> semaphor_generate_data_app_contract(planArtifactId)
--> write structuredContent.files exactly to structuredContent.filePaths
+-> semaphor_generate_data_app_contract(planArtifactId, workspaceDir)
+-> bridge materializes files under src/semaphor/generated
 -> build UI from src/semaphor/generated imports
 -> semaphor_validate_data_app_contract(workspaceDir)
 -> run local typecheck/build and browser smoke checks
@@ -128,6 +128,12 @@ the returned files under `src/semaphor/generated`; verify those files exist
 after the first-class generator call and before UI edits. Do not use the helper
 wrapper to recover generator output. Do not pass inline `codegenSummary`,
 `codegenSummaryPath`, or `artifactDir`.
+
+If the generator returns `structuredContent.files` but the installed plugin
+does not report `localWrite` and `src/semaphor/generated` is still absent, stop
+and classify the run as MCP surface/materialization drift. Do not search for a
+local materializer script, call package helper wrappers, or reconstruct files
+from a large/truncated response.
 
 `semaphor_validate_data_app_contract` validates the generated Semaphor contract
 payload and manifest integrity. In installed plugin runs, pass `workspaceDir`
@@ -155,16 +161,16 @@ For iterative analytics changes to a generated app, call:
 read the generated contract.manifest.json under src/semaphor/generated
 -> semaphor_plan_data_app_change(current manifest state, goal, operationIntent)
 -> server returns a change planArtifactId when the change is buildable
--> semaphor_update_data_app_contract(planArtifactId)
+-> semaphor_update_data_app_contract(planArtifactId, workspaceDir)
 -> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
--> returns regenerated structuredContent.files and migrationReport
--> write structuredContent.files exactly to structuredContent.filePaths
+-> bridge materializes regenerated files under src/semaphor/generated
+-> returns migrationReport for review
 ```
 
 For user-requested edits such as visual title changes or metric aggregate
 repairs, use `operationIntent.kind: "edit"` with target view ids so the update
 policy can reject unrelated views, inputs, or filter contract changes before
-the agent writes returned files. If Inspector/runtime warning cleanup requires
+the agent edits UI files. If Inspector/runtime warning cleanup requires
 a diagnostic operation kind not yet supported by the server planner, stop and
 report that planner capability gap instead of patching generated files by hand.
 

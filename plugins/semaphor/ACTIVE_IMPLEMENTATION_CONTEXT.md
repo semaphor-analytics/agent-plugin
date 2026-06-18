@@ -41,6 +41,9 @@ Raise findings for:
 - docs, skills, or eval prompts telling agents to use local contract wrappers,
   `planArtifactPath`, `codegenSummaryPath`, inline codegen artifacts, or
   app file paths for generation;
+- docs, skills, or eval prompts telling agents to hand-write returned
+  generated contract payload files when `localWrite` is absent or
+  `src/semaphor/generated` was not materialized by the installed plugin bridge;
 - docs, skills, or eval prompts describing `workspaceDir` as a server-side
   generator input instead of a bridge-local hint that is stripped before
   forwarding;

@@ -64,8 +64,9 @@ Expected behavior:
 - hosted analytics and planning tools are visible;
 - server-owned contract generation, update, and validation tools are visible on
   the authenticated Semaphor MCP surface;
-- broad Data App builds write the returned generated contract payload under
-  `src/semaphor/generated` before UI edits.
+- broad Data App builds call the generator with `workspaceDir`; installed
+  plugin bridge responses report `localWrite` and materialize generated files
+  under `src/semaphor/generated` before UI edits.
 
 Fix:
 

@@ -50,12 +50,13 @@ public SDK builders/hooks, validate, then save or publish when requested.
 6. Contract generation: only after explicit plan approval, call
    `semaphor_generate_data_app_contract` with the planner-returned
    `planArtifactId`. Do not pass inline `codegenSummary`, `codegenSummaryPath`,
-   or `artifactDir`. Verify `src/semaphor/generated` exists after the
-   first-class tool call, or write returned payload files exactly.
+   or `artifactDir`. In installed plugin runs, pass `workspaceDir` and require
+   `src/semaphor/generated` to exist after the tool call. If payload files are
+   returned but no local files are written, stop as MCP surface/materialization
+   drift instead of hand-writing generated files.
 7. Existing generated app: use `semaphor_update_data_app_contract` from the
-   generated manifest or change `planArtifactId`; write the returned payload
-   exactly, preserve existing views by default, and do not replay
-   `codegenSummary` as an agent-authored tool payload.
+   generated manifest or change `planArtifactId`; pass `workspaceDir`, preserve
+   existing views, and do not replay `codegenSummary` or returned file payloads.
 8. Dependencies: ask before installing TanStack/chart libraries, copying
    starter source, or starter scaffolds. Starter/eval apps already include
    Semaphor components; existing apps use host UI first.
@@ -125,11 +126,13 @@ For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
 preferences })`, present the visible plan and the returned `planArtifactId`,
 and stop. After approval, call `semaphor_generate_data_app_contract` with that
 `planArtifactId`; do not inline or replay `codegenSummary`. Verify
-`src/semaphor/generated` exists before UI edits. For edits,
+`src/semaphor/generated` exists before UI edits. If payloads are returned but
+the directory is absent, stop as MCP surface/materialization drift rather than
+searching plugin scripts or reconstructing files. For edits,
 read the current generated `contract.manifest.json`, then call
 `semaphor_update_data_app_contract` with manifest-backed current state or the
 `planArtifactId` returned by `semaphor_plan_data_app_change`; the server
-returns the regenerated file payload and migration report.
+returns the regenerated contract and migration report.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
 option queries, or filter bindings manually. Use `queries.someView()` with
