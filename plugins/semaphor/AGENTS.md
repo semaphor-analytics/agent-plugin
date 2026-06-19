@@ -53,6 +53,10 @@ Codex, Claude Code, and future coding-agent hosts.
   contracts. If examples or guidance are stale, update them to the current
   public contract instead of generating compatibility aliases or host-specific
   workarounds.
+- Before publishing marketplace-visible plugin changes, follow the internal
+  release versioning SOP in the Semaphor app internal docs:
+  `docs/system-architecture/data-apps/agent-plugin/RELEASE_VERSIONING.md`.
+  Keep versioning details out of customer-facing README content.
 - Do not commit tokens, local env files, generated run artifacts, screenshots,
   private notes, or release evidence to this package or to customer app repos.
   Keep local evidence in ignored output directories.

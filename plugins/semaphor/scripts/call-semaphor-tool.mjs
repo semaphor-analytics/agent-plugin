@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_TIMEOUT_MS = 30000;
 const MCP_PROTOCOL_VERSION = '2024-11-05';
+const pluginVersion = readPluginVersion();
 
 const options = parseArgs(process.argv);
 
@@ -139,7 +140,7 @@ async function callTool(callOptions) {
       capabilities: {},
       clientInfo: {
         name: 'semaphor-agent-plugin-cli',
-        version: '0.1.1',
+        version: pluginVersion,
       },
     });
     client.notify('notifications/initialized', {});
@@ -166,6 +167,16 @@ async function callTool(callOptions) {
   } finally {
     client.close();
   }
+}
+
+function readPluginVersion() {
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(pluginRoot, 'package.json'), 'utf8'),
+  );
+  if (typeof packageJson.version !== 'string' || !packageJson.version.trim()) {
+    throw new Error('plugins/semaphor/package.json is missing a version');
+  }
+  return packageJson.version;
 }
 
 function createMcpClient(child, callOptions) {

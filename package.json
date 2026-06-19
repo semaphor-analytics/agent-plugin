@@ -11,9 +11,11 @@
     "save:data-app": "npm --prefix plugins/semaphor run save:data-app --",
     "prepare:publish": "npm --prefix plugins/semaphor run prepare:publish --",
     "publish:data-app": "npm --prefix plugins/semaphor run publish:data-app --",
+    "version:plugin": "node scripts/sync-plugin-version.mjs",
+    "version:plugin:check": "node scripts/sync-plugin-version.mjs --check",
     "validate:plugin": "npm --prefix plugins/semaphor run validate:plugin",
     "validate:codex-plugin": "npm --prefix plugins/semaphor run validate:codex-plugin",
     "validate:claude-plugin": "claude plugin validate plugins/semaphor",
-    "validate:marketplaces": "node --check plugins/semaphor/scripts/validate-plugin-package.mjs && node -e \"JSON.parse(require('fs').readFileSync('.agents/plugins/marketplace.json','utf8')); JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8'))\""
+    "validate:marketplaces": "npm run version:plugin:check && node --check plugins/semaphor/scripts/validate-plugin-package.mjs && node -e \"JSON.parse(require('fs').readFileSync('.agents/plugins/marketplace.json','utf8')); JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8'))\""
   }
 }

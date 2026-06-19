@@ -157,6 +157,40 @@ function validateVersionSync() {
     }
   }
 
+  const repoRootPackageJsonPath = path.resolve(root, "../..", "package.json");
+  if (fs.existsSync(repoRootPackageJsonPath)) {
+    const repoRootPackageJson = JSON.parse(
+      fs.readFileSync(repoRootPackageJsonPath, "utf8"),
+    );
+    if (repoRootPackageJson?.version !== expectedVersion) {
+      issues.push(
+        `../../package.json: version ${repoRootPackageJson?.version} must match package.json version ${expectedVersion}`,
+      );
+    }
+  }
+
+  const repoRootPackageLockPath = path.resolve(
+    root,
+    "../..",
+    "package-lock.json",
+  );
+  if (fs.existsSync(repoRootPackageLockPath)) {
+    const repoRootPackageLock = JSON.parse(
+      fs.readFileSync(repoRootPackageLockPath, "utf8"),
+    );
+    if (repoRootPackageLock?.version !== expectedVersion) {
+      issues.push(
+        `../../package-lock.json: version ${repoRootPackageLock?.version} must match package.json version ${expectedVersion}`,
+      );
+    }
+    const rootPackageVersion = repoRootPackageLock?.packages?.[""]?.version;
+    if (rootPackageVersion !== expectedVersion) {
+      issues.push(
+        `../../package-lock.json: packages[""].version ${rootPackageVersion} must match package.json version ${expectedVersion}`,
+      );
+    }
+  }
+
   for (const relativePath of [
     "scripts/call-semaphor-tool.mjs",
     "scripts/semaphor-mcp-remote.mjs",
@@ -164,17 +198,15 @@ function validateVersionSync() {
     const fullPath = path.join(root, relativePath);
     if (!fs.existsSync(fullPath)) continue;
     const text = fs.readFileSync(fullPath, "utf8");
-    const versionMatches = [...text.matchAll(/\bversion:\s*['"]([^'"]+)['"]/g)];
-    if (versionMatches.length === 0) {
-      issues.push(`${relativePath}: missing helper-reported MCP version`);
-      continue;
+    if (!/\breadPluginVersion\s*\(/.test(text)) {
+      issues.push(
+        `${relativePath}: MCP implementation version must be read from package.json with readPluginVersion()`,
+      );
     }
-    for (const match of versionMatches) {
-      if (match[1] !== expectedVersion) {
-        issues.push(
-          `${relativePath}: helper-reported MCP version ${match[1]} must match package.json version ${expectedVersion}`,
-        );
-      }
+    if (/\bversion:\s*['"]\d+\.\d+\.\d+['"]/.test(text)) {
+      issues.push(
+        `${relativePath}: do not hardcode MCP implementation versions; read plugins/semaphor/package.json`,
+      );
     }
     if (/new URL\(import\.meta\.url\)\.pathname/.test(text)) {
       issues.push(

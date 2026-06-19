@@ -9,7 +9,7 @@
       "name": "semaphor",
       "displayName": "Semaphor",
       "description": "Build Semaphor-backed React data apps with governed analytics.",
-      "version": "0.1.1",
+      "version": "0.1.5",
       "source": "./plugins/semaphor",
       "author": {
         "name": "Semaphor Analytics Corp."
@@ -17,7 +17,12 @@
       "repository": "https://github.com/semaphor-analytics/agent-plugin",
       "homepage": "https://semaphor.cloud",
       "category": "Productivity",
-      "tags": ["analytics", "react", "dashboard", "mcp"]
+      "tags": [
+        "analytics",
+        "react",
+        "dashboard",
+        "mcp"
+      ]
     }
   ]
 }

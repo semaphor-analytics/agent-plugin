@@ -76,6 +76,7 @@ const FALLBACK_TOOLS = [
 }));
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(scriptDir, "..");
+const pluginVersion = readPluginVersion();
 
 let stdinBuffer = Buffer.alloc(0);
 let shuttingDown = false;
@@ -155,7 +156,7 @@ async function forwardRequest(message) {
         },
         serverInfo: {
           name: "semaphor",
-          version: "0.1.1",
+          version: pluginVersion,
         },
       },
     };
@@ -208,6 +209,16 @@ async function forwardRequest(message) {
       message: `Unsupported Semaphor MCP bridge method: ${message.method}`,
     },
   };
+}
+
+function readPluginVersion() {
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(pluginRoot, "package.json"), "utf8"),
+  );
+  if (typeof packageJson.version !== "string" || !packageJson.version.trim()) {
+    throw new Error("plugins/semaphor/package.json is missing a version");
+  }
+  return packageJson.version;
 }
 
 function normalizeJsonRpcResponse(message, response) {
