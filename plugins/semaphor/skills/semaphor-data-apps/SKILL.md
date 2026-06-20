@@ -50,10 +50,9 @@ public SDK builders/hooks, validate, then save or publish when requested.
    `src/App.tsx`.
 6. Contract generation: after plan approval, call
    `semaphor_generate_data_app_contract(planArtifactId)`, then
-   `semaphor_materialize_data_app_contract(generatedContractArtifactId,
-   generatedContractMaterializationToken, workspaceDir)`. Require
-   `materialization.status="written"` and
-   `src/semaphor/generated` before UI edits. Do not pass inline
+   materialize locally with the installed bridge materializer or
+   `npm run data-app -- materialize-contract`. Require
+   `materialization.status="written"` and `src/semaphor/generated` before UI edits. Do not pass inline
    `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
 7. Existing generated app: use `semaphor_update_data_app_contract`, then
    materialize the returned `generatedContractArtifactId` and `generatedContractMaterializationToken`; preserve existing
@@ -127,12 +126,10 @@ For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
 preferences, responseDetail: "plan_summary" })`, present the visible plan
 summary and `planArtifactId`, and stop. Use `responseDetail: "full"` only for
 debugging planner internals. After approval, generate with `planArtifactId`;
-materialize with `generatedContractArtifactId`,
-`generatedContractMaterializationToken`, and `workspaceDir`; verify
-`src/semaphor/generated` before UI edits. If materialization is payload-only or
-absent, stop as MCP surface/materialization drift. Do not write files from tool
-output. For edits, read `contract.manifest.json`, call
-`semaphor_update_data_app_contract`, then materialize the returned artifact.
+materialize with the installed bridge tool or `npm run data-app -- materialize-contract`, then verify
+`src/semaphor/generated` before UI edits. Hosted MCP payload-only output is expected; if local materialization still does not return `materialization.status="written"`, stop as materialization failure. Do not write files from tool output. For edits, read `contract.manifest.json`, call `semaphor_update_data_app_contract`, then materialize the returned artifact.
+When present, use `localMaterialization.officialCommand` as the machine-readable
+command shape instead of parsing `nextAgentAction` prose.
 Build React from `src/semaphor/generated` plus returned visual specs and
 unsupported gaps. Do not recreate generated sources, fields, inputs, input
 option queries, or filter bindings manually. Use `queries.someView()` with
@@ -186,9 +183,11 @@ calls for data-app work are:
 - `semaphor_propose_semantic_model_change` / `semaphor_apply_semantic_model_patch`
 - contract tools: `semaphor_generate_data_app_contract`, `semaphor_create_data_app_contract`, `semaphor_update_data_app_contract`, `semaphor_materialize_data_app_contract`, and `semaphor_validate_data_app_contract`
 
-If first-class tools are incomplete, ask the user to reinstall/reload the
-plugin or authenticate. Do not hand-transcribe planner artifacts or generated
-contract files. The fallback wrapper is for debugging/evals only.
+If first-class planning/generation tools are incomplete, ask the user to
+reinstall/reload the plugin or authenticate. Do not hand-transcribe planner
+artifacts or generated contract files. The `data-app materialize-contract`
+command is the official local materialization path when hosted MCP returns
+payload-only output; the generic `call:mcp` wrapper remains for diagnostics.
 
 For planning details, read [planning-workflow.md](references/planning-workflow.md).
 
@@ -213,10 +212,11 @@ as a required dashboard quality checklist, not optional inspiration.
 - Use Semaphor MCP to discover real projects, domains, datasets, fields,
   relationships, SQL connections, and permissioned capabilities before
   generating data-bearing code.
-- Treat host-exposed Semaphor MCP tools as the primary authoring interface. If
-  they are unavailable, use the fallback wrapper only for debugging/evals and
-  classify the run as plugin-host MCP exposure. Never manually speak MCP
-  protocol.
+- Treat host-exposed Semaphor MCP tools as the primary planning/generation
+  interface. For local generated-contract writes, use the installed bridge
+  materializer tool when exposed, or the official
+  `npm run data-app -- materialize-contract` command. The generic `call:mcp`
+  wrapper is diagnostic only. Never manually speak MCP protocol.
 - Do not invent dataset names, field names, joins, metrics, IDs, or raw
   database credentials.
 - Generated runtime analytics code must use public `react-semaphor/data-app-sdk`
@@ -430,11 +430,9 @@ The window bridge must stay development-only. Do not enable
 `exposeWindowBridge` for production embeds, published tenant/end-user views, or
 normal customer runtime code.
 
-The SDK decodes the Semaphor API URL from the token. Do not generate
-`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` for
-normal hosted Vite React apps. Use an explicit `apiBaseUrl` only when the user
-explicitly needs self-hosted routing that intentionally differs from the
-token's `apiServiceUrl`.
+The SDK decodes the Semaphor API URL from the token. Do not generate extra API
+base URL env vars or `apiBaseUrl` for normal hosted Vite React apps. Plugin MCP
+routing also derives from the project token's `apiServiceUrl`.
 
 For SDK guidance, call `semaphor_get_data_app_sdk_guidance` when exposed, then
 use canonical docs. Read [sdk-contract.md](references/sdk-contract.md) only as

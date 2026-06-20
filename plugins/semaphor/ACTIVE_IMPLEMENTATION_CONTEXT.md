@@ -22,16 +22,17 @@ The plugin bridge may still:
   `semaphor_materialize_data_app_contract` calls so the installed plugin bridge
   can materialize server-returned generated contract artifacts under the target
   app after the server-owned materializer call succeeds;
+- expose a typed `localMaterialization.officialCommand` object on generated
+  contract responses. Agents may execute that official package command after
+  resolving its `workspaceDir` and `semaphorPluginRoot` placeholders. This is
+  the same installed-bridge artifact materialization path, not a generic MCP
+  wrapper or manual payload write;
 - accept bridge-local `workspaceDir` on validation calls so the bridge can read
   the generated manifest plus generated TypeScript files and forward that
   payload to the server-owned validator;
 - strip `workspaceDir` before forwarding tool arguments to Semaphor. It is a
   local bridge hint, not a server generator input;
-- expose only auth/access guidance plus the narrow
-  `semaphor_materialize_data_app_contract` artifact materializer before
-  project-token auth is available. This exception exists so a user can
-  materialize a server-generated short-lived `generatedContractArtifactId`
-  locally without adding a project token to the target workspace;
+- expose only auth/access guidance before project-token auth is available;
 - proxy live Semaphor MCP tools after auth.
 
 The plugin bridge and plugin package must not:
@@ -43,6 +44,8 @@ The plugin bridge and plugin package must not:
 - forward `workspaceDir` to Semaphor or describe it as part of the server
   generator contract;
 - preserve compatibility shims for old generated contract workflows.
+- expose, document, or honor separate MCP/server URL env variables; all
+  project-token MCP routing derives from the project token's `apiServiceUrl`.
 
 Version constraint for reviewers:
 
@@ -72,6 +75,8 @@ Raise findings for:
 - docs, skills, or eval prompts telling agents to reconstruct generated
   contract files from hosted tool output when `localWrite` is absent or
   `src/semaphor/generated` was not materialized by the installed plugin bridge;
+- docs, skills, or eval prompts treating `nextAgentAction` prose as the
+  machine contract when `localMaterialization.officialCommand` is present;
 - docs, skills, or eval prompts telling agents to pass `workspaceDir` to
   `semaphor_generate_data_app_contract`,
   `semaphor_create_data_app_contract`, or
@@ -82,11 +87,9 @@ Raise findings for:
   generator input instead of a bridge-local hint that is stripped before
   forwarding;
 - a bridge fallback that advertises rich planning, generation, update,
-  validation, semantic, runtime-token, or analytics tools before auth. The only
-  allowed Data App fallback before project-token auth is
-  `semaphor_materialize_data_app_contract`, and it must accept only
-  `generatedContractArtifactId` plus `generatedContractMaterializationToken`
-  plus `workspaceDir`.
+  validation, semantic, runtime-token, materialization, or analytics tools
+  before auth. The only allowed fallback before project-token auth is
+  `semaphor_get_access_context` guidance.
 
 Do not raise findings asking for legacy compatibility with the removed local
 generator/validator scripts. This feature is still under development and the

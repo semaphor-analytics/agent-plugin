@@ -441,6 +441,7 @@ function validateMcpBridge() {
     "semaphor_create_data_app_contract",
     "semaphor_generate_data_app_contract",
     "semaphor_update_data_app_contract",
+    "semaphor_materialize_data_app_contract",
     "semaphor_validate_data_app_contract",
   ];
   for (const serverOwnedTool of forbiddenFallbackServerOwnedTools) {
@@ -452,16 +453,6 @@ function validateMcpBridge() {
         `scripts/semaphor-mcp-remote.mjs: fallback tools must not advertise server-owned MCP tool schema ${serverOwnedTool}; use live tools/list from semaphor-app`,
       );
     }
-  }
-  if (
-    /\bname\s*:\s*["']semaphor_materialize_data_app_contract["']/.test(
-      fallbackToolsText,
-    ) &&
-    !/does not require a project token/.test(fallbackToolsText)
-  ) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: pre-auth materializer fallback must be limited to short-lived generatedContractArtifactId + generatedContractMaterializationToken + workspaceDir and must document that it does not require a project token",
-    );
   }
   for (const forbiddenPath of [
     "scripts/generate-data-app-contract.mjs",

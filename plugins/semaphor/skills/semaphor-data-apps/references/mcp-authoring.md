@@ -68,8 +68,22 @@ env files for auth/context calls. Do not pass `workspaceDir` to
 `semaphor_materialize_data_app_contract` with
 the server-returned `generatedContractArtifactId`,
 `generatedContractMaterializationToken`, and `workspaceDir`; the
-bridge materializes that artifact under `src/semaphor/generated`. For
-validation calls, it reads those files back for
+bridge materializes that artifact under `src/semaphor/generated`. If the host
+only exposes hosted OAuth materialization and returns
+`materialization.status="not_written"`, use the official local command instead:
+
+```bash
+npm run data-app -- materialize-contract \
+  --dir /path/to/react-app \
+  --artifact-id <generatedContractArtifactId> \
+  --materialization-token <generatedContractMaterializationToken>
+```
+
+When the response includes `localMaterialization.officialCommand`, execute that
+typed command shape after resolving its `workspaceDir` and `semaphorPluginRoot`
+placeholders. Do not parse `nextAgentAction` prose for command arguments.
+
+For validation calls, the installed bridge reads those files back for
 `semaphor_validate_data_app_contract`. It removes `workspaceDir` before
 forwarding tool arguments to Semaphor, does not cache workspace roots across
 projects, ignores ambiguous multi-root client root lists, and rejects generated
@@ -83,7 +97,7 @@ contract generation, semantic repair, and runtime-token tools come from live
 Semaphor `tools/list` after auth is available. If no project token is found,
 resolve auth first by retrying `semaphor_get_access_context` with
 `workspaceDir`, using hosted OAuth, or asking the user to add a project token.
-Do not use `call:mcp` for normal app authoring.
+Do not use the generic `call:mcp` wrapper for normal app authoring.
 
 When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an
 interactive hosted session. Start with `semaphor_get_access_context`, then

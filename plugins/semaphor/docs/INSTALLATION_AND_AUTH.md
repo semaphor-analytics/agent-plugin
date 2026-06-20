@@ -87,21 +87,20 @@ or local env files for deterministic scoped development.
 Do not commit real tokens. Agents should check for expected variable names, but
 should not print, search, or log token values.
 
-## Semaphor Server Resolution
+## Semaphor MCP And API Resolution
 
-In normal hosted usage, do not set a separate server URL. The plugin connects
-to the Semaphor host encoded in the project token's `apiServiceUrl`, which is
+In normal hosted usage, do not set a separate server URL. Helper HTTP calls
+resolve the Semaphor app API from the project token's `apiServiceUrl`, which is
 usually `https://semaphor.cloud`.
 
-For self-hosted Semaphor deployments, `SEMAPHOR_SERVER_URL` may be set to the
-Semaphor app host. The plugin derives MCP from that host as
-`${SEMAPHOR_SERVER_URL}/api/mcp`, and the save/publish helpers use the same
-Semaphor host. If `SEMAPHOR_SERVER_URL` is not set and the token does not
-contain `apiServiceUrl`, the plugin defaults to `https://semaphor.cloud`.
+MCP routing derives from the same project token. The project-token bridge uses
+the token's `apiServiceUrl` plus `/api/mcp`. Tokens without `apiServiceUrl` are
+invalid for the plugin bridge and should be re-minted from the target Semaphor
+environment. For local or self-hosted Semaphor development, mint or provide a
+project token whose `apiServiceUrl` points at that Semaphor app host.
 
-Set `SEMAPHOR_MCP_URL` only when the MCP route intentionally differs from the
-Semaphor app host, such as a custom proxy path. `SEMAPHOR_MCP_URL` must be the
-full MCP endpoint URL.
+Do not set plugin API-base or MCP URL aliases. Separate routing overrides are
+not part of the agent-plugin routing contract.
 
 ## MCP Tool Exposure
 
@@ -180,6 +179,27 @@ Production-ready auth behavior:
   `semaphor_get_access_context` with `workspaceDir`, using hosted OAuth, or
   adding a project token; rich discovery, planning, and contract tools come
   from live Semaphor `tools/list` after auth is available.
+- For local generated-contract writes, use the first-class installed bridge
+  materializer when the host exposes it. If the host only exposes hosted OAuth
+  materialization with `materialization.status="not_written"`, use the
+  official local command:
+
+  ```bash
+  npm run data-app -- materialize-contract \
+    --dir /path/to/react-app \
+    --artifact-id <generatedContractArtifactId> \
+    --materialization-token <generatedContractMaterializationToken>
+  ```
+
+  Contract materialization requires the same project token as other MCP
+  operations. For local or self-hosted Semaphor development, use a project token
+  whose `apiServiceUrl` points at that Semaphor app host.
+
+  When the MCP response includes `localMaterialization.officialCommand`, use
+  that object as the command shape and resolve only the `workspaceDir` and
+  `semaphorPluginRoot` placeholders. Do not parse `nextAgentAction` prose to
+  reconstruct command arguments.
+
 - `call:mcp` is a diagnostic fallback for debugging and eval forensics only.
   Do not use it for ordinary customer app authoring.
   It is not the normal app-building path.
@@ -256,11 +276,9 @@ coding agents read structured traces with
 `panelPosition="bottom"` only when the user asks for a bottom dock. Do not enable
 `exposeWindowBridge` for production embeds or normal end-user runtime code.
 
-The SDK decodes the Semaphor API URL from the token. Do not generate
-`VITE_SEMAPHOR_API_BASE_URL`, `SEMAPHOR_API_BASE_URL`, or `apiBaseUrl` for the
-normal cloud case. Use `apiBaseUrl` only when the user explicitly needs custom
-self-hosted or local routing that intentionally differs from the token's
-`apiServiceUrl`.
+The SDK decodes the Semaphor API URL from the token. Do not generate extra API
+base URL env vars or `apiBaseUrl` for the normal cloud case. Plugin MCP routing
+also derives from the project token's `apiServiceUrl`.
 
 ## Customer Setup Checklist
 
@@ -285,8 +303,7 @@ self-hosted or local routing that intentionally differs from the token's
 
 Save and publish use the same project token configured for MCP authoring. The
 helper commands read the token from shell env or the target app's local env
-files. They resolve the Semaphor app URL from `SEMAPHOR_SERVER_URL`, then the
-token's `apiServiceUrl`, then `https://semaphor.cloud`.
+files. They resolve the Semaphor app URL from the token's `apiServiceUrl`.
 
 Common commands:
 
@@ -324,15 +341,13 @@ snapshots, build artifacts, validation output, or screenshots.
 Common setup failures:
 
 - missing project token in shell env or local env;
-- stale or incorrect self-hosted `SEMAPHOR_SERVER_URL` override;
-- stale or incorrect `SEMAPHOR_MCP_URL` override;
 - expired or unauthorized project token;
 - OAuth login available but the local app runtime token was not minted or was
   not written to `.env.local`;
 - no semantic domain access;
 - missing `react-semaphor` package;
 - runtime app has no token;
-- runtime `apiBaseUrl` override points at the wrong Semaphor host;
+- runtime token's `apiServiceUrl` points at the wrong Semaphor host;
 - app typecheck/build fails.
 
 When a failure comes from Semaphor metadata or governed execution, treat it as a

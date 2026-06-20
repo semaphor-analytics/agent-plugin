@@ -142,21 +142,10 @@ Symptom:
 MCP connection fails, times out, or points at stale behavior.
 ```
 
-Hosted customer default: do not set a server override. The plugin infers the
-Semaphor host from the project token's `apiServiceUrl`, then connects to
-`/api/mcp`.
-
-For self-hosted Semaphor deployments, set `SEMAPHOR_SERVER_URL` to the Semaphor
-app host. The plugin derives MCP as `$SEMAPHOR_SERVER_URL/api/mcp`, and
-save/publish use the same host. Use `SEMAPHOR_MCP_URL` only when the MCP route
-intentionally differs from the Semaphor app host, such as a custom proxy path:
-
-```bash
-SEMAPHOR_MCP_URL="https://your-semaphor-host.example.com/custom/mcp"
-```
-
-Unset overrides when they do not intentionally differ from the project token's
-environment.
+Hosted customer default: do not set a server override. Helper HTTP calls use
+the project token's `apiServiceUrl`; MCP calls use that same `apiServiceUrl`
+plus `/api/mcp`. For self-hosted Semaphor deployments, use a project token whose
+`apiServiceUrl` points at the self-hosted Semaphor app host.
 
 Owner layer: plugin setup unless the endpoint is up but returns poor
 diagnostics.
@@ -395,15 +384,14 @@ Failed to fetch
 
 Check:
 
-- a custom `apiBaseUrl` override, if present, points at the intended Semaphor
-  host,
+- the token's `apiServiceUrl` points at the intended Semaphor host,
 - the configured hosted or self-hosted Semaphor service is reachable,
 - CORS/proxy configuration allows the request,
 - browser network tab shows the actual target URL,
 - token is present and not expired.
 
 By default, the SDK derives the Semaphor API URL from the token's
-`apiServiceUrl`; most local apps should not set a separate API base URL.
+`apiServiceUrl`; local apps should not set a separate API base URL.
 
 Owner layer: setup/networking if the request never reaches Semaphor; Semaphor
 API diagnostics if it reaches Semaphor but returns an unclear error.

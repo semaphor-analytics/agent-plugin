@@ -4,6 +4,9 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -83,10 +86,6 @@ function parseArgs(argv) {
   const options = {
     command: command === '--help' || command === '-h' ? undefined : command,
     dir: process.cwd(),
-    apiBaseUrl: firstEnvValue(
-      process.env.SEMAPHOR_SERVER_URL,
-      process.env.SEMAPHOR_API_BASE_URL,
-    ),
     token: process.env.SEMAPHOR_PROJECT_TOKEN || '',
     json: false,
     runBuild: true,
@@ -97,6 +96,9 @@ function parseArgs(argv) {
     validationStatus: '',
     description: undefined,
     bridgeWorkspaceHint: undefined,
+    inputFile: '',
+    generatedContractArtifactId: '',
+    generatedContractMaterializationToken: '',
     newDataApp: false,
     force: false,
   };
@@ -110,8 +112,9 @@ function parseArgs(argv) {
       options.dir = rest[i + 1];
       i += 1;
     } else if (arg === '--api-base-url') {
-      options.apiBaseUrl = rest[i + 1];
-      i += 1;
+      throw new Error(
+        '--api-base-url is not supported. Semaphor helper HTTP calls and MCP routing use token.apiServiceUrl.',
+      );
     } else if (arg === '--token') {
       options.token = rest[i + 1];
       i += 1;
@@ -147,6 +150,19 @@ function parseArgs(argv) {
     } else if (arg === '--validation-status') {
       options.validationStatus = rest[i + 1];
       i += 1;
+    } else if (arg === '--input-file') {
+      options.inputFile = rest[i + 1];
+      i += 1;
+    } else if (arg === '--artifact-id') {
+      options.generatedContractArtifactId = rest[i + 1];
+      i += 1;
+    } else if (arg === '--materialization-token') {
+      options.generatedContractMaterializationToken = rest[i + 1];
+      i += 1;
+    } else if (arg === '--output-dir') {
+      throw new Error(
+        '--output-dir is not supported by materialize-contract. Generated contract artifacts own their outputDir.',
+      );
     } else if (arg === '--bridge-workspace-hint') {
       options.bridgeWorkspaceHint = rest[i + 1];
       i += 1;
@@ -163,28 +179,25 @@ function parseArgs(argv) {
     localEnv.SEMAPHOR_PROJECT_TOKEN,
     localEnv.VITE_SEMAPHOR_PROJECT_TOKEN,
   );
-  options.apiBaseUrl = firstEnvValue(
-    options.apiBaseUrl,
-    localEnv.SEMAPHOR_SERVER_URL,
-    localEnv.SEMAPHOR_API_BASE_URL,
-    localEnv.VITE_SEMAPHOR_API_BASE_URL,
-  );
-
   return options;
 }
 
 function printHelp() {
   console.log(`Usage:
   semaphor-data-app.mjs load --data-app-id <id>
+  semaphor-data-app.mjs materialize-contract --artifact-id <id> --materialization-token <token> [--dir <path>]
+  semaphor-data-app.mjs update-contract --input-file <path> [--dir <path>]
   semaphor-data-app.mjs save-draft --project-id <id> --title <title> [--data-app-id <id>]
   semaphor-data-app.mjs prepare-publish [--dir <path>]
   semaphor-data-app.mjs publish --project-id <id> --title <title> [--data-app-id <id>]
 
 Options:
   --dir <path>                  React app root. Defaults to cwd.
-  --api-base-url <url>          Exact Semaphor app URL override. Defaults to SEMAPHOR_SERVER_URL, then token apiServiceUrl, then https://semaphor.cloud.
   --token <token>               Project token. Defaults to SEMAPHOR_PROJECT_TOKEN, then target app local env.
   --manifest <path>             Manifest JSON. Defaults to semaphor.data-app.json.
+  --artifact-id <id>            Generated contract artifact id returned by Semaphor contract generation.
+  --materialization-token <tok>  Short-lived materialization token returned with the artifact id.
+  --input-file <path>           JSON tool input file for update-contract.
   --new                         Create a new Data App even if the manifest has semaphor.dataAppId.
   --assets-dir <path>           Built asset directory for publish. Defaults to dist.
   --build-command <command>     Build command for publish. Defaults to package build script.
@@ -309,17 +322,14 @@ function apiUrl(options, pathname) {
 }
 
 function resolveApiBaseUrl(options) {
-  const explicitBaseUrl = normalizeAppBaseUrl(options.apiBaseUrl);
-  if (explicitBaseUrl) {
-    return explicitBaseUrl;
-  }
-
   const tokenBaseUrl = normalizeAppBaseUrl(readProjectTokenApiServiceUrl(options.token));
   if (tokenBaseUrl) {
     return tokenBaseUrl;
   }
 
-  return 'https://semaphor.cloud';
+  throw new Error(
+    'Semaphor project token is missing apiServiceUrl. Mint a fresh project token from the target Semaphor environment.',
+  );
 }
 
 function readProjectTokenApiServiceUrl(token) {
@@ -355,6 +365,126 @@ function normalizeAppBaseUrl(value) {
     return trimmed.slice(0, -4);
   }
   return trimmed;
+}
+
+function callPackagedMcpTool(options, toolName, input) {
+  const scriptPath = path.join(
+    SCRIPT_DIR,
+    'call-semaphor-tool.mjs',
+  );
+  const child = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      toolName,
+      '--dir',
+      path.resolve(options.dir),
+      '--input',
+      JSON.stringify(input),
+      '--pretty',
+    ],
+    {
+      cwd: path.resolve(options.dir),
+      encoding: 'utf8',
+      env: packagedMcpToolEnv(options),
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
+  if (child.error) {
+    throw child.error;
+  }
+  if (child.status !== 0) {
+    throw new Error((child.stderr || child.stdout || '').trim() || `${toolName} failed.`);
+  }
+  const response = JSON.parse(child.stdout);
+  if (response?.ok === false || response?.result?.isError === true) {
+    throw new Error(formatPackagedMcpToolFailure(toolName, response));
+  }
+  return response;
+}
+
+function packagedMcpToolEnv(options) {
+  const env = { ...process.env };
+  if (options.token) {
+    env.SEMAPHOR_PROJECT_TOKEN = options.token;
+  }
+  return env;
+}
+
+function formatPackagedMcpToolFailure(toolName, response) {
+  const result = response?.result || {};
+  const message = firstEnvValue(
+    response?.error,
+    result.text,
+    Array.isArray(result.content)
+      ? result.content
+        .filter((item) => item?.type === 'text' && typeof item.text === 'string')
+        .map((item) => item.text)
+        .join('\n')
+      : '',
+    result.parsedText?.error,
+  );
+  return message ? `${toolName} failed: ${message}` : `${toolName} failed.`;
+}
+
+function materializeContract(options) {
+  const generatedContractArtifactId = requireValue(
+    options.generatedContractArtifactId,
+    '--artifact-id',
+  );
+  const generatedContractMaterializationToken = requireValue(
+    options.generatedContractMaterializationToken,
+    '--materialization-token',
+  );
+  const input = {
+    generatedContractArtifactId,
+    generatedContractMaterializationToken,
+    workspaceDir: path.resolve(options.dir),
+  };
+  const response = callPackagedMcpTool(
+    options,
+    'semaphor_materialize_data_app_contract',
+    input,
+  );
+  const materialization =
+    response?.result?.structuredContent?.materialization ||
+    response?.result?.materialization;
+  if (
+    materialization?.mode !== 'local_write' ||
+    materialization?.status !== 'written'
+  ) {
+    throw new Error(
+      'Contract materialization did not report materialization.mode="local_write" and status="written".',
+    );
+  }
+  return summarizeMaterializationResponse(response);
+}
+
+function summarizeMaterializationResponse(response) {
+  const structuredContent = response?.result?.structuredContent || {};
+  const materialization = structuredContent.materialization || {};
+  const localWrite = structuredContent.localWrite || {};
+  return {
+    ok: response?.ok !== false,
+    tool: response?.tool || 'semaphor_materialize_data_app_contract',
+    generatedContractArtifactId: structuredContent.generatedContractArtifactId,
+    generatedContractArtifactDigest: structuredContent.generatedContractArtifactDigest,
+    outputDir: materialization.outputDir || structuredContent.outputDir,
+    materialization,
+    localMaterialization: structuredContent.localMaterialization,
+    localWrite,
+    validation: structuredContent.validation,
+    warnings: structuredContent.warnings || [],
+    nextAgentAction:
+      structuredContent.nextAgentAction ||
+      'Import from src/semaphor/generated, then run Semaphor validation, typecheck, build, and browser smoke checks.',
+  };
+}
+
+function updateContract(options) {
+  const inputFile = requireValue(options.inputFile, '--input-file');
+  const input = readJson(path.resolve(options.dir, inputFile));
+  return callPackagedMcpTool(options, 'semaphor_update_data_app_contract', input);
 }
 
 function normalizeDataAppLinks(links) {
@@ -1555,6 +1685,10 @@ async function main() {
   let result;
   if (options.command === 'load') {
     result = await loadDataApp(options);
+  } else if (options.command === 'materialize-contract') {
+    result = materializeContract(options);
+  } else if (options.command === 'update-contract') {
+    result = updateContract(options);
   } else if (options.command === 'save-draft') {
     result = await saveDraft(options);
   } else if (options.command === 'prepare-publish') {

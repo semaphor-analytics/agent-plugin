@@ -286,10 +286,13 @@ For broad greenfield Data Apps, the normal codegen path is:
    Stop for approval.
 4. After approval, call `semaphor_generate_data_app_contract` with the
    returned `planArtifactId`.
-5. Call `semaphor_materialize_data_app_contract` with the returned
-   `generatedContractArtifactId` plus `generatedContractMaterializationToken`
-   plus `workspaceDir`, and require
-   `materialization.status="written"`.
+5. Materialize locally with the installed bridge tool
+   `semaphor_materialize_data_app_contract` or the official command
+   `npm run data-app -- materialize-contract --dir <app> --artifact-id <id> --materialization-token <token>`.
+   Prefer the typed `localMaterialization.officialCommand` from the tool
+   response when it is present; resolve only its `workspaceDir` and
+   `semaphorPluginRoot` placeholders.
+   Require `materialization.status="written"`.
 6. Build the React UI from the generated `src/semaphor/generated` exports.
 7. Run `semaphor_validate_data_app_contract({ workspaceDir })` after files are
    written so the bridge reads the generated manifest and TypeScript files

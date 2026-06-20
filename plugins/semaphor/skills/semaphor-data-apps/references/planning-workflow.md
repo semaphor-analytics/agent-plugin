@@ -113,8 +113,8 @@ semaphor_plan_data_app(responseDetail: "plan_summary")
 -> user/eval accepts the visible plan
 -> semaphor_generate_data_app_contract(planArtifactId)
 -> generator returns generatedContractArtifactId and generatedContractMaterializationToken
--> semaphor_materialize_data_app_contract(generatedContractArtifactId, generatedContractMaterializationToken, workspaceDir)
--> installed bridge materializes files under src/semaphor/generated
+-> materialize locally with the installed bridge tool or npm run data-app -- materialize-contract
+-> local materializer writes files under src/semaphor/generated
 -> build UI from src/semaphor/generated imports
 -> semaphor_validate_data_app_contract(workspaceDir)
 -> run local typecheck/build and browser smoke checks
@@ -126,19 +126,26 @@ tool call. The artifact id handoff is deterministic: Semaphor stores the
 canonical codegen summary temporarily after planning, and the generator resolves
 it server-side. The generator stores the deterministic generated contract as a
 short-lived artifact and returns `generatedContractArtifactId` plus
-`generatedContractMaterializationToken`. In installed-plugin runs, call
-`semaphor_materialize_data_app_contract` with that id, that token, and
-`workspaceDir`; the bridge materializes the artifact files under
-`src/semaphor/generated`. Verify those files exist after the materializer call
-and before UI edits. Do not use the helper wrapper to recover generator output.
-Do not pass inline `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
+`generatedContractMaterializationToken`. Hosted MCP cannot write local files.
+If generation or materialization reports `materialization.status="not_written"`,
+use the official local command path from the installed plugin package:
 
-If `semaphor_materialize_data_app_contract` returns payload-only output, does
-not report `localWrite`, or leaves `src/semaphor/generated` absent, stop and
-classify the run as MCP surface/materialization drift. Hosted MCP cannot write
-local files, and payload-only output is not a partial success for local app
-builds. Do not search for a local materializer script, call package helper
-wrappers, or reconstruct files from a large/truncated response.
+```bash
+npm run data-app -- materialize-contract \
+  --dir /path/to/react-app \
+  --artifact-id <generatedContractArtifactId> \
+  --materialization-token <generatedContractMaterializationToken>
+```
+
+If the host exposes the installed bridge materializer as a first-class tool,
+calling `semaphor_materialize_data_app_contract` with the same artifact id,
+materialization token, and `workspaceDir` is equivalent. In both cases, require
+`materialization.mode="local_write"` and `materialization.status="written"`,
+then verify `src/semaphor/generated` exists before UI edits. When the response
+includes `localMaterialization.officialCommand`, treat that object as the
+machine-readable command shape and do not parse `nextAgentAction` prose. Do not pass inline
+`codegenSummary`, `codegenSummaryPath`, or `artifactDir`, and do not
+reconstruct files from a large/truncated response.
 
 `semaphor_validate_data_app_contract` validates the generated Semaphor contract
 payload and manifest integrity. In installed plugin runs, pass `workspaceDir`
@@ -168,9 +175,9 @@ read the generated contract.manifest.json under src/semaphor/generated
 -> server returns a change planArtifactId when the change is buildable
 -> semaphor_update_data_app_contract(planArtifactId)
 -> server returns generatedContractArtifactId and generatedContractMaterializationToken
--> semaphor_materialize_data_app_contract(generatedContractArtifactId, generatedContractMaterializationToken, workspaceDir)
+-> materialize locally with the installed bridge tool or npm run data-app -- materialize-contract
 -> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
--> bridge materializes regenerated files under src/semaphor/generated
+-> local materializer writes regenerated files under src/semaphor/generated
 -> returns migrationReport for review
 ```
 
@@ -180,6 +187,16 @@ policy can reject unrelated views, inputs, or filter contract changes before
 the agent edits UI files. If Inspector/runtime warning cleanup requires
 a diagnostic operation kind not yet supported by the server planner, stop and
 report that planner capability gap instead of patching generated files by hand.
+
+When a host cannot safely pass update tool arguments because the manifest state
+is large, write the bounded update input to a local JSON file and use:
+
+```bash
+npm run data-app -- update-contract --dir /path/to/react-app --input-file update-input.json
+```
+
+Then materialize the returned generated-contract artifact through the same
+local materialization path above.
 
 Do not inspect `App.tsx` to reconstruct query specs, filter bindings, source
 refs, or option queries. Inspect UI files only to decide where the changed

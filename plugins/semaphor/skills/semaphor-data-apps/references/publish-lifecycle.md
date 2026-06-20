@@ -28,10 +28,8 @@ files. It accepts:
 - `SEMAPHOR_PROJECT_TOKEN`
 - `VITE_SEMAPHOR_PROJECT_TOKEN`
 
-It resolves the Semaphor app URL from `SEMAPHOR_SERVER_URL`, then the token's
-`apiServiceUrl`, then `https://semaphor.cloud`. Use `SEMAPHOR_SERVER_URL` only
-for self-hosted deployments where the token URL should not be used. Use
-`--api-base-url` only for an exact helper override.
+It resolves the Semaphor app URL from the token's `apiServiceUrl`. Plugin MCP
+routing derives from the same token `apiServiceUrl` plus `/api/mcp`.
 Use `--validation-status <path>` only for a precomputed Semaphor validation
 result.
 
