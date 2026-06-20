@@ -364,6 +364,7 @@ async function postMcpJsonRpc(message, context) {
         Authorization: `Bearer ${context.token}`,
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
+        "X-Semaphor-Agent-Plugin-Bridge": "1",
       },
       body: JSON.stringify(message),
       signal: controller.signal,
