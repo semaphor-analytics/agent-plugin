@@ -51,9 +51,11 @@ public SDK builders/hooks, validate, then save or publish when requested.
 6. Contract generation: after plan approval, call
    `semaphor_generate_data_app_contract(planArtifactId)`, then
    materialize locally with the installed bridge materializer or
-   `npm run data-app -- materialize-contract`. Require
-   `materialization.status="written"` and `src/semaphor/generated` before UI edits. Do not pass inline
-   `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
+   `npm run data-app -- materialize-contract`. Use
+   `localMaterialization.officialCommand` when present; the official command
+   uses `generatedContractArtifactBaseUrl` and the short-lived
+   `generatedContractMaterializationToken`, not a project token. Require
+   `materialization.status="written"` and `src/semaphor/generated` before UI edits. Do not pass inline `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
 7. Existing generated app: use `semaphor_update_data_app_contract`, then
    materialize the returned `generatedContractArtifactId` and `generatedContractMaterializationToken`; preserve existing
    views and do not replay `codegenSummary` or returned file payloads.

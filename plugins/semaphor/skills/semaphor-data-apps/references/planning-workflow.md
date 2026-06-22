@@ -36,8 +36,9 @@ Do not pass legacy planner format knobs such as `"codegen_summary"` or invented
 formats such as `"compact_summary"`. The planner returns a visible summary plus
 `planArtifactId`; generation resolves the canonical codegen summary
 server-side. Never shrink `maxViews` just because the returned planner JSON is
-verbose; keep the visible plan bounded by summarizing fields and bindings, not
-by throwing away planned visual coverage.
+verbose; `responseDetail: "plan_summary"` is intentionally compact, while full
+field refs, bindings, and option-query metadata stay behind
+`responseDetail: "full"` and the server-owned artifact used by generation.
 
 ## Project And Domain Selection Gate
 
@@ -134,7 +135,8 @@ use the official local command path from the installed plugin package:
 npm run data-app -- materialize-contract \
   --dir /path/to/react-app \
   --artifact-id <generatedContractArtifactId> \
-  --materialization-token <generatedContractMaterializationToken>
+  --materialization-token <generatedContractMaterializationToken> \
+  --artifact-base-url <generatedContractArtifactBaseUrl>
 ```
 
 If the host exposes the installed bridge materializer as a first-class tool,

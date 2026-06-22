@@ -5,8 +5,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import {
+  assertGeneratedContractArtifactDigest,
+  writeGeneratedContractFiles,
+} from './materialize-generated-contract.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_ARTIFACT_BASE_URL = 'https://semaphor.cloud';
+const DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS = 60000;
 
 const EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -99,6 +105,7 @@ function parseArgs(argv) {
     inputFile: '',
     generatedContractArtifactId: '',
     generatedContractMaterializationToken: '',
+    generatedContractArtifactBaseUrl: '',
     newDataApp: false,
     force: false,
   };
@@ -159,6 +166,9 @@ function parseArgs(argv) {
     } else if (arg === '--materialization-token') {
       options.generatedContractMaterializationToken = rest[i + 1];
       i += 1;
+    } else if (arg === '--artifact-base-url') {
+      options.generatedContractArtifactBaseUrl = rest[i + 1];
+      i += 1;
     } else if (arg === '--output-dir') {
       throw new Error(
         '--output-dir is not supported by materialize-contract. Generated contract artifacts own their outputDir.',
@@ -197,6 +207,7 @@ Options:
   --manifest <path>             Manifest JSON. Defaults to semaphor.data-app.json.
   --artifact-id <id>            Generated contract artifact id returned by Semaphor contract generation.
   --materialization-token <tok>  Short-lived materialization token returned with the artifact id.
+  --artifact-base-url <url>      Trusted Semaphor app origin returned by contract generation. Defaults to https://semaphor.cloud.
   --input-file <path>           JSON tool input file for update-contract.
   --new                         Create a new Data App even if the manifest has semaphor.dataAppId.
   --assets-dir <path>           Built asset directory for publish. Defaults to dist.
@@ -427,7 +438,7 @@ function formatPackagedMcpToolFailure(toolName, response) {
   return message ? `${toolName} failed: ${message}` : `${toolName} failed.`;
 }
 
-function materializeContract(options) {
+async function materializeContract(options) {
   const generatedContractArtifactId = requireValue(
     options.generatedContractArtifactId,
     '--artifact-id',
@@ -436,28 +447,108 @@ function materializeContract(options) {
     options.generatedContractMaterializationToken,
     '--materialization-token',
   );
-  const input = {
-    generatedContractArtifactId,
-    generatedContractMaterializationToken,
-    workspaceDir: path.resolve(options.dir),
-  };
-  const response = callPackagedMcpTool(
-    options,
-    'semaphor_materialize_data_app_contract',
-    input,
-  );
-  const materialization =
-    response?.result?.structuredContent?.materialization ||
-    response?.result?.materialization;
-  if (
-    materialization?.mode !== 'local_write' ||
-    materialization?.status !== 'written'
-  ) {
+  const payload = await fetchGeneratedContractArtifact({
+    artifactId: generatedContractArtifactId,
+    materializationToken: generatedContractMaterializationToken,
+    artifactBaseUrl: options.generatedContractArtifactBaseUrl,
+  });
+  if (payload?.kind !== 'generated_data_app_contract') {
     throw new Error(
-      'Contract materialization did not report materialization.mode="local_write" and status="written".',
+      'Generated contract artifact endpoint did not return a generated_data_app_contract payload.',
     );
   }
-  return summarizeMaterializationResponse(response);
+  if (!payload.files || !payload.filePaths) {
+    throw new Error(
+      'Generated contract artifact payload is missing files/filePaths and cannot be materialized.',
+    );
+  }
+  assertGeneratedContractArtifactDigest(payload);
+  const localWrite = writeGeneratedContractFiles({
+    workspaceDir: path.resolve(options.dir),
+    files: payload.files,
+    filePaths: payload.filePaths,
+    manifest: payload.manifest,
+    outputDir: payload.outputDir,
+  });
+  const structuredContent = {
+    ...payload,
+    localWrite,
+    materialization: {
+      mode: 'local_write',
+      status: 'written',
+      workspaceDir: localWrite.workspaceDir,
+      outputDir: payload.outputDir || 'src/semaphor/generated',
+      fileCount: localWrite.fileCount,
+      filePaths: localWrite.filePaths,
+    },
+    localMaterialization: {
+      ...(payload.localMaterialization || {}),
+      status: 'written',
+    },
+    nextAgentAction:
+      'Import from src/semaphor/generated, then run Semaphor validation, typecheck, build, and browser smoke checks.',
+  };
+  return summarizeMaterializationResponse({
+    ok: true,
+    tool: 'semaphor_materialize_data_app_contract',
+    result: {
+      structuredContent,
+    },
+  });
+}
+
+async function fetchGeneratedContractArtifact({
+  artifactId,
+  materializationToken,
+  artifactBaseUrl,
+}) {
+  const baseUrl = normalizeArtifactBaseUrl(artifactBaseUrl || DEFAULT_ARTIFACT_BASE_URL);
+  const url = new URL(
+    `/api/v1/data-app/generated-contract-artifact/${encodeURIComponent(artifactId)}`,
+    baseUrl,
+  );
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'x-semaphor-generated-contract-materialization-token': materializationToken,
+      },
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(
+        `Artifact fetch failed with HTTP ${response.status}: ${text.slice(0, 500)}`,
+      );
+    }
+    return JSON.parse(text);
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Artifact fetch timed out after ${DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeArtifactBaseUrl(value) {
+  const normalized = normalizeEnvValue(value);
+  if (!normalized) {
+    throw new Error('--artifact-base-url must be a non-empty URL when provided.');
+  }
+  const url = new URL(normalized);
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('--artifact-base-url must use http or https.');
+  }
+  url.pathname = url.pathname.replace(/\/+$/u, '');
+  if (url.pathname.endsWith('/api')) {
+    url.pathname = url.pathname.slice(0, -4) || '/';
+  }
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/+$/u, '');
 }
 
 function summarizeMaterializationResponse(response) {
@@ -469,6 +560,7 @@ function summarizeMaterializationResponse(response) {
     tool: response?.tool || 'semaphor_materialize_data_app_contract',
     generatedContractArtifactId: structuredContent.generatedContractArtifactId,
     generatedContractArtifactDigest: structuredContent.generatedContractArtifactDigest,
+    generatedContractArtifactBaseUrl: structuredContent.generatedContractArtifactBaseUrl,
     outputDir: materialization.outputDir || structuredContent.outputDir,
     materialization,
     localMaterialization: structuredContent.localMaterialization,
@@ -1686,7 +1778,7 @@ async function main() {
   if (options.command === 'load') {
     result = await loadDataApp(options);
   } else if (options.command === 'materialize-contract') {
-    result = materializeContract(options);
+    result = await materializeContract(options);
   } else if (options.command === 'update-contract') {
     result = updateContract(options);
   } else if (options.command === 'save-draft') {

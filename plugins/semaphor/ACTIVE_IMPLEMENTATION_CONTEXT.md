@@ -24,9 +24,11 @@ The plugin bridge may still:
   app after the server-owned materializer call succeeds;
 - expose a typed `localMaterialization.officialCommand` object on generated
   contract responses. Agents may execute that official package command after
-  resolving its `workspaceDir` and `semaphorPluginRoot` placeholders. This is
-  the same installed-bridge artifact materialization path, not a generic MCP
-  wrapper or manual payload write;
+  resolving its `workspaceDir` and `semaphorPluginRoot` placeholders. The
+  command fetches the generated artifact from the trusted
+  `generatedContractArtifactBaseUrl` with the short-lived
+  `generatedContractMaterializationToken`; it must not require a project token
+  and must not read target-app env files to choose the artifact host;
 - accept bridge-local `workspaceDir` on validation calls so the bridge can read
   the generated manifest plus generated TypeScript files and forward that
   payload to the server-owned validator;
@@ -46,6 +48,8 @@ The plugin bridge and plugin package must not:
 - preserve compatibility shims for old generated contract workflows.
 - expose, document, or honor separate MCP/server URL env variables; all
   project-token MCP routing derives from the project token's `apiServiceUrl`.
+  Tokenless artifact materialization is the only exception: it uses the
+  server-returned `generatedContractArtifactBaseUrl`, not env routing.
 
 Version constraint for reviewers:
 
@@ -77,6 +81,8 @@ Raise findings for:
   `src/semaphor/generated` was not materialized by the installed plugin bridge;
 - docs, skills, or eval prompts treating `nextAgentAction` prose as the
   machine contract when `localMaterialization.officialCommand` is present;
+- docs, skills, or eval prompts saying the official
+  `npm run data-app -- materialize-contract` command requires a project token;
 - docs, skills, or eval prompts telling agents to pass `workspaceDir` to
   `semaphor_generate_data_app_contract`,
   `semaphor_create_data_app_contract`, or

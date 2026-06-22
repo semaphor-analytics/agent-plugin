@@ -144,6 +144,7 @@ async function assertDataAppCliMaterializeContractWritesCompactOutput() {
     }),
   });
   try {
+    const artifactBaseUrl = server.url.replace(/\/api\/mcp$/u, "");
     const child = await runDataAppCli(
       process.execPath,
       [
@@ -155,6 +156,8 @@ async function assertDataAppCliMaterializeContractWritesCompactOutput() {
         "dap_contract_cli_test",
         "--materialization-token",
         "dap_contract_materialize_cli_test",
+        "--artifact-base-url",
+        artifactBaseUrl,
         "--json",
       ],
       appDir,
@@ -162,12 +165,12 @@ async function assertDataAppCliMaterializeContractWritesCompactOutput() {
         PATH: process.env.PATH || "",
         HOME: process.env.HOME || "",
         TMPDIR: process.env.TMPDIR || "",
-        SEMAPHOR_PROJECT_TOKEN: projectTokenForMcpUrl(server.url),
       },
     );
     assert.equal(child.status, 0, child.stderr || child.stdout);
     const output = JSON.parse(child.stdout);
     assert.equal(output.ok, true);
+    assert.equal(output.generatedContractArtifactBaseUrl, undefined);
     assert.equal(output.materialization.mode, "local_write");
     assert.equal(output.materialization.status, "written");
     assert.equal(output.localMaterialization.status, "written");
@@ -178,10 +181,10 @@ async function assertDataAppCliMaterializeContractWritesCompactOutput() {
       "export const generatedFromCliArtifact = true;\n",
     );
     assert.equal(calls.length, 1);
-    assert.equal(
-      calls[0].body.params.arguments.generatedContractMaterializationToken,
-      "dap_contract_materialize_cli_test",
-    );
+    assert.equal(calls[0].method, "GET");
+    assert.equal(calls[0].authorization, undefined);
+    assert.equal(calls[0].materializationToken, "dap_contract_materialize_cli_test");
+    assert.equal(calls[0].url, "/api/v1/data-app/generated-contract-artifact/dap_contract_cli_test");
   } finally {
     await server.stop();
     await rm(appDir, { recursive: true, force: true });
@@ -685,6 +688,8 @@ async function assertGeneratorResponseWithoutWorkspaceDirIsMarkedPayloadOnly() {
         "dap_contract_test",
         "--materialization-token",
         "dap_contract_materialize_test",
+        "--artifact-base-url",
+        "https://semaphor.cloud",
       ],
     );
     assertMessageIncludes(

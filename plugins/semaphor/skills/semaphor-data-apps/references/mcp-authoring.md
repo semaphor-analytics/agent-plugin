@@ -76,12 +76,15 @@ only exposes hosted OAuth materialization and returns
 npm run data-app -- materialize-contract \
   --dir /path/to/react-app \
   --artifact-id <generatedContractArtifactId> \
-  --materialization-token <generatedContractMaterializationToken>
+  --materialization-token <generatedContractMaterializationToken> \
+  --artifact-base-url <generatedContractArtifactBaseUrl>
 ```
 
 When the response includes `localMaterialization.officialCommand`, execute that
 typed command shape after resolving its `workspaceDir` and `semaphorPluginRoot`
-placeholders. Do not parse `nextAgentAction` prose for command arguments.
+placeholders. The command uses the returned artifact base URL and short-lived
+materialization token; it does not require a project token. Do not parse
+`nextAgentAction` prose for command arguments.
 
 For validation calls, the installed bridge reads those files back for
 `semaphor_validate_data_app_contract`. It removes `workspaceDir` before

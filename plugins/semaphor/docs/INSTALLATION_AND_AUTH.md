@@ -188,12 +188,15 @@ Production-ready auth behavior:
   npm run data-app -- materialize-contract \
     --dir /path/to/react-app \
     --artifact-id <generatedContractArtifactId> \
-    --materialization-token <generatedContractMaterializationToken>
+    --materialization-token <generatedContractMaterializationToken> \
+    --artifact-base-url <generatedContractArtifactBaseUrl>
   ```
 
-  Contract materialization requires the same project token as other MCP
-  operations. For local or self-hosted Semaphor development, use a project token
-  whose `apiServiceUrl` points at that Semaphor app host.
+  The official materialization command does not require a project token. It
+  fetches the generated artifact from the trusted
+  `generatedContractArtifactBaseUrl` returned by Semaphor with the short-lived
+  `generatedContractMaterializationToken`, then writes files locally. Do not
+  read target-app env files to choose the artifact host.
 
   When the MCP response includes `localMaterialization.officialCommand`, use
   that object as the command shape and resolve only the `workspaceDir` and
