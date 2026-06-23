@@ -31,7 +31,7 @@ Expected agent behavior:
 - call `semaphor_plan_data_app` for broad builds, present the visible plan,
   and stop for approval before generating files or editing source,
 - for broad dashboard creation, request a balanced planner budget, normally
-  `preferences.maxViews: 15` and up to 20 for wide coverage; do not treat the
+  `constraints.maxViews: 15` and up to 20 for wide coverage; do not treat the
   8-view default as a cap or shrink the plan because the artifact is verbose.
   Do not use legacy planner format knobs such as `"codegen_summary"` or
   invented response formats such as `"compact_summary"`,
@@ -280,7 +280,7 @@ For broad greenfield Data Apps, the normal codegen path is:
 
 1. Resolve project/domain.
 2. Call `semaphor_plan_data_app` with `domainId`, `goal`, and planner
-   `preferences` such as `maxViews: 15`.
+   `constraints` such as `maxViews: 15`.
 3. Present the visible plan, including view names, visual types, filters,
    file/component layout, SDK DevTools setup, and the returned `planArtifactId`.
    Stop for approval.

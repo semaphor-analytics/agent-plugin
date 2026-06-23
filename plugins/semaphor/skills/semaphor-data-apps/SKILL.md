@@ -125,7 +125,7 @@ such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
 For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
-preferences, responseDetail: "plan_summary" })`, present the visible plan
+constraints, responseDetail: "plan_summary" })`, present the visible plan
 summary and `planArtifactId`, and stop. Use `responseDetail: "full"` only for
 debugging planner internals. After approval, generate with `planArtifactId`;
 materialize with the installed bridge tool or `npm run data-app -- materialize-contract`, then verify
@@ -146,7 +146,7 @@ asked for a model-readiness report. Ask the user to choose a better domain,
 provide a concrete business goal, or improve the semantic model. The contract
 generator intentionally rejects zero-executable-view plans by default.
 
-For broad dashboard-style app creation, prefer `preferences.maxViews` around
+For broad dashboard-style app creation, prefer `constraints.maxViews` around
 12 so the generated app remains reviewable. Use a larger explicit budget up to
 20 only when the user asks for wider coverage. Do not shrink to the 8-view
 single-source default or invent planner format knobs such as

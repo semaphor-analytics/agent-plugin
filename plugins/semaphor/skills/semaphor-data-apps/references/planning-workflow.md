@@ -10,7 +10,7 @@ Use Semaphor planner tools as the source of truth for broad analytical work:
 
 - New app or broad dashboard/app request:
   after domain approval, call `semaphor_plan_data_app` with `domainId`,
-  `goal`, and any known `datasetName`/`datasetNames` or `preferences`. Present
+  `goal`, and any known `datasetName`/`datasetNames` or `constraints`. Present
   the returned visible plan and retain the returned `planArtifactId`. Stop.
   Generate files only after the user accepts the visible plan.
 - Substantial existing-app analytical edit:
@@ -30,7 +30,7 @@ guessing.
 
 For broad dashboard-style creation, pass a view budget large enough for a
 balanced first proposal while keeping the generated app reviewable. Use
-`preferences.maxViews: 12` by default, or up to 20 for user-requested wider
+`constraints.maxViews: 12` by default, or up to 20 for user-requested wider
 coverage. The default 8-view single-source plan is not a hard cap.
 Do not pass legacy planner format knobs such as `"codegen_summary"` or invented
 formats such as `"compact_summary"`. The planner returns a visible summary plus

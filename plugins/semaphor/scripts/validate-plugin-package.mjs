@@ -524,6 +524,10 @@ function scanDataAppContractGuidance() {
     "semaphor_materialize_data_app_contract(generatedContractArtifactId, workspaceDir)",
     "generatedContractArtifactId plus workspaceDir",
     "generatedContractArtifactId with workspaceDir",
+    "preferences.maxViews",
+    "planner `preferences`",
+    "or `preferences`",
+    "preferences, responseDetail",
   ];
   const textFiles = collectFiles(root).filter((filePath) =>
     /\.(md|txt|json)$/.test(filePath),
