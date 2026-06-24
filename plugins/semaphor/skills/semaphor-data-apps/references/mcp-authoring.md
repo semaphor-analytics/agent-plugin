@@ -55,14 +55,15 @@ Start with one of:
   semantic-domain count, fallback connection count, and next discovery tool.
 
 When using `semaphor-project` in Codex or another host that launches plugin MCP
-servers from the plugin install directory, prefer launching the agent from the
-React app root when the project token lives in that app's `.env.local`. If the
-first auth check reports that no project token was found, retry
-`semaphor_get_access_context` with `workspaceDir` set to the React app root. In
-multi-root Codex sessions, do not let the agent infer a project token from
-another open root; either use OAuth or pass `workspaceDir` only to bridge-local
-tools that advertise it. The Semaphor bridge uses `workspaceDir` to read local
-env files for auth/context calls. Do not pass `workspaceDir` to
+servers from the plugin install directory, launch the agent from the React app
+root or export `SEMAPHOR_PROJECT_TOKEN` / `VITE_SEMAPHOR_PROJECT_TOKEN` when
+the project token lives in that app's `.env.local`. In multi-root Codex
+sessions, do not let the agent infer a project token from another open root.
+Use OAuth or configure the project-token environment explicitly before
+data-bearing work. In installed bridge runs, `workspaceDir` may be passed to
+`semaphor_get_access_context` only to locate the target app's ignored local
+project token, and to bridge-local file tools that advertise it. It is not a
+server generator/update input. Do not pass `workspaceDir` to
 `semaphor_create_data_app_contract`, `semaphor_generate_data_app_contract`, or
 `semaphor_update_data_app_contract`. For local generated contract writes, call
 `semaphor_materialize_data_app_contract` with
@@ -98,8 +99,8 @@ The project-token bridge intentionally keeps unauthenticated fallback
 `tools/list` minimal: access-context guidance only. Rich discovery, planning,
 contract generation, semantic repair, and runtime-token tools come from live
 Semaphor `tools/list` after auth is available. If no project token is found,
-resolve auth first by retrying `semaphor_get_access_context` with
-`workspaceDir`, using hosted OAuth, or asking the user to add a project token.
+resolve auth first by launching from the app root, exporting the token, using
+hosted OAuth, or asking the user to add a project token.
 Do not use the generic `call:mcp` wrapper for normal app authoring.
 
 When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an
@@ -131,7 +132,7 @@ this thread may not detect the refreshed MCP login; if "try again" still
 reports missing auth, start a new thread after logging in. For project-token
 mode, ask them to add
 `VITE_SEMAPHOR_PROJECT_TOKEN` to the target app's ignored `.env.local` and
-retry with `workspaceDir`.
+retry `semaphor_get_access_context` with `workspaceDir` set to that app root.
 
 Then follow the returned recommendation:
 

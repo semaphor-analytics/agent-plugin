@@ -56,9 +56,9 @@ public SDK builders/hooks, validate, then save or publish when requested.
    uses `generatedContractArtifactBaseUrl` and the short-lived
    `generatedContractMaterializationToken`, not a project token. Require
    `materialization.status="written"` and `src/semaphor/generated` before UI edits. Do not pass inline `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
-7. Existing generated app: use `semaphor_update_data_app_contract`, then
-   materialize the returned `generatedContractArtifactId` and `generatedContractMaterializationToken`; preserve existing
-   views and do not replay `codegenSummary` or returned file payloads.
+7. Existing generated app: run `npm run data-app -- inspect-state --dir <app>`;
+   pass `currentAuthoringState` to change planning; then use
+   `npm run data-app -- update-contract --dir <app> --goal "<goal>" --operation-intent-file <file>`; do not replay `codegenSummary`, manifests, or file payloads.
 8. Dependencies: ask before installing TanStack/chart libraries, copying
    starter source, or starter scaffolds. Starter/eval apps already include
    Semaphor components; existing apps use host UI first.
@@ -129,7 +129,7 @@ constraints, responseDetail: "plan_summary" })`, present the visible plan
 summary and `planArtifactId`, and stop. Use `responseDetail: "full"` only for
 debugging planner internals. After approval, generate with `planArtifactId`;
 materialize with the installed bridge tool or `npm run data-app -- materialize-contract`, then verify
-`src/semaphor/generated` before UI edits. Hosted MCP payload-only output is expected; if local materialization still does not return `materialization.status="written"`, stop as materialization failure. Do not write files from tool output. For edits, read `contract.manifest.json`, call `semaphor_update_data_app_contract`, then materialize the returned artifact.
+`src/semaphor/generated` before UI edits. Hosted MCP payload-only output is expected; if local materialization still does not return `materialization.status="written"`, stop as materialization failure. Do not write files from tool output. For edits, run `npm run data-app -- inspect-state --dir <app>`, pass the returned `currentAuthoringState` to change planning, then use `npm run data-app -- update-contract --dir <app> --goal "<goal>" --operation-intent-file <file>` so the CLI reads the large manifest locally.
 When present, use `localMaterialization.officialCommand` as the machine-readable
 command shape instead of parsing `nextAgentAction` prose.
 Build React from `src/semaphor/generated` plus returned visual specs and

@@ -16,8 +16,9 @@ artifact workflow, not a different MCP behavior.
 The plugin bridge may still:
 
 - read a project token from process env, current working directory, configured
-  client roots, or a target app workspace only on bridge-local tools that still
-  explicitly accept `workspaceDir`;
+  client roots, or a target app workspace only for `semaphor_get_access_context`
+  token discovery and bridge-local tools that still explicitly accept
+  `workspaceDir`;
 - accept bridge-local `workspaceDir` on
   `semaphor_materialize_data_app_contract` calls so the installed plugin bridge
   can materialize server-returned generated contract artifacts under the target
@@ -32,6 +33,18 @@ The plugin bridge may still:
 - accept bridge-local `workspaceDir` on validation calls so the bridge can read
   the generated manifest plus generated TypeScript files and forward that
   payload to the server-owned validator;
+- accept bridge-local `workspaceDir` on `semaphor_inspect_data_app_state` so
+  the bridge can validate local generated files and return compact
+  `currentAuthoringState` for iterative authoring. Hosted MCP may expose the
+  tool, but hosted responses are only a typed local handoff because hosted MCP
+  cannot read the user's filesystem;
+- expose `npm run data-app -- inspect-state --dir <app>` as the official local
+  inspection path before iterative analytical edits;
+- allow `npm run data-app -- update-contract --goal "<goal>"
+  --operation-intent-file <file> --dir <app>` to read the large generated
+  manifest locally and send it internally to the server update tool. This is
+  not a compatibility shim; it is the first-class local authoring command path
+  that prevents agents from hand-authoring or pasting large manifest payloads;
 - strip `workspaceDir` before forwarding tool arguments to Semaphor. It is a
   local bridge hint, not a server generator input;
 - expose only auth/access guidance before project-token auth is available;
@@ -61,10 +74,12 @@ Version constraint for reviewers:
   the target app root, use configured client roots, or export
   `SEMAPHOR_PROJECT_TOKEN` / `VITE_SEMAPHOR_PROJECT_TOKEN` before calling
   generate/create/update. `workspaceDir` is reserved for
-  `semaphor_materialize_data_app_contract` local writes and validation
-  workspace reads. If non-app-cwd project-token auth becomes a blocking
-  workflow, the follow-up should be a separate bridge-only auth hint, not
-  overloading `workspaceDir` on generator/update tools again.
+  `semaphor_get_access_context` token discovery,
+  `semaphor_materialize_data_app_contract` local writes, validation workspace
+  reads, and inspect-state. If non-app-cwd project-token auth becomes a
+  blocking workflow beyond access-context, the follow-up should be a separate
+  bridge-only auth hint, not overloading `workspaceDir` on generator/update
+  tools again.
 
 ## Review Guardrails
 
@@ -83,6 +98,13 @@ Raise findings for:
   machine contract when `localMaterialization.officialCommand` is present;
 - docs, skills, or eval prompts saying the official
   `npm run data-app -- materialize-contract` command requires a project token;
+- docs, skills, or eval prompts telling agents to paste
+  `contract.manifest.json`, `codegenSummary`, or generated TypeScript contents
+  into chat/tool calls for iterative updates instead of using the official
+  local `inspect-state` / `update-contract` command path;
+- `semaphor_inspect_data_app_state` reporting `inspection.status="inspected"`
+  without validating the local generated manifest plus generated TypeScript
+  files through Semaphor;
 - docs, skills, or eval prompts telling agents to pass `workspaceDir` to
   `semaphor_generate_data_app_contract`,
   `semaphor_create_data_app_contract`, or

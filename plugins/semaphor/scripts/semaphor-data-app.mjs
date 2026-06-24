@@ -7,8 +7,12 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import {
   assertGeneratedContractArtifactDigest,
+  readGeneratedContractValidationPayload,
   writeGeneratedContractFiles,
 } from './materialize-generated-contract.mjs';
+import {
+  inspectGeneratedDataAppAuthoringState,
+} from './inspect-generated-contract.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ARTIFACT_BASE_URL = 'https://semaphor.cloud';
@@ -103,6 +107,7 @@ function parseArgs(argv) {
     description: undefined,
     bridgeWorkspaceHint: undefined,
     inputFile: '',
+    outputDir: '',
     generatedContractArtifactId: '',
     generatedContractMaterializationToken: '',
     generatedContractArtifactBaseUrl: '',
@@ -160,6 +165,15 @@ function parseArgs(argv) {
     } else if (arg === '--input-file') {
       options.inputFile = rest[i + 1];
       i += 1;
+    } else if (arg === '--operation-intent-file') {
+      options.operationIntentFile = rest[i + 1];
+      i += 1;
+    } else if (arg === '--goal') {
+      options.goal = rest[i + 1];
+      i += 1;
+    } else if (arg === '--domain-id') {
+      options.domainId = rest[i + 1];
+      i += 1;
     } else if (arg === '--artifact-id') {
       options.generatedContractArtifactId = rest[i + 1];
       i += 1;
@@ -170,9 +184,13 @@ function parseArgs(argv) {
       options.generatedContractArtifactBaseUrl = rest[i + 1];
       i += 1;
     } else if (arg === '--output-dir') {
-      throw new Error(
-        '--output-dir is not supported by materialize-contract. Generated contract artifacts own their outputDir.',
-      );
+      if (options.command === 'materialize-contract') {
+        throw new Error(
+          '--output-dir is not supported by materialize-contract. Generated contract artifacts own their outputDir.',
+        );
+      }
+      options.outputDir = rest[i + 1];
+      i += 1;
     } else if (arg === '--bridge-workspace-hint') {
       options.bridgeWorkspaceHint = rest[i + 1];
       i += 1;
@@ -195,8 +213,10 @@ function parseArgs(argv) {
 function printHelp() {
   console.log(`Usage:
   semaphor-data-app.mjs load --data-app-id <id>
+  semaphor-data-app.mjs inspect-state [--dir <path>] [--output-dir <path>]
   semaphor-data-app.mjs materialize-contract --artifact-id <id> --materialization-token <token> [--dir <path>]
-  semaphor-data-app.mjs update-contract --input-file <path> [--dir <path>]
+  semaphor-data-app.mjs update-contract --input-file <path> [--dir <path>] [--output-dir <path>]
+  semaphor-data-app.mjs update-contract --goal <text> --operation-intent-file <path> [--domain-id <id>] [--dir <path>] [--output-dir <path>]
   semaphor-data-app.mjs save-draft --project-id <id> --title <title> [--data-app-id <id>]
   semaphor-data-app.mjs prepare-publish [--dir <path>]
   semaphor-data-app.mjs publish --project-id <id> --title <title> [--data-app-id <id>]
@@ -208,7 +228,11 @@ Options:
   --artifact-id <id>            Generated contract artifact id returned by Semaphor contract generation.
   --materialization-token <tok>  Short-lived materialization token returned with the artifact id.
   --artifact-base-url <url>      Trusted Semaphor app origin returned by contract generation. Defaults to https://semaphor.cloud.
-  --input-file <path>           JSON tool input file for update-contract.
+  --input-file <path>           JSON tool input file for update-contract. The command still runs inspect-state and merges inspected currentAuthoringState.
+  --operation-intent-file <path> Small JSON operationIntent file for update-contract.
+  --output-dir <path>           Generated contract output directory for inspect-state/update-contract. Defaults to src/semaphor/generated.
+  --goal <text>                 User-facing change goal for update-contract.
+  --domain-id <id>              Semantic domain id for update-contract when not inferable.
   --new                         Create a new Data App even if the manifest has semaphor.dataAppId.
   --assets-dir <path>           Built asset directory for publish. Defaults to dist.
   --build-command <command>     Build command for publish. Defaults to package build script.
@@ -379,6 +403,14 @@ function normalizeAppBaseUrl(value) {
 }
 
 function callPackagedMcpTool(options, toolName, input) {
+  const response = callPackagedMcpToolRaw(options, toolName, input);
+  if (response?.ok === false || response?.result?.isError === true) {
+    throw new Error(formatPackagedMcpToolFailure(toolName, response));
+  }
+  return response;
+}
+
+function callPackagedMcpToolRaw(options, toolName, input) {
   const scriptPath = path.join(
     SCRIPT_DIR,
     'call-semaphor-tool.mjs',
@@ -407,11 +439,56 @@ function callPackagedMcpTool(options, toolName, input) {
   if (child.status !== 0) {
     throw new Error((child.stderr || child.stdout || '').trim() || `${toolName} failed.`);
   }
-  const response = JSON.parse(child.stdout);
-  if (response?.ok === false || response?.result?.isError === true) {
-    throw new Error(formatPackagedMcpToolFailure(toolName, response));
+  return JSON.parse(child.stdout);
+}
+
+function inspectState(options) {
+  const workspaceDir = path.resolve(options.dir);
+  const validationResponse = callPackagedMcpToolRaw(
+    options,
+    'semaphor_validate_data_app_contract',
+    {
+      workspaceDir,
+      ...(options.outputDir ? { outputDir: options.outputDir } : {}),
+    },
+  );
+  const validation = validationFromPackagedMcpToolResult(validationResponse?.result);
+  const inspection = inspectGeneratedDataAppAuthoringState({
+    workspaceDir,
+    outputDir: options.outputDir || undefined,
+    validation,
+  });
+  return {
+    ok: inspection.currentAuthoringState.inspection.status === 'inspected',
+    currentAuthoringState: inspection.currentAuthoringState,
+    validation,
+    nextAgentAction:
+      'Pass currentAuthoringState to semaphor_plan_data_app_change for analytical edits. For UI-only edits, patch presentation code without changing src/semaphor/generated.',
+  };
+}
+
+function validationFromPackagedMcpToolResult(result) {
+  if (result?.isError) {
+    return {
+      ok: false,
+      issues: [{
+        code: 'validation_tool_error',
+        message: textFromMcpContent(result.content) ||
+          'semaphor_validate_data_app_contract returned an MCP tool error.',
+      }],
+    };
   }
-  return response;
+  return result?.structuredContent || result || {};
+}
+
+function textFromMcpContent(content) {
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+  return content
+    .map((part) => typeof part?.text === 'string' ? part.text.trim() : '')
+    .filter(Boolean)
+    .join(' ');
 }
 
 function packagedMcpToolEnv(options) {
@@ -574,9 +651,66 @@ function summarizeMaterializationResponse(response) {
 }
 
 function updateContract(options) {
-  const inputFile = requireValue(options.inputFile, '--input-file');
-  const input = readJson(path.resolve(options.dir, inputFile));
+  let input;
+  if (options.inputFile) {
+    input = readJson(path.resolve(options.dir, options.inputFile));
+    if (!isRecord(input)) {
+      throw new Error('update-contract --input-file must contain a JSON object.');
+    }
+  } else {
+    input = {};
+  }
+  const effectiveOptions = {
+    ...options,
+    outputDir: options.outputDir || input.outputDir || '',
+  };
+  const inspected = inspectState(effectiveOptions);
+  if (!inspected.ok) {
+    throw new Error(
+      'update-contract requires successful inspect-state before applying iterative analytics edits.',
+    );
+  }
+  const { manifest } = readGeneratedContractValidationPayload(
+    path.resolve(options.dir),
+    effectiveOptions.outputDir || undefined,
+  );
+  if (!options.inputFile) {
+    const goal = requireValue(options.goal, '--goal');
+    const operationIntentFile = requireValue(
+      options.operationIntentFile,
+      '--operation-intent-file',
+    );
+    input = {
+      goal,
+      ...(options.domainId ? { domainId: options.domainId } : {}),
+      operationIntent: readJson(path.resolve(options.dir, operationIntentFile)),
+      currentManifest: manifest,
+      target: {
+        kind: 'data_app',
+        currentAuthoringState: inspected.currentAuthoringState,
+      },
+    };
+  }
+  if (!input.planArtifactId) {
+    input.currentManifest = manifest;
+    delete input.currentCodegenSummary;
+  }
+  input = {
+    ...input,
+    ...(effectiveOptions.outputDir && !input.outputDir
+      ? { outputDir: effectiveOptions.outputDir }
+      : {}),
+    target: {
+      ...(input.target || {}),
+      kind: 'data_app',
+      currentAuthoringState: inspected.currentAuthoringState,
+    },
+  };
   return callPackagedMcpTool(options, 'semaphor_update_data_app_contract', input);
+}
+
+function isRecord(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 function normalizeDataAppLinks(links) {
@@ -1777,6 +1911,8 @@ async function main() {
   let result;
   if (options.command === 'load') {
     result = await loadDataApp(options);
+  } else if (options.command === 'inspect-state') {
+    result = inspectState(options);
   } else if (options.command === 'materialize-contract') {
     result = await materializeContract(options);
   } else if (options.command === 'update-contract') {

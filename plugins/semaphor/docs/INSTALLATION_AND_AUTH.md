@@ -176,9 +176,9 @@ Production-ready auth behavior:
 - Project-token server `semaphor-project` is the deterministic app-local path.
   If the bridge cannot resolve a token during `tools/list`, it exposes only
   access-context guidance. Resolve auth first by retrying
-  `semaphor_get_access_context` with `workspaceDir`, using hosted OAuth, or
-  adding a project token; rich discovery, planning, and contract tools come
-  from live Semaphor `tools/list` after auth is available.
+  `semaphor_get_access_context` with `workspaceDir` set to the target app root,
+  using hosted OAuth, or adding a project token; rich discovery, planning, and
+  contract tools come from live Semaphor `tools/list` after auth is available.
 - For local generated-contract writes, use the first-class installed bridge
   materializer when the host exposes it. If the host only exposes hosted OAuth
   materialization with `materialization.status="not_written"`, use the
