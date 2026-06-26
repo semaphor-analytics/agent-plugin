@@ -112,7 +112,7 @@ semaphor          hosted OAuth MCP for login and project discovery
 semaphor-project  project-token MCP bridge for project-scoped token mode
 ```
 
-The exact namespace is host-specific, but the available tools should include:
+The exact namespace is host-specific. General analytics/discovery tools include:
 
 ```text
 semaphor_get_access_context
@@ -124,27 +124,44 @@ semaphor_get_data_app_runtime_token
 semaphor_analyze
 semaphor_matrix
 semaphor_query_sql_advanced
+```
+
+If a surface exposes Data App planning, it must expose the complete Data App
+authoring family:
+
+```text
+semaphor_get_access_context
+semaphor_get_data_app_sdk_guidance
 semaphor_plan_data_app
+semaphor_plan_data_app_change
+semaphor_create_data_app_contract
 semaphor_generate_data_app_contract
 semaphor_update_data_app_contract
 semaphor_materialize_data_app_contract
 semaphor_validate_data_app_contract
+semaphor_inspect_data_app_state
+semaphor_propose_semantic_model_change
+semaphor_apply_semantic_model_patch
 ```
 
 Hosts that include the server name in the tool namespace should expose a
 Semaphor-shaped namespace instead of a generic bridge name.
 
-For Data App generation, the complete server-owned Semaphor surface is
-required. A host that exposes analytics and planning tools but not
+For Data App generation and iterative repair, the complete server-owned
+Semaphor authoring family is required. A host that exposes analytics and
+planning tools but not
 `semaphor_create_data_app_contract`,
 `semaphor_generate_data_app_contract`,
 `semaphor_update_data_app_contract`, or
 `semaphor_materialize_data_app_contract`, or
-`semaphor_validate_data_app_contract` has server/plugin MCP surface drift.
+`semaphor_validate_data_app_contract`,
+`semaphor_inspect_data_app_state`,
+`semaphor_propose_semantic_model_change`, or
+`semaphor_apply_semantic_model_patch` has server/plugin MCP surface drift.
 Agents should stop before editing React source, report the mismatch, and ask
 the user to reload, reinstall, upgrade, or retry against the authenticated
 Semaphor MCP server. They should not manually transcribe planner output into
-generated contract files.
+generated contract files or invent semantic model patches.
 
 Some agent hosts launch plugin MCP servers from the installed plugin directory
 and do not pass workspace roots to the MCP process. In that case, direct
@@ -166,6 +183,11 @@ target-app auth hint; the bridge strips it before forwarding to Semaphor.
 - Validation calls use it to read
   `contract.manifest.json + generatedFiles` for
   `semaphor_validate_data_app_contract`.
+- `semaphor_inspect_data_app_state` calls use it to validate local generated
+  files and derive compact current authoring state for iterative edits.
+- `semaphor_plan_data_app_change` calls may use it to attach validated
+  `currentManifest` and `beforeCurrentAuthoringState` before proxying the
+  server-owned change planner.
 
 The bridge rejects generated contract paths that escape `workspaceDir` or pass
 through symlinks. If the current workspace has no active token, use the hosted
@@ -177,11 +199,13 @@ Production-ready auth behavior:
   log in, list projects, and mint a runtime project token when the user has not
   configured a local token yet.
 - Project-token server `semaphor-project` is the deterministic app-local path.
-  If the bridge cannot resolve a token during `tools/list`, it exposes only
-  access-context guidance. Resolve auth first by retrying
-  `semaphor_get_access_context` with `workspaceDir` set to the target app root,
-  using hosted OAuth, or adding a project token; rich discovery, planning, and
-  contract tools come from live Semaphor `tools/list` after auth is available.
+  If the bridge cannot resolve a token during `tools/list`, it exposes
+  `semaphor_get_access_context` plus canonical Data App authoring bootstrap
+  dispatch tools. Those bootstrap schemas let the first Data App call pass
+  `workspaceDir`, resolve the target app token, strip bridge-only arguments,
+  and proxy the server-owned tool. Broad semantic discovery, general analytics,
+  SQL, runtime-token, and other non-Data-App tools still come from live
+  Semaphor `tools/list` after auth is available.
 - For local generated-contract writes, use the first-class installed bridge
   materializer when the host exposes it. If the host only exposes hosted OAuth
   materialization with `materialization.status="not_written"`, use the

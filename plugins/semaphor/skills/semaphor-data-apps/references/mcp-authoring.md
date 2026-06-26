@@ -31,16 +31,21 @@ There are two authentication/server modes:
 
 Both modes must expose the same logical Data App authoring surface after auth.
 OAuth can additionally list/select projects; project-token mode is already
-scoped to one project. Data App contract tools are server-owned Semaphor MCP
-tools, not plugin-local generators:
+scoped to one project. The canonical Data App authoring family is server-owned
+Semaphor MCP capability, not plugin-local implementation:
+`semaphor_get_access_context`, `semaphor_get_data_app_sdk_guidance`,
+`semaphor_plan_data_app`, `semaphor_plan_data_app_change`,
 `semaphor_create_data_app_contract`,
 `semaphor_generate_data_app_contract`,
 `semaphor_update_data_app_contract`,
-`semaphor_materialize_data_app_contract`, and
-`semaphor_validate_data_app_contract`. If planning tools are visible but these
-contract tools are missing, stop before source edits and report server/plugin
-MCP surface drift. Do not manually transcribe planner output into
-`src/semaphor/*`.
+`semaphor_materialize_data_app_contract`,
+`semaphor_validate_data_app_contract`,
+`semaphor_inspect_data_app_state`,
+`semaphor_propose_semantic_model_change`, and
+`semaphor_apply_semantic_model_patch`. If planning tools are visible but any
+canonical continuation tool is missing, stop before source edits and report
+server/plugin MCP surface drift. Do not manually transcribe planner output into
+`src/semaphor/*` and do not invent semantic model patches.
 
 Do not confuse auth mode with local filesystem capability. The remote Semaphor
 MCP server does not write local files for OAuth or project-token calls. The
@@ -96,11 +101,15 @@ current workspace has no active token, use OAuth or ask for a token instead of
 relying on a previously used project.
 
 The project-token bridge intentionally keeps unauthenticated fallback
-`tools/list` minimal: access-context guidance only. Rich discovery, planning,
-contract generation, semantic repair, and runtime-token tools come from live
-Semaphor `tools/list` after auth is available. If no project token is found,
-resolve auth first by launching from the app root, exporting the token, using
-hosted OAuth, or asking the user to add a project token.
+`tools/list` narrow but workflow-complete for Data App authoring:
+`semaphor_get_access_context` plus canonical Data App authoring bootstrap
+dispatch tools. Those bootstrap schemas exist so the first Data App call can
+pass `workspaceDir`, resolve the target app token, strip bridge-only arguments,
+and proxy the server-owned tool. Broad semantic discovery, general analytics,
+SQL, runtime-token, and other non-Data-App tools still come from live Semaphor
+`tools/list` after auth is available. If no project token is found for a
+bootstrap Data App call, resolve auth by launching from the app root, exporting
+the token, using hosted OAuth, or asking the user to add a project token.
 Do not use the generic `call:mcp` wrapper for normal app authoring.
 
 When using `semaphor` OAuth, do not pass `workspaceDir` for auth. OAuth is an

@@ -29,13 +29,19 @@ public SDK builders/hooks, validate, then save or publish when requested.
 ## Workflow Gates
 
 0. Tool surface: authenticated `semaphor` OAuth or `semaphor-project`
-   project-token MCP must expose one logical Data App surface. If
-   `semaphor_create_data_app_contract`,
+   project-token MCP must expose one logical Data App authoring surface. If
+   planning is visible but any canonical continuation tool is missing, stop
+   before source edits and classify server/plugin MCP surface drift. Canonical
+   tools are `semaphor_get_access_context`,
+   `semaphor_get_data_app_sdk_guidance`, `semaphor_plan_data_app`,
+   `semaphor_plan_data_app_change`, `semaphor_create_data_app_contract`,
    `semaphor_generate_data_app_contract`,
-   `semaphor_update_data_app_contract`, or
-   `semaphor_materialize_data_app_contract`, or
-   `semaphor_validate_data_app_contract` is missing, stop before source edits
-   and classify server/plugin MCP surface drift.
+   `semaphor_update_data_app_contract`,
+   `semaphor_materialize_data_app_contract`,
+   `semaphor_validate_data_app_contract`,
+   `semaphor_inspect_data_app_state`,
+   `semaphor_propose_semantic_model_change`, and
+   `semaphor_apply_semantic_model_patch`.
 1. Auth: call `semaphor_get_access_context` before local source inspection.
 2. Project: if OAuth exposes multiple projects and the user did not name one,
    ask the user to select the project before domain discovery or planning.

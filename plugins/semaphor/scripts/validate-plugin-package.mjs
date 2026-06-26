@@ -2,9 +2,26 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import {
+  CANONICAL_DATA_APP_AUTHORING_TOOLS,
+} from "./data-app-authoring-surface.mjs";
 
 const root = process.cwd();
 const issues = [];
+const EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS = Object.freeze([
+  "semaphor_get_access_context",
+  "semaphor_get_data_app_sdk_guidance",
+  "semaphor_plan_data_app",
+  "semaphor_plan_data_app_change",
+  "semaphor_create_data_app_contract",
+  "semaphor_generate_data_app_contract",
+  "semaphor_update_data_app_contract",
+  "semaphor_materialize_data_app_contract",
+  "semaphor_validate_data_app_contract",
+  "semaphor_inspect_data_app_state",
+  "semaphor_propose_semantic_model_change",
+  "semaphor_apply_semantic_model_patch",
+]);
 
 function readJson(relativePath) {
   const fullPath = path.join(root, relativePath);
@@ -307,11 +324,6 @@ function validateMcpConfig() {
         "scripts/semaphor-mcp-remote.mjs: client roots must be ignored unless exactly one root is reported; multi-root sessions must require explicit workspaceDir",
       );
     }
-    if (!/name:\s*['"]semaphor_get_access_context['"]/.test(launcherText)) {
-      issues.push(
-        "scripts/semaphor-mcp-remote.mjs: no-token fallback tools/list must expose semaphor_get_access_context for auth/project setup guidance",
-      );
-    }
   }
 }
 
@@ -427,11 +439,33 @@ function validateMcpBridge() {
       );
     }
   }
-  const fallbackToolsText = textBetween(
-    bridgeText,
-    "const FALLBACK_TOOLS = [",
-    "const scriptDir =",
-  );
+  const canonicalSurfacePath = path.join(root, "scripts/data-app-authoring-surface.mjs");
+  const canonicalSurfaceText = fs.existsSync(canonicalSurfacePath)
+    ? fs.readFileSync(canonicalSurfacePath, "utf8")
+    : "";
+  if (!bridgeText.includes("DATA_APP_AUTHORING_BOOTSTRAP_TOOL_DEFINITIONS")) {
+    issues.push(
+      "scripts/semaphor-mcp-remote.mjs: fallback tools must be built from scripts/data-app-authoring-surface.mjs",
+    );
+  }
+  if (
+    JSON.stringify(CANONICAL_DATA_APP_AUTHORING_TOOLS) !==
+    JSON.stringify(EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS)
+  ) {
+    issues.push(
+      `scripts/data-app-authoring-surface.mjs: canonical Data App authoring tools must exactly match ${EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS.join(", ")}`,
+    );
+  }
+  for (const requiredTool of EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS) {
+    const canonicalDefinitionPattern = new RegExp(
+      `["']${escapeRegExp(requiredTool)}["']`,
+    );
+    if (!canonicalDefinitionPattern.test(canonicalSurfaceText)) {
+      issues.push(
+        `scripts/data-app-authoring-surface.mjs: missing canonical Data App authoring tool ${requiredTool}`,
+      );
+    }
+  }
   const forbiddenFallbackServerOwnedTools = [
     "semaphor_get_analysis_context",
     "semaphor_list_semantic_domains",
@@ -444,9 +478,9 @@ function validateMcpBridge() {
     const fallbackToolNamePattern = new RegExp(
       `\\bname\\s*:\\s*["']${escapeRegExp(serverOwnedTool)}["']`,
     );
-    if (fallbackToolNamePattern.test(fallbackToolsText)) {
+    if (fallbackToolNamePattern.test(canonicalSurfaceText)) {
       issues.push(
-        `scripts/semaphor-mcp-remote.mjs: fallback tools must not advertise server-owned MCP tool schema ${serverOwnedTool}; use live tools/list from semaphor-app`,
+        `scripts/data-app-authoring-surface.mjs: bootstrap tools must not advertise server-owned MCP tool schema ${serverOwnedTool}; use live tools/list from semaphor-app`,
       );
     }
   }
@@ -524,6 +558,8 @@ function scanDataAppContractGuidance() {
     "planner `preferences`",
     "or `preferences`",
     "preferences, responseDetail",
+    "access-context guidance only",
+    "exposes only access-context guidance",
   ];
   const textFiles = collectFiles(root).filter((filePath) =>
     /\.(md|txt|json)$/.test(filePath),
@@ -536,6 +572,30 @@ function scanDataAppContractGuidance() {
       if (text.includes(phrase)) {
         issues.push(
           `${relativePath}: Data App guidance must use generate -> materialize; remove legacy guidance (${phrase})`,
+        );
+      }
+    }
+  }
+}
+
+function validateCanonicalDataAppAuthoringGuidance() {
+  const guidanceFiles = [
+    "skills/semaphor-data-apps/SKILL.md",
+    "skills/semaphor-data-apps/references/mcp-authoring.md",
+    "docs/INSTALLATION_AND_AUTH.md",
+    "docs/TROUBLESHOOTING.md",
+  ];
+  for (const relativePath of guidanceFiles) {
+    const absolutePath = path.join(root, relativePath);
+    if (!fs.existsSync(absolutePath)) {
+      issues.push(`${relativePath}: missing canonical Data App authoring guidance`);
+      continue;
+    }
+    const text = fs.readFileSync(absolutePath, "utf8");
+    for (const toolName of EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS) {
+      if (!text.includes(toolName)) {
+        issues.push(
+          `${relativePath}: canonical Data App authoring guidance must mention ${toolName}`,
         );
       }
     }
@@ -566,6 +626,7 @@ requireFile("assets/logo.png");
 requireFile("assets/logo-source.png");
 requireFile("scripts/call-semaphor-tool.mjs");
 requireFile("scripts/detect-react-app.mjs");
+requireFile("scripts/data-app-authoring-surface.mjs");
 requireFile("scripts/init-semaphor-data-app.mjs");
 requireFile("scripts/semaphor-data-app.mjs");
 requireFile("scripts/test-mcp-bridge.mjs");
@@ -583,6 +644,7 @@ validateDataAppInitializer();
 validateMcpBridge();
 scanDistributionText();
 scanDataAppContractGuidance();
+validateCanonicalDataAppAuthoringGuidance();
 
 if (issues.length > 0) {
   console.error("Semaphor Agent Plugin package validation failed:");

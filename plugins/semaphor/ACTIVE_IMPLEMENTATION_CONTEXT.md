@@ -6,6 +6,11 @@ Hard-migrate the Semaphor agent plugin to one logical Data App MCP surface.
 Data App contract creation, generation, update, and validation are server-owned
 MCP tools exposed by live Semaphor `tools/list` after auth.
 
+Grounding plan:
+
+- `DATA_APP_CANONICAL_MCP_AUTHORING_SURFACE_PLAN.md` in the Semaphor app
+  architecture docs.
+
 OAuth and project-token MCP auth modes must expose the same project-scoped Data
 App capabilities after project scope is known. OAuth may additionally list and
 select projects; project-token mode is already scoped. Do not introduce a

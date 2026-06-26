@@ -49,7 +49,7 @@ customer workflow.
 
 Owner layer: plugin host integration or plugin MCP packaging.
 
-## Planner Visible But Contract Tools Missing
+## Planner Visible But Continuation Tools Missing
 
 Symptom:
 
@@ -57,14 +57,25 @@ Symptom:
 The agent can inspect Semaphor data or call semaphor_plan_data_app, but it
 cannot call semaphor_generate_data_app_contract,
 semaphor_update_data_app_contract, semaphor_materialize_data_app_contract, or
-semaphor_validate_data_app_contract.
+semaphor_validate_data_app_contract. Existing-app or repair workflows may also
+be missing semaphor_inspect_data_app_state,
+semaphor_propose_semantic_model_change, or
+semaphor_apply_semantic_model_patch.
 ```
 
 Expected behavior:
 
-- hosted analytics and planning tools are visible;
-- server-owned contract generation, update, and validation tools are visible on
-  the authenticated Semaphor MCP surface;
+- if Data App planning is visible, the canonical Data App authoring family is
+  visible: `semaphor_get_access_context`,
+  `semaphor_get_data_app_sdk_guidance`, `semaphor_plan_data_app`,
+  `semaphor_plan_data_app_change`, `semaphor_create_data_app_contract`,
+  `semaphor_generate_data_app_contract`,
+  `semaphor_update_data_app_contract`,
+  `semaphor_materialize_data_app_contract`,
+  `semaphor_validate_data_app_contract`,
+  `semaphor_inspect_data_app_state`,
+  `semaphor_propose_semantic_model_change`, and
+  `semaphor_apply_semantic_model_patch`;
 - broad Data App builds call the generator with `planArtifactId`, then call
   `semaphor_materialize_data_app_contract` with the returned
   `generatedContractArtifactId` plus `generatedContractMaterializationToken`
@@ -78,6 +89,17 @@ Fix:
 - verify that the installed plugin exposes both `semaphor` and
   `semaphor-project`;
 - rerun the host's MCP/auth setup if the project bridge is not mounted.
+
+Diagnostic packet:
+
+- host and plugin version;
+- which MCP server names are visible;
+- visible `semaphor_*` tool names from the host, not from plugin source files;
+- whether `semaphor_get_access_context` succeeds;
+- whether `semaphor_plan_data_app` is visible while any canonical continuation
+  tool above is missing;
+- whether the target app has a project token in ignored local env files when
+  using the installed bridge.
 
 Do not continue by hand-writing Semaphor sources, fields, inputs, queries,
 option queries, or filter bindings from planner output. That produces apps that

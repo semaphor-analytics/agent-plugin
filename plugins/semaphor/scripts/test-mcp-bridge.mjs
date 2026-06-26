@@ -8,22 +8,14 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import {
+  CANONICAL_DATA_APP_AUTHORING_TOOLS,
+} from "./data-app-authoring-surface.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const bridgePath = path.join(scriptDir, "semaphor-mcp-remote.mjs");
 const dataAppCliPath = path.join(scriptDir, "semaphor-data-app.mjs");
-const requiredServerTools = [
-  "semaphor_get_access_context",
-  "semaphor_get_data_app_sdk_guidance",
-  "semaphor_plan_data_app",
-  "semaphor_plan_data_app_change",
-  "semaphor_create_data_app_contract",
-  "semaphor_generate_data_app_contract",
-  "semaphor_update_data_app_contract",
-  "semaphor_materialize_data_app_contract",
-  "semaphor_validate_data_app_contract",
-  "semaphor_inspect_data_app_state",
-];
+const requiredServerTools = [...CANONICAL_DATA_APP_AUTHORING_TOOLS];
 
 const serverOwnedToolResponse = requiredServerTools.map((name) => ({
   name,
@@ -125,20 +117,7 @@ async function assertUnauthenticatedFallbackTools() {
       params: {},
     });
     const toolNames = toolNamesFromResponse(response);
-    assert.deepEqual(toolNames, [
-      "semaphor_get_access_context",
-      "semaphor_get_data_app_sdk_guidance",
-      "semaphor_plan_data_app",
-      "semaphor_plan_data_app_change",
-      "semaphor_generate_data_app_contract",
-      "semaphor_create_data_app_contract",
-      "semaphor_update_data_app_contract",
-      "semaphor_materialize_data_app_contract",
-      "semaphor_validate_data_app_contract",
-      "semaphor_inspect_data_app_state",
-      "semaphor_propose_semantic_model_change",
-      "semaphor_apply_semantic_model_patch",
-    ]);
+    assert.deepEqual(toolNames, CANONICAL_DATA_APP_AUTHORING_TOOLS);
     const createTool = response.result.tools.find((tool) =>
       tool.name === "semaphor_create_data_app_contract"
     );
@@ -620,6 +599,8 @@ async function assertAuthenticatedToolsListProxiesLiveSurface() {
         "semaphor_validate_data_app_contract",
         "semaphor_inspect_data_app_state",
         "semaphor_plan_data_app_change",
+        "semaphor_propose_semantic_model_change",
+        "semaphor_apply_semantic_model_patch",
       ].includes(tool.name);
       assert.equal(
         tool.inputSchema.properties.workspaceDir?.type,
