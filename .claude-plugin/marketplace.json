@@ -9,7 +9,7 @@
       "name": "semaphor",
       "displayName": "Semaphor",
       "description": "Build Semaphor-backed React data apps with governed analytics.",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "source": "./plugins/semaphor",
       "author": {
         "name": "Semaphor Analytics Corp."

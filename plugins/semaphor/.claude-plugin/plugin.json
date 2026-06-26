@@ -3,7 +3,7 @@
   "name": "semaphor",
   "displayName": "Semaphor",
   "description": "Build data apps and answer business questions, grounded in your data.",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "author": {
     "name": "Semaphor"
   },
