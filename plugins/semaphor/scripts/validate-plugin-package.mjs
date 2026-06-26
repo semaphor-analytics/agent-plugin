@@ -268,6 +268,11 @@ function validateMcpConfig() {
       ".mcp.json: semaphor-project server args must use scripts/semaphor-mcp-remote.mjs",
     );
   }
+  if (server.env_vars !== undefined || server.env !== undefined) {
+    issues.push(
+      ".mcp.json: semaphor-project must not declare startup env requirements; the bridge starts unauthenticated and resolves target-app tokens from process env or workspaceDir .env files",
+    );
+  }
   if (JSON.stringify(server).includes("${SEMAPHOR_PROJECT_TOKEN}")) {
     issues.push(
       ".mcp.json: do not pass a literal SEMAPHOR_PROJECT_TOKEN placeholder; the launcher reads real env and target app env files",
