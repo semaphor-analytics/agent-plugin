@@ -25,6 +25,10 @@ const DATA_APP_LOCAL_INSPECTION_TOOLS = new Set([
 const DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS = new Set([
   "semaphor_plan_data_app_change",
 ]);
+const SEMANTIC_MODEL_REPAIR_TOOLS = new Set([
+  "semaphor_propose_semantic_model_change",
+  "semaphor_apply_semantic_model_patch",
+]);
 const GENERATED_CONTRACT_PAYLOAD_TOOLS = new Set([
   "semaphor_create_data_app_contract",
   "semaphor_generate_data_app_contract",
@@ -43,6 +47,7 @@ const WORKSPACE_CONTEXT_TOOLS = new Set([
   ...GENERATED_CONTRACT_MATERIALIZATION_TOOLS,
   ...DATA_APP_LOCAL_INSPECTION_TOOLS,
   ...DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS,
+  ...SEMANTIC_MODEL_REPAIR_TOOLS,
 ]);
 const WORKSPACE_HINT_SCHEMA = {
   type: "object",
@@ -115,6 +120,16 @@ const FALLBACK_TOOLS = [
     name: "semaphor_inspect_data_app_state",
     description:
       "Inspect and validate local generated Data App authoring state before iterative edits. In installed bridge runs, pass workspaceDir.",
+  },
+  {
+    name: "semaphor_propose_semantic_model_change",
+    description:
+      "Propose a server-owned semantic-model repair for a missing relationship or Data App modeling gap. In installed bridge runs, pass workspaceDir so the bridge can resolve target-app project-token auth before forwarding to Semaphor.",
+  },
+  {
+    name: "semaphor_apply_semantic_model_patch",
+    description:
+      "Apply an explicitly user-approved server-owned semantic-model repair patch. In installed bridge runs, pass workspaceDir so the bridge can resolve target-app project-token auth before forwarding to Semaphor.",
   },
 ].map((tool) => ({
   ...tool,

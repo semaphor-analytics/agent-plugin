@@ -438,8 +438,6 @@ function validateMcpBridge() {
     "semaphor_list_datasets",
     "semaphor_get_dataset_schema",
     "semaphor_get_domain_relationships",
-    "semaphor_propose_semantic_model_change",
-    "semaphor_apply_semantic_model_patch",
     "semaphor_get_data_app_runtime_token",
   ];
   for (const serverOwnedTool of forbiddenFallbackServerOwnedTools) {

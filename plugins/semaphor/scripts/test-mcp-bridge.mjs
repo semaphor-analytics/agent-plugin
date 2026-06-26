@@ -136,6 +136,8 @@ async function assertUnauthenticatedFallbackTools() {
       "semaphor_materialize_data_app_contract",
       "semaphor_validate_data_app_contract",
       "semaphor_inspect_data_app_state",
+      "semaphor_propose_semantic_model_change",
+      "semaphor_apply_semantic_model_patch",
     ]);
     const createTool = response.result.tools.find((tool) =>
       tool.name === "semaphor_create_data_app_contract"
@@ -154,6 +156,17 @@ async function assertUnauthenticatedFallbackTools() {
         .generatedContractMaterializationToken.type,
       "string",
     );
+    const proposeRepairTool = response.result.tools.find((tool) =>
+      tool.name === "semaphor_propose_semantic_model_change"
+    );
+    assert.equal(
+      proposeRepairTool.inputSchema.properties.workspaceDir.type,
+      "string",
+    );
+    const applyRepairTool = response.result.tools.find((tool) =>
+      tool.name === "semaphor_apply_semantic_model_patch"
+    );
+    assert.equal(applyRepairTool.inputSchema.properties.workspaceDir.type, "string");
   } finally {
     await bridge.stop();
   }
@@ -766,6 +779,50 @@ async function assertWorkspaceDirAuthWorksForBootstrapDataAppTools() {
       calls[1].body.params.arguments.workspaceDir,
       undefined,
       "workspaceDir is a bridge auth hint and must not be forwarded",
+    );
+
+    const repairResponse = await bridge.request({
+      jsonrpc: "2.0",
+      id: 23,
+      method: "tools/call",
+      params: {
+        name: "semaphor_propose_semantic_model_change",
+        arguments: {
+          workspaceDir: appDir,
+          domainId: "retail_ops",
+          reason: "missing_relationship",
+          candidate: {
+            source: {
+              kind: "semantic",
+              domainId: "retail_ops",
+              datasetName: "fact_order",
+            },
+            sourceFields: [{ name: "warehouse_id" }],
+            target: {
+              kind: "semantic",
+              domainId: "retail_ops",
+              datasetName: "dim_warehouse",
+            },
+            targetFields: [{ name: "warehouse_id" }],
+          },
+        },
+      },
+    });
+    assert.equal(repairResponse.result.isError, false);
+    assert.equal(
+      calls.length,
+      3,
+      "semantic repair should use workspaceDir for auth discovery and then forward to Semaphor",
+    );
+    assert.equal(calls[2].authorization, `Bearer ${projectToken}`);
+    assert.equal(
+      calls[2].body.params.arguments.workspaceDir,
+      undefined,
+      "workspaceDir is a bridge auth hint and must not be forwarded for semantic repair",
+    );
+    assert.equal(
+      calls[2].body.params.name,
+      "semaphor_propose_semantic_model_change",
     );
   } finally {
     await bridge.stop();

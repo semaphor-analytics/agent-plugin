@@ -32,12 +32,15 @@ The plugin bridge may still:
 - accept bridge-local `workspaceDir` on validation calls so the bridge can read
   the generated manifest plus generated TypeScript files and forward that
   payload to the server-owned validator;
-- advertise a minimal bootstrap Data App tool surface before project-token auth
-  when the target app token is discoverable only from `workspaceDir` on the
-  first tool call. These bootstrap schemas are dispatch/auth-context schemas
-  for server-owned tools; the bridge must still strip bridge-only arguments,
-  resolve auth, and proxy the call to Semaphor instead of implementing planning,
-  generation, update, or validation locally;
+- advertise a minimal bootstrap Data App authoring tool surface before
+  project-token auth when the target app token is discoverable only from
+  `workspaceDir` on the first tool call. This includes the server-owned Data App
+  planning/contract/validation tools and the semantic-model repair proposal/apply
+  tools used when Data App planning returns a missing-relationship repair
+  action. These bootstrap schemas are dispatch/auth-context schemas for
+  server-owned tools; the bridge must still strip bridge-only arguments, resolve
+  auth, and proxy the call to Semaphor instead of implementing planning,
+  generation, update, validation, or semantic repair locally;
 - accept bridge-local `workspaceDir` on `semaphor_inspect_data_app_state` so
   the bridge can validate local generated files and return compact
   `currentAuthoringState` for iterative authoring. Hosted MCP may expose the
@@ -52,8 +55,8 @@ The plugin bridge may still:
   that prevents agents from hand-authoring or pasting large manifest payloads;
 - strip `workspaceDir` before forwarding tool arguments to Semaphor. It is a
   local bridge hint, not a server generator input;
-- expose only access/context plus Data App bootstrap dispatch tools before
-  project-token auth is available;
+- expose only access/context plus Data App authoring bootstrap dispatch tools
+  before project-token auth is available;
 - proxy live Semaphor MCP tools after auth.
 
 The plugin bridge and plugin package must not:
@@ -116,11 +119,13 @@ Raise findings for:
 - docs, skills, or eval prompts describing `workspaceDir` as a server-side
   generator input instead of a bridge-local hint that is stripped before
   forwarding;
-- a bridge fallback that advertises semantic modeling, runtime-token, general
-  analytics, or other non-Data-App bootstrap tools before auth. The allowed
-  pre-auth bootstrap surface is `semaphor_get_access_context` plus minimal Data
-  App workflow dispatch tools that need `workspaceDir` to resolve target-app
-  auth on the first call.
+- a bridge fallback that advertises runtime-token, general analytics, broad
+  semantic discovery, or other non-Data-App-authoring bootstrap tools before
+  auth. The allowed pre-auth bootstrap surface is `semaphor_get_access_context`
+  plus minimal Data App workflow dispatch tools that need `workspaceDir` to
+  resolve target-app auth on the first call. Semantic-model repair proposal/apply
+  tools are allowed here only as server-owned Data App repair passthrough tools;
+  the plugin must not duplicate semantic repair schemas or implementation logic.
 
 Do not raise findings asking for legacy compatibility with the removed local
 generator/validator scripts. This feature is still under development and the
