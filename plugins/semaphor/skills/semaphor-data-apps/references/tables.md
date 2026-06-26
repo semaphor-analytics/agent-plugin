@@ -213,6 +213,7 @@ import {
   queries,
   queryOptionsForView,
   recordsSortOptionsForView,
+  rowsForView,
 } from "@/semaphor/generated";
 
 const [page, setPage] = useState(1);
@@ -233,8 +234,9 @@ const result = useSemaphorQuery(
   query,
   queryOptionsForView.ordersTable(inputHandles),
 );
+const rows = rowsForView.ordersTable(result);
 
-// Render rows from result.records.
+// Render rows from rows.
 // Render page controls from result.pagination and result.rowCount.
 // Reset page to 1 when filters, pageSize, or sort changes.
 ```
@@ -251,8 +253,9 @@ const result = useSemaphorQuery(
   query,
   queryOptionsForView.ordersTable(inputHandles),
 );
+const rows = rowsForView.ordersTable(result);
 
-// Render rows from result.records.
+// Render rows from rows.
 // Render page controls from result.pagination and result.rowCount.
 // If sorting.mode is client_for_bounded_rows, sort only the returned rows.
 ```

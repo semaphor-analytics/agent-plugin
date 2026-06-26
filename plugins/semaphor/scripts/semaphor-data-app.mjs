@@ -17,6 +17,13 @@ import {
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ARTIFACT_BASE_URL = 'https://semaphor.cloud';
 const DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS = 60000;
+const HEAVY_DATA_APP_TOOL_TIMEOUT_MS = 120000;
+const HEAVY_DATA_APP_TOOLS = new Set([
+  'semaphor_create_data_app_contract',
+  'semaphor_generate_data_app_contract',
+  'semaphor_update_data_app_contract',
+  'semaphor_materialize_data_app_contract',
+]);
 
 const EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -415,17 +422,21 @@ function callPackagedMcpToolRaw(options, toolName, input) {
     SCRIPT_DIR,
     'call-semaphor-tool.mjs',
   );
+  const args = [
+    scriptPath,
+    toolName,
+    '--dir',
+    path.resolve(options.dir),
+    '--input',
+    JSON.stringify(input),
+    '--pretty',
+  ];
+  if (HEAVY_DATA_APP_TOOLS.has(toolName)) {
+    args.push('--timeout-ms', String(HEAVY_DATA_APP_TOOL_TIMEOUT_MS));
+  }
   const child = spawnSync(
     process.execPath,
-    [
-      scriptPath,
-      toolName,
-      '--dir',
-      path.resolve(options.dir),
-      '--input',
-      JSON.stringify(input),
-      '--pretty',
-    ],
+    args,
     {
       cwd: path.resolve(options.dir),
       encoding: 'utf8',
@@ -650,6 +661,30 @@ function summarizeMaterializationResponse(response) {
   };
 }
 
+function summarizeGeneratedContractHandoff(response) {
+  const structuredContent = response?.result?.structuredContent || {};
+  if (!structuredContent.generatedContractArtifactId) {
+    return response;
+  }
+  return {
+    ok: response?.ok !== false,
+    tool: response?.tool || 'semaphor_update_data_app_contract',
+    generatedContractArtifactId: structuredContent.generatedContractArtifactId,
+    generatedContractArtifactDigest: structuredContent.generatedContractArtifactDigest,
+    generatedContractArtifactBaseUrl: structuredContent.generatedContractArtifactBaseUrl,
+    generatedContractMaterializationToken:
+      structuredContent.generatedContractMaterializationToken,
+    outputDir: structuredContent.outputDir,
+    materialization: structuredContent.materialization,
+    localMaterialization: structuredContent.localMaterialization,
+    validation: structuredContent.validation,
+    warnings: structuredContent.warnings || [],
+    nextAgentAction:
+      structuredContent.nextAgentAction ||
+      'Run localMaterialization.officialCommand, require materialization.status="written", then validate, typecheck, build, and smoke test.',
+  };
+}
+
 function updateContract(options) {
   let input;
   if (options.inputFile) {
@@ -706,7 +741,9 @@ function updateContract(options) {
       beforeCurrentAuthoringState: inspected.currentAuthoringState,
     },
   };
-  return callPackagedMcpTool(options, 'semaphor_update_data_app_contract', input);
+  return summarizeGeneratedContractHandoff(
+    callPackagedMcpTool(options, 'semaphor_update_data_app_contract', input),
+  );
 }
 
 function isRecord(value) {

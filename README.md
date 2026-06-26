@@ -443,7 +443,7 @@ function RevenueKpi() {
   if (result.isLoading) return <span>Loading...</span>;
   if (result.error) return <span>{result.error.message}</span>;
 
-  return <strong>{formatNumber(result.value)}</strong>;
+  return <strong>{formatNumber(result.primaryValue)}</strong>;
 }
 ```
 

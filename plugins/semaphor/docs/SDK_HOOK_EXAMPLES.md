@@ -77,7 +77,7 @@ export function RevenueKpi() {
 
   return (
     <section>
-      <strong>{String(result.value ?? "")}</strong>
+      <strong>{String(result.primaryValue ?? "")}</strong>
       {result.isStale ? <span>Refreshing</span> : null}
       {result.isPartial ? <span>Partial result</span> : null}
     </section>
