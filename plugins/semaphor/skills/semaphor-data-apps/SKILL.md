@@ -133,9 +133,9 @@ such as "add this already specified chart", proceed after confirming the local
 target and Semaphor source are unambiguous.
 
 For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
-constraints, responseDetail: "plan_summary" })`, present the visible plan
-summary and `planArtifactId`, and stop. Use `responseDetail: "full"` only for
-debugging planner internals. After approval, generate with `planArtifactId`;
+constraints })`, present the default visible plan summary and `planArtifactId`, and stop. Use `responseDetail: "artifact_only"` only after a visible plan has
+already been reviewed, and use `responseDetail: "full"` only for debugging
+planner internals. After approval, generate with `planArtifactId`;
 materialize with the installed bridge tool or `npm run data-app -- materialize-contract`, then verify
 `src/semaphor/generated` before UI edits. Hosted MCP payload-only output is expected; if local materialization still does not return `materialization.status="written"`, stop as materialization failure. Do not write files from tool output. For edits, follow `references/planning-workflow.md`.
 When present, use `localMaterialization.officialCommand` as the machine-readable

@@ -37,8 +37,10 @@ Do not pass legacy planner format knobs such as `"codegen_summary"` or invented
 formats such as `"compact_summary"`. The planner returns a visible summary plus
 `planArtifactId`; generation resolves the canonical codegen summary
 server-side. Never shrink `maxViews` just because the returned planner JSON is
-verbose; `responseDetail: "plan_summary"` is intentionally compact, while full
-field refs, bindings, and option-query metadata stay behind
+verbose; the default planner response is intentionally a compact visible plan.
+Use `responseDetail: "artifact_only"` only after a visible plan has already
+been reviewed, and use `responseDetail: "full"` only when debugging planner
+internals. Full field refs, bindings, and option-query metadata stay behind
 `responseDetail: "full"` and the server-owned artifact used by generation.
 
 ## Project And Domain Selection Gate
@@ -109,7 +111,7 @@ For accepted greenfield/broad plans, materialize the accepted planner artifact
 before UI edits:
 
 ```text
-semaphor_plan_data_app(responseDetail: "plan_summary")
+semaphor_plan_data_app()
 -> planner returns right-sized visible plan summary plus planArtifactId
 -> present visible plan summary with views, visual types, filters, unsupported gaps, and DevTools setup
 -> user/eval accepts the visible plan
