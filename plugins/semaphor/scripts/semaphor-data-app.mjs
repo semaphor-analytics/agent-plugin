@@ -228,7 +228,7 @@ Options:
   --artifact-id <id>            Generated contract artifact id returned by Semaphor contract generation.
   --materialization-token <tok>  Short-lived materialization token returned with the artifact id.
   --artifact-base-url <url>      Trusted Semaphor app origin returned by contract generation. Defaults to https://semaphor.cloud.
-  --input-file <path>           JSON tool input file for update-contract. The command still runs inspect-state and merges inspected currentAuthoringState.
+  --input-file <path>           JSON tool input file for update-contract. The command still runs inspect-state and merges inspected beforeCurrentAuthoringState.
   --operation-intent-file <path> Small JSON operationIntent file for update-contract.
   --output-dir <path>           Generated contract output directory for inspect-state/update-contract. Defaults to src/semaphor/generated.
   --goal <text>                 User-facing change goal for update-contract.
@@ -463,7 +463,7 @@ function inspectState(options) {
     currentAuthoringState: inspection.currentAuthoringState,
     validation,
     nextAgentAction:
-      'Pass currentAuthoringState to semaphor_plan_data_app_change for analytical edits. For UI-only edits, patch presentation code without changing src/semaphor/generated.',
+      'Pass the returned state as target.beforeCurrentAuthoringState to semaphor_plan_data_app_change for analytical edits. For UI-only edits, patch presentation code without changing src/semaphor/generated.',
   };
 }
 
@@ -687,7 +687,7 @@ function updateContract(options) {
       currentManifest: manifest,
       target: {
         kind: 'data_app',
-        currentAuthoringState: inspected.currentAuthoringState,
+        beforeCurrentAuthoringState: inspected.currentAuthoringState,
       },
     };
   }
@@ -703,7 +703,7 @@ function updateContract(options) {
     target: {
       ...(input.target || {}),
       kind: 'data_app',
-      currentAuthoringState: inspected.currentAuthoringState,
+      beforeCurrentAuthoringState: inspected.currentAuthoringState,
     },
   };
   return callPackagedMcpTool(options, 'semaphor_update_data_app_contract', input);

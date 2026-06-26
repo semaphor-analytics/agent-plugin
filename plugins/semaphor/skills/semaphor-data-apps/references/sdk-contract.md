@@ -151,7 +151,11 @@ const regionOptions = semaphor.inputOptions({
 });
 ```
 
-Normal cascading options may omit `dependencies`; `auto` is the default.
+Generated option lists are independent by default. Cascading options must use
+`dependencies: { mode: "explicit", includeInputIds: [...] }` emitted from a
+relationship-proven plan. Do not use broad `auto` dependency behavior or bind
+unrelated filters into option queries.
+
 Do not require `filterFieldRef` on option queries. Active filtering is modeled
 by the input/filter binding.
 

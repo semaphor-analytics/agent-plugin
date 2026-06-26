@@ -15,7 +15,8 @@ Use Semaphor planner tools as the source of truth for broad analytical work:
   Generate files only after the user accepts the visible plan.
 - Substantial existing-app analytical edit:
   for generated apps, run `npm run data-app -- inspect-state --dir <app>` and
-  pass the returned `currentAuthoringState` to server-owned change planning.
+  pass the returned state as `target.beforeCurrentAuthoringState` to
+  server-owned change planning.
   Then use `npm run data-app -- update-contract --dir <app> --goal "<goal>"
   --operation-intent-file <file>` so the local command reads the large
   generated manifest from disk. Do not extract or replay `codegenSummary` or
@@ -174,7 +175,7 @@ For iterative analytics changes to a generated app, call:
 ```text
 inspect the current app state with:
   npm run data-app -- inspect-state --dir /path/to/react-app
--> semaphor_plan_data_app_change(currentAuthoringState, goal, operationIntent)
+-> semaphor_plan_data_app_change(target.beforeCurrentAuthoringState, goal, operationIntent)
 -> review the preserve-by-default change plan and target resolution
 -> write only the small operationIntent JSON locally
 -> npm run data-app -- update-contract --dir /path/to/react-app --goal "<goal>" --operation-intent-file operation-intent.json
@@ -185,12 +186,19 @@ inspect the current app state with:
 -> returns migrationReport for review
 ```
 
-For user-requested edits such as visual title changes or metric aggregate
-repairs, use `operationIntent.kind: "edit"` with target view ids so the update
+For user-requested analytical edits such as metric aggregate repairs, use
+`operationIntent.kind: "analytics_edit"` with target view ids so the update
 policy can reject unrelated views, inputs, or filter contract changes before
-the agent edits UI files. If Inspector/runtime warning cleanup requires
-a diagnostic operation kind not yet supported by the server planner, stop and
-report that planner capability gap instead of patching generated files by hand.
+the agent edits UI files. Use `changeMode: "remove_and_add"` only when the user
+asks for a compound analytical replacement such as "remove ROAS and add margin
+by category"; otherwise the planner preserves target view ids in place.
+For visual title, layout, spacing, or style changes, use
+`operationIntent.kind: "layout_only"` or `"style_only"` after inspect-state and
+do not call contract generation/update/materialization.
+For runtime/debugging requests, use `operationIntent.kind: "runtime_debug"` and
+gather governed/runtime evidence before making UI or contract changes. If the
+debug evidence proves the generated contract is wrong, re-run change planning
+with an analytical operation kind.
 
 When a host cannot safely pass update tool arguments because the generated
 manifest is large, do not paste or hand-carry that manifest. Use the local
@@ -523,7 +531,8 @@ scratch. Use it to build the shadcn/TanStack table component.
 If the user is working in an existing generated app, inspect the current state
 first with `npm run data-app -- inspect-state --dir <app>`. Preserve existing
 views unless the user asks to replace them. For substantial analytical edits,
-pass the returned `currentAuthoringState` into `semaphor_plan_data_app_change`,
+pass the returned state as `target.beforeCurrentAuthoringState` into
+`semaphor_plan_data_app_change`,
 then run `npm run data-app -- update-contract --dir <app> --goal "<goal>"
 --operation-intent-file <file>`. Present the returned migration report,
 `authoringDiff`, and change operations:

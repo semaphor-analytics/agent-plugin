@@ -22,17 +22,27 @@ const GENERATED_CONTRACT_MATERIALIZATION_TOOLS = new Set([
 const DATA_APP_LOCAL_INSPECTION_TOOLS = new Set([
   "semaphor_inspect_data_app_state",
 ]);
-const WORKSPACE_CONTEXT_TOOLS = new Set([
-  "semaphor_get_access_context",
-  "semaphor_validate_data_app_contract",
-  ...GENERATED_CONTRACT_MATERIALIZATION_TOOLS,
-  ...DATA_APP_LOCAL_INSPECTION_TOOLS,
+const DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS = new Set([
+  "semaphor_plan_data_app_change",
 ]);
 const GENERATED_CONTRACT_PAYLOAD_TOOLS = new Set([
   "semaphor_create_data_app_contract",
   "semaphor_generate_data_app_contract",
   "semaphor_update_data_app_contract",
   "semaphor_materialize_data_app_contract",
+]);
+const DATA_APP_SERVER_AUTH_CONTEXT_TOOLS = new Set([
+  "semaphor_get_data_app_sdk_guidance",
+  "semaphor_plan_data_app",
+  ...GENERATED_CONTRACT_PAYLOAD_TOOLS,
+]);
+const WORKSPACE_CONTEXT_TOOLS = new Set([
+  "semaphor_get_access_context",
+  "semaphor_validate_data_app_contract",
+  ...DATA_APP_SERVER_AUTH_CONTEXT_TOOLS,
+  ...GENERATED_CONTRACT_MATERIALIZATION_TOOLS,
+  ...DATA_APP_LOCAL_INSPECTION_TOOLS,
+  ...DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS,
 ]);
 const WORKSPACE_HINT_SCHEMA = {
   type: "object",
@@ -61,9 +71,54 @@ const FALLBACK_TOOLS = [
     description:
       "Diagnose Semaphor auth setup. If no token is configured, pause data-bearing app work and ask the user to use the current host MCP OAuth login flow for the semaphor server, or add VITE_SEMAPHOR_PROJECT_TOKEN to the target React app .env.local, then resume when they say try again. In Codex, the OAuth command is codex mcp login semaphor. Do not scaffold placeholder analytics when auth is unavailable.",
   },
+  {
+    name: "semaphor_get_data_app_sdk_guidance",
+    description:
+      "Fetch Semaphor Data App SDK guidance. In installed bridge runs, pass workspaceDir so the bridge can resolve target-app project-token auth before forwarding to Semaphor.",
+  },
+  {
+    name: "semaphor_plan_data_app",
+    description:
+      "Plan a new governed Semaphor Data App and return a planArtifactId. In installed bridge runs, pass workspaceDir so target-app project-token auth can be resolved before forwarding to Semaphor.",
+  },
+  {
+    name: "semaphor_plan_data_app_change",
+    description:
+      "Plan an analytical change for an existing generated Semaphor Data App. In installed bridge runs, pass workspaceDir; the bridge inspects and validates local src/semaphor/generated files, then forwards currentManifest and beforeCurrentAuthoringState.",
+  },
+  {
+    name: "semaphor_generate_data_app_contract",
+    description:
+      "Generate a governed Data App contract from a greenfield planArtifactId. Returns a generatedContractArtifactId and materialization token; local files are written by semaphor_materialize_data_app_contract.",
+  },
+  {
+    name: "semaphor_create_data_app_contract",
+    description:
+      "Create a governed Data App contract in one server-owned call. In installed bridge runs, workspaceDir may be used only as a bridge-local auth hint and is stripped before forwarding; local files are written by semaphor_materialize_data_app_contract.",
+  },
+  {
+    name: "semaphor_update_data_app_contract",
+    description:
+      "Generate an updated governed Data App contract from a change planArtifactId. Returns a generatedContractArtifactId and materialization token; local files are written by semaphor_materialize_data_app_contract.",
+  },
+  {
+    name: "semaphor_materialize_data_app_contract",
+    description:
+      "Materialize a generated Data App contract artifact into local src/semaphor/generated files. In installed bridge runs, pass generatedContractArtifactId, generatedContractMaterializationToken, and workspaceDir.",
+  },
+  {
+    name: "semaphor_validate_data_app_contract",
+    description:
+      "Validate generated Data App contract files. In installed bridge runs, pass workspaceDir to read local src/semaphor/generated without hand-assembling manifest or generatedFiles payloads.",
+  },
+  {
+    name: "semaphor_inspect_data_app_state",
+    description:
+      "Inspect and validate local generated Data App authoring state before iterative edits. In installed bridge runs, pass workspaceDir.",
+  },
 ].map((tool) => ({
   ...tool,
-  inputSchema: tool.inputSchema || WORKSPACE_HINT_SCHEMA,
+  inputSchema: bootstrapToolInputSchema(tool.name),
 }));
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(scriptDir, "..");
@@ -188,7 +243,10 @@ async function forwardRequest(message) {
     if (message.params?.name === "semaphor_inspect_data_app_state") {
       return inspectDataAppStateResponse(message, context);
     }
-    const response = await postMcpJsonRpc(await prepareToolCallMessage(message), context);
+    const response = await postMcpJsonRpc(
+      await prepareToolCallMessage(message, context),
+      context,
+    );
     const normalized = normalizeJsonRpcResponse(message, response);
     return materializeGeneratedContractResponse(message, normalized);
   }
@@ -262,6 +320,32 @@ function normalizeToolsListResponse(message, response) {
   };
 }
 
+function bootstrapToolInputSchema(toolName) {
+  const schema = {
+    type: "object",
+    properties: {
+      workspaceDir: WORKSPACE_HINT_SCHEMA.properties.workspaceDir,
+    },
+    additionalProperties: true,
+  };
+  if (
+    DATA_APP_LOCAL_INSPECTION_TOOLS.has(toolName) ||
+    DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS.has(toolName) ||
+    toolName === "semaphor_validate_data_app_contract"
+  ) {
+    schema.properties.outputDir = OUTPUT_DIR_HINT_SCHEMA;
+  }
+  if (GENERATED_CONTRACT_MATERIALIZATION_TOOLS.has(toolName)) {
+    schema.properties.generatedContractArtifactId = {
+      type: "string",
+      description: "Generated contract artifact id returned by the generator or updater.",
+    };
+    schema.properties.generatedContractMaterializationToken =
+      MATERIALIZATION_TOKEN_HINT_SCHEMA;
+  }
+  return schema;
+}
+
 function missingSemaphorAuthResponse(message) {
   return {
     jsonrpc: "2.0",
@@ -279,7 +363,7 @@ function missingSemaphorAuthResponse(message) {
             "If hosted OAuth tools are exposed, use the MCP server named semaphor and call semaphor_list_projects.",
             "If hosted OAuth tools are not exposed, the OAuth app connection requires reauthentication, or the semaphor MCP is not logged in, ask the user to use the current host MCP OAuth login or reauthentication flow for the server named semaphor, then say try again. In Codex, the command is codex mcp login semaphor; in Claude Code or another host, use that host MCP server authentication UI or command. Also mention that this thread may not detect the refreshed MCP login; if try again still reports missing auth, start a new thread after logging in.",
             "For deterministic project-token mode, add VITE_SEMAPHOR_PROJECT_TOKEN to the React app .env.local, or export SEMAPHOR_PROJECT_TOKEN before launching the agent.",
-            "If the token is already in the React app .env.local, launch the agent from that app root or call semaphor_get_access_context with workspaceDir set to the React app root. Do not pass workspaceDir to generator/update tools for auth discovery.",
+            "If the token is already in the React app .env.local, launch the agent from that app root or pass workspaceDir only to installed-bridge bootstrap tools that advertise it. The bridge uses workspaceDir only for target-app auth discovery or local generated-file reads/writes, strips it before forwarding to Semaphor, and never treats it as a server generator/update input.",
             "The Semaphor MCP endpoint is derived from the project token's apiServiceUrl.",
           ].join(" "),
         },
@@ -294,6 +378,8 @@ function exposeBridgeWorkspaceHint(tool) {
     ? " In installed Semaphor Agent Plugin runs, pass workspaceDir; the bridge materializes this generated contract artifact under that workspace after the server-owned tool call succeeds."
     : DATA_APP_LOCAL_INSPECTION_TOOLS.has(tool?.name)
       ? " In installed Semaphor Agent Plugin runs, pass workspaceDir; the bridge inspects and validates local src/semaphor/generated files and returns currentAuthoringState."
+    : DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS.has(tool?.name)
+      ? " In installed Semaphor Agent Plugin runs, pass workspaceDir; the bridge inspects and validates local src/semaphor/generated files, then forwards currentManifest and beforeCurrentAuthoringState so the server can return planArtifactId for semaphor_update_data_app_contract."
     : tool?.name === "semaphor_validate_data_app_contract"
       ? " In installed Semaphor Agent Plugin runs, pass workspaceDir to validate generated files already written under src/semaphor/generated without hand-assembling manifest or generatedFiles payloads."
       : "";
@@ -309,6 +395,7 @@ function exposeBridgeLocalArtifactInputs(tool) {
     tool?.name !== "semaphor_get_access_context" &&
     !GENERATED_CONTRACT_MATERIALIZATION_TOOLS.has(tool?.name) &&
     !DATA_APP_LOCAL_INSPECTION_TOOLS.has(tool?.name) &&
+    !DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS.has(tool?.name) &&
     tool?.name !== "semaphor_validate_data_app_contract"
   ) {
     return tool?.inputSchema;
@@ -326,6 +413,7 @@ function exposeBridgeLocalArtifactInputs(tool) {
   }
   if (
     !DATA_APP_LOCAL_INSPECTION_TOOLS.has(tool?.name) &&
+    !DATA_APP_LOCAL_PLAN_CONTEXT_TOOLS.has(tool?.name) &&
     tool?.name !== "semaphor_validate_data_app_contract"
   ) {
     return schema;
@@ -478,8 +566,11 @@ function bridgeWorkspaceDirectories(toolArguments) {
   ].filter((value) => typeof value === "string" && value.trim());
 }
 
-async function prepareToolCallMessage(message) {
-  const withExpandedValidation = await expandBridgeLocalValidationArguments(message);
+async function prepareToolCallMessage(message, context) {
+  const withExpandedContractContext =
+    await expandBridgeLocalContractContextArguments(message, context);
+  const withExpandedValidation =
+    await expandBridgeLocalValidationArguments(withExpandedContractContext);
   return stripBridgeOnlyToolArguments(withExpandedValidation);
 }
 
@@ -522,6 +613,122 @@ async function expandBridgeLocalValidationArguments(message) {
     return expandBridgeGeneratedContractValidationArguments(message);
   }
   return message;
+}
+
+async function expandBridgeLocalContractContextArguments(message, context) {
+  if (message.params?.name !== "semaphor_plan_data_app_change") {
+    return message;
+  }
+  const originalArguments = message.params?.arguments;
+  if (!originalArguments || typeof originalArguments !== "object") {
+    return message;
+  }
+  const { outputDir, ...forwardedOriginalArguments } = originalArguments;
+  const messageWithoutOutputDir =
+    outputDir === undefined
+      ? message
+      : {
+          ...message,
+          params: {
+            ...message.params,
+            arguments: forwardedOriginalArguments,
+          },
+        };
+  const originalTarget =
+    originalArguments.target && typeof originalArguments.target === "object"
+      ? originalArguments.target
+      : {};
+  if (originalTarget.currentManifest && originalTarget.beforeCurrentAuthoringState) {
+    return messageWithoutOutputDir;
+  }
+
+  const localContext = await readBridgeGeneratedContractContext(
+    originalArguments,
+    context,
+    message,
+  );
+  if (!localContext?.manifest && !localContext?.beforeCurrentAuthoringState) {
+    return messageWithoutOutputDir;
+  }
+  return {
+    ...message,
+    params: {
+      ...message.params,
+      arguments: {
+        ...forwardedOriginalArguments,
+        target: {
+          ...originalTarget,
+          ...(localContext.manifest && !originalTarget.currentManifest
+            ? { currentManifest: localContext.manifest }
+            : {}),
+          ...(localContext.beforeCurrentAuthoringState &&
+            !originalTarget.beforeCurrentAuthoringState
+            ? {
+                beforeCurrentAuthoringState:
+                  localContext.beforeCurrentAuthoringState,
+              }
+            : {}),
+        },
+      },
+    },
+  };
+}
+
+async function readBridgeGeneratedContractContext(toolArguments, context, message) {
+  const workspaceDir = await bridgeLocalContractWorkspaceDirectory(toolArguments);
+  if (!workspaceDir) {
+    return undefined;
+  }
+  const localInspection = await inspectLocalDataAppStateWithValidation({
+    workspaceDir,
+    outputDir: toolArguments.outputDir,
+    context,
+    message,
+  });
+  if (localInspection.errorResponse) {
+    throw new Error(
+      localInspection.errorResponse.error?.message ||
+        "Failed to validate the local generated Data App contract.",
+    );
+  }
+  return {
+    manifest: localInspection.inspection.validationPayload?.manifest,
+    beforeCurrentAuthoringState:
+      localInspection.inspection.currentAuthoringState,
+  };
+}
+
+async function readBridgeGeneratedContractManifest(toolArguments) {
+  const workspaceDir = await bridgeLocalContractWorkspaceDirectory(toolArguments);
+  if (!workspaceDir) {
+    return undefined;
+  }
+  return readGeneratedContractValidationPayload(
+    workspaceDir,
+    toolArguments.outputDir,
+  ).manifest;
+}
+
+async function bridgeLocalContractWorkspaceDirectory(toolArguments) {
+  const explicitWorkspaceDir = firstBridgeWorkspaceDirectory(toolArguments);
+  if (explicitWorkspaceDir) {
+    return explicitWorkspaceDir;
+  }
+  const clientRootDirectories = await listClientRootDirectories();
+  if (clientRootDirectories.length !== 1) {
+    return undefined;
+  }
+  const [clientRootDirectory] = clientRootDirectories;
+  if (!clientRootDirectory) {
+    return undefined;
+  }
+  return clientRootDirectory;
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(
+    values.filter((value) => typeof value === "string" && value.trim()),
+  ));
 }
 
 async function expandBridgeGeneratedContractValidationArguments(message) {
@@ -581,17 +788,20 @@ async function inspectDataAppStateResponse(message, context) {
       },
     };
   }
-  const initialInspection = inspectGeneratedDataAppAuthoringState({
-    workspaceDir,
-    outputDir: originalArguments.outputDir,
-  });
-  if (!initialInspection.validationPayload) {
+  const { inspection, validation, errorResponse } =
+    await inspectLocalDataAppStateWithValidation({
+      workspaceDir,
+      outputDir: originalArguments.outputDir,
+      context,
+      message,
+    });
+  if (!inspection.validationPayload) {
     return {
       jsonrpc: "2.0",
       id: message.id,
       result: {
         structuredContent: {
-          currentAuthoringState: initialInspection.currentAuthoringState,
+          currentAuthoringState: inspection.currentAuthoringState,
           nextAgentAction:
             "Regenerate and materialize the Semaphor contract before planning iterative edits.",
         },
@@ -602,6 +812,43 @@ async function inspectDataAppStateResponse(message, context) {
         }],
       },
     };
+  }
+  if (errorResponse) {
+    return errorResponse;
+  }
+  return {
+    jsonrpc: "2.0",
+    id: message.id,
+    result: {
+      structuredContent: {
+        currentAuthoringState: inspection.currentAuthoringState,
+        validation,
+        nextAgentAction:
+          "For analytical edits, call semaphor_plan_data_app_change with workspaceDir; the installed bridge attaches the validated currentManifest and beforeCurrentAuthoringState. For UI-only edits, patch presentation code without changing src/semaphor/generated.",
+      },
+      content: [{
+        type: "text",
+        text:
+          inspection.currentAuthoringState.inspection.status === "inspected"
+            ? "Generated Data App state inspected and validated."
+            : "Generated Data App state inspection is blocked by validation issues.",
+      }],
+    },
+  };
+}
+
+async function inspectLocalDataAppStateWithValidation({
+  workspaceDir,
+  outputDir,
+  context,
+  message,
+}) {
+  const initialInspection = inspectGeneratedDataAppAuthoringState({
+    workspaceDir,
+    outputDir,
+  });
+  if (!initialInspection.validationPayload) {
+    return { inspection: initialInspection };
   }
   const validationMessage = {
     jsonrpc: "2.0",
@@ -620,32 +867,20 @@ async function inspectDataAppStateResponse(message, context) {
     await postMcpJsonRpc(validationMessage, context),
   );
   if (validationResponse.error) {
-    return validationResponse;
+    return {
+      inspection: initialInspection,
+      errorResponse: validationResponse,
+    };
   }
   const validation = validationFromMcpToolResult(validationResponse.result);
   const inspection = inspectGeneratedDataAppAuthoringState({
     workspaceDir,
-    outputDir: originalArguments.outputDir,
+    outputDir,
     validation,
   });
   return {
-    jsonrpc: "2.0",
-    id: message.id,
-    result: {
-      structuredContent: {
-        currentAuthoringState: inspection.currentAuthoringState,
-        validation,
-        nextAgentAction:
-          "Pass currentAuthoringState to semaphor_plan_data_app_change for analytical edits. For UI-only edits, patch presentation code without changing src/semaphor/generated.",
-      },
-      content: [{
-        type: "text",
-        text:
-          inspection.currentAuthoringState.inspection.status === "inspected"
-            ? "Generated Data App state inspected and validated."
-            : "Generated Data App state inspection is blocked by validation issues.",
-      }],
-    },
+    inspection,
+    validation,
   };
 }
 

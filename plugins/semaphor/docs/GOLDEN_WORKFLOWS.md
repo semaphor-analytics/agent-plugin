@@ -68,7 +68,8 @@ Expected agent behavior:
   explain the implementation instead of improvising query specs,
 - if a generated app is changed later, call
   `npm run data-app -- inspect-state --dir <app>` first, pass the returned
-  `currentAuthoringState` into `semaphor_plan_data_app_change`, then run
+  state as `target.beforeCurrentAuthoringState` into
+  `semaphor_plan_data_app_change`, then run
   `npm run data-app -- update-contract --dir <app> --goal "<goal>"
   --operation-intent-file <file>` so the CLI reads the large generated manifest
   locally; do not extract or replay `codegenSummary` or the generated manifest
@@ -309,8 +310,9 @@ Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.
 The generated directory includes `contract.manifest.json`, but future analytics
 changes should start with `npm run data-app -- inspect-state --dir <app>` and
-use `currentAuthoringState`; the local `update-contract` command reads the
-large manifest internally when applying the approved change.
+use the returned state as `target.beforeCurrentAuthoringState`; the local
+`update-contract` command reads the large manifest internally when applying the
+approved change.
 If contract generation fails twice before files are written, stop and report a
 planner/generator/tooling failure; do not manually recreate
 `src/semaphor/generated`.

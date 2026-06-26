@@ -435,14 +435,7 @@ function validateMcpBridge() {
     "semaphor_get_domain_relationships",
     "semaphor_propose_semantic_model_change",
     "semaphor_apply_semantic_model_patch",
-    "semaphor_plan_data_app",
-    "semaphor_plan_data_app_change",
     "semaphor_get_data_app_runtime_token",
-    "semaphor_create_data_app_contract",
-    "semaphor_generate_data_app_contract",
-    "semaphor_update_data_app_contract",
-    "semaphor_materialize_data_app_contract",
-    "semaphor_validate_data_app_contract",
   ];
   for (const serverOwnedTool of forbiddenFallbackServerOwnedTools) {
     const fallbackToolNamePattern = new RegExp(

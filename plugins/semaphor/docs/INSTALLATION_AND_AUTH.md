@@ -148,16 +148,19 @@ generated contract files.
 
 Some agent hosts launch plugin MCP servers from the installed plugin directory
 and do not pass workspace roots to the MCP process. In that case, direct
-`semaphor-project` MCP calls may not see the React app's `.env.local`
-automatically. Agents should retry the project-token tool call with an internal
-`workspaceDir` argument set to the current React app repository root. The
-bridge strips `workspaceDir` before forwarding the request to Semaphor and does
-not cache workspace paths across projects.
+`semaphor-project` MCP access-context calls may not see the React app's
+`.env.local` automatically. Agents may retry `semaphor_get_access_context`
+with an internal `workspaceDir` argument set to the current React app
+repository root. The bridge strips `workspaceDir` before forwarding the request
+to Semaphor and does not cache workspace paths across projects. If the
+installed bridge advertises bootstrap Data App dispatch tools before auth,
+agents may pass `workspaceDir` to those advertised tools only as a bridge-local
+target-app auth hint; the bridge strips it before forwarding to Semaphor.
 
-`workspaceDir` has two local bridge effects:
+`workspaceDir` has local bridge effects only:
 
-- Auth/context/discovery calls use it to read ignored local env files such as
-  `.env.local` for the current React app.
+- Auth/context/bootstrap dispatch calls use it to read ignored local env files
+  such as `.env.local` for the current React app.
 - `semaphor_materialize_data_app_contract` calls use it to materialize the
   server-returned generated contract artifact under `src/semaphor/generated`.
 - Validation calls use it to read

@@ -62,10 +62,10 @@ sessions, do not let the agent infer a project token from another open root.
 Use OAuth or configure the project-token environment explicitly before
 data-bearing work. In installed bridge runs, `workspaceDir` may be passed to
 `semaphor_get_access_context` only to locate the target app's ignored local
-project token, and to bridge-local file tools that advertise it. It is not a
-server generator/update input. Do not pass `workspaceDir` to
-`semaphor_create_data_app_contract`, `semaphor_generate_data_app_contract`, or
-`semaphor_update_data_app_contract`. For local generated contract writes, call
+project token, to unauthenticated bootstrap Data App dispatch tools that
+advertise it, and to bridge-local file tools that advertise it. It is not a
+server generator/update input, and the bridge strips it before forwarding to
+Semaphor. For local generated contract writes, call
 `semaphor_materialize_data_app_contract` with
 the server-returned `generatedContractArtifactId`,
 `generatedContractMaterializationToken`, and `workspaceDir`; the

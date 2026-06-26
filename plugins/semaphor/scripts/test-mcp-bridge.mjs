@@ -91,7 +91,7 @@ async function main() {
   await assertAuthenticatedMaterializeUsesTokenApiServiceUrl();
   await assertAuthenticatedToolsListProxiesLiveSurface();
   await assertAuthenticatedToolsListPreservesLiveErrors();
-  await assertWorkspaceDirAuthOnlyForAccessContextAndLocalTools();
+  await assertWorkspaceDirAuthWorksForBootstrapDataAppTools();
   await assertMaterializeResponseFilesAreMaterializedLocally();
   await assertGeneratorResponseWithoutWorkspaceDirIsMarkedPayloadOnly();
   await assertUpdateResponseWithoutWorkspaceDirPointsToMaterializeTool();
@@ -109,6 +109,9 @@ async function main() {
   await assertInspectStateBlocksOnValidationToolErrors();
   await assertInspectStateReadsCustomOutputDir();
   await assertInspectStateRejectsSymlinkedUiSource();
+  await assertPlanChangeWorkspaceDirInjectsCurrentManifest();
+  await assertPlanChangeWithoutWorkspaceDirDoesNotInferPwdManifest();
+  await assertPlanChangeStripsOutputDirWithProvidedCurrentState();
   console.log("Semaphor MCP bridge tests passed.");
 }
 
@@ -124,7 +127,33 @@ async function assertUnauthenticatedFallbackTools() {
     const toolNames = toolNamesFromResponse(response);
     assert.deepEqual(toolNames, [
       "semaphor_get_access_context",
+      "semaphor_get_data_app_sdk_guidance",
+      "semaphor_plan_data_app",
+      "semaphor_plan_data_app_change",
+      "semaphor_generate_data_app_contract",
+      "semaphor_create_data_app_contract",
+      "semaphor_update_data_app_contract",
+      "semaphor_materialize_data_app_contract",
+      "semaphor_validate_data_app_contract",
+      "semaphor_inspect_data_app_state",
     ]);
+    const createTool = response.result.tools.find((tool) =>
+      tool.name === "semaphor_create_data_app_contract"
+    );
+    assert.equal(createTool.inputSchema.properties.workspaceDir.type, "string");
+    const planChangeTool = response.result.tools.find((tool) =>
+      tool.name === "semaphor_plan_data_app_change"
+    );
+    assert.equal(planChangeTool.inputSchema.properties.workspaceDir.type, "string");
+    assert.equal(planChangeTool.inputSchema.properties.outputDir.type, "string");
+    const materializeTool = response.result.tools.find((tool) =>
+      tool.name === "semaphor_materialize_data_app_contract"
+    );
+    assert.equal(
+      materializeTool.inputSchema.properties
+        .generatedContractMaterializationToken.type,
+      "string",
+    );
   } finally {
     await bridge.stop();
   }
@@ -208,7 +237,7 @@ async function assertDataAppCliForwardsAuthOptionsToBridge() {
     JSON.stringify({
       goal: "Remove one view",
       operationIntent: {
-        kind: "remove",
+        kind: "analytics_remove",
         targetViewIds: ["revenue_trend"],
       },
       currentManifest: {
@@ -254,7 +283,7 @@ async function assertDataAppCliForwardsAuthOptionsToBridge() {
       "inspectable-test-hash",
     );
     assert.equal(
-      toolCall.body.params.arguments.target.currentAuthoringState.inspection.status,
+      toolCall.body.params.arguments.target.beforeCurrentAuthoringState.inspection.status,
       "inspected",
     );
   } finally {
@@ -577,6 +606,7 @@ async function assertAuthenticatedToolsListProxiesLiveSurface() {
         "semaphor_materialize_data_app_contract",
         "semaphor_validate_data_app_contract",
         "semaphor_inspect_data_app_state",
+        "semaphor_plan_data_app_change",
       ].includes(tool.name);
       assert.equal(
         tool.inputSchema.properties.workspaceDir?.type,
@@ -686,7 +716,7 @@ async function assertAuthenticatedToolsListPreservesLiveErrors() {
   }
 }
 
-async function assertWorkspaceDirAuthOnlyForAccessContextAndLocalTools() {
+async function assertWorkspaceDirAuthWorksForBootstrapDataAppTools() {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-bridge-workspace-auth-"));
   const calls = [];
   const server = await startMockMcpServer(calls);
@@ -725,15 +755,17 @@ async function assertWorkspaceDirAuthOnlyForAccessContextAndLocalTools() {
         },
       },
     });
-    assert.equal(generateResponse.result.isError, true);
-    assertMessageIncludes(
-      generateResponse.result.content?.[0]?.text,
-      "Do not pass workspaceDir to generator/update tools for auth discovery.",
-    );
+    assert.equal(generateResponse.result.isError, false);
     assert.equal(
       calls.length,
-      1,
-      "generator workspaceDir should not be used for token discovery or reach Semaphor",
+      2,
+      "generator should use workspaceDir for auth discovery and then forward to Semaphor",
+    );
+    assert.equal(calls[1].authorization, `Bearer ${projectToken}`);
+    assert.equal(
+      calls[1].body.params.arguments.workspaceDir,
+      undefined,
+      "workspaceDir is a bridge auth hint and must not be forwarded",
     );
   } finally {
     await bridge.stop();
@@ -1543,6 +1575,12 @@ async function assertInspectStateValidatesAndReturnsCurrentAuthoringState() {
   await mkdir(path.join(appDir, "src/semaphor/generated"), { recursive: true });
   await mkdir(path.join(appDir, "src/components"), { recursive: true });
   const summary = minimalCodegenSummary();
+  summary.views.push({
+    ...summary.views[0],
+    id: "unrelated_view",
+    title: "Unrelated View",
+    visualSpec: { visualType: "line_chart", title: "Unrelated View" },
+  });
   await writeFile(
     path.join(appDir, "src/semaphor/generated/contract.manifest.json"),
     JSON.stringify({
@@ -1562,7 +1600,13 @@ async function assertInspectStateValidatesAndReturnsCurrentAuthoringState() {
   );
   await writeFile(
     path.join(appDir, "src/components/Dashboard.tsx"),
-    '<section data-semaphor-view-id="revenue_trend" data-semaphor-input-id="region_filter" />\n',
+    [
+      'import { semaphorInputMarkerProps, semaphorViewMarkerProps } from "../semaphor/generated";',
+      '<section {...semaphorViewMarkerProps("revenue_trend")} {...semaphorInputMarkerProps("region_filter")} />',
+      '<SemaphorViewCard viewId="revenue_trend" title="Revenue Trend" />',
+      '<HostWidget viewId="unrelated_view" />',
+      '',
+    ].join("\n"),
     "utf8",
   );
   const calls = [];
@@ -1594,9 +1638,21 @@ async function assertInspectStateValidatesAndReturnsCurrentAuthoringState() {
     const state = response.result.structuredContent.currentAuthoringState;
     assert.equal(state.inspection.status, "inspected");
     assert.equal(state.views[0].viewId, "revenue_trend");
+    assert.deepEqual(state.views[0].metricBindingKeys, [
+      "semantic:retail_ops:datasetId:orders:SUM:net_revenue",
+    ]);
     assert.deepEqual(state.views[0].uiMapping.componentPaths, [
       "src/components/Dashboard.tsx",
     ]);
+    assert.deepEqual(state.views[1].uiMapping.componentPaths, []);
+    assert.equal(
+      state.inspection.warnings.some((warning) =>
+        warning.code === "unmapped_view_component" &&
+        warning.path === "views.unrelated_view"
+      ),
+      true,
+      "generic host component viewId props must not satisfy Semaphor view mapping",
+    );
     assert.equal(state.inputs[0].inputId, "region_filter");
     assert.equal(
       calls.some((call) =>
@@ -1778,6 +1834,226 @@ async function assertInspectStateRejectsSymlinkedUiSource() {
   }
 }
 
+async function assertPlanChangeWorkspaceDirInjectsCurrentManifest() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-plan-change-manifest-"));
+  await writeInspectableGeneratedContractFixture(appDir);
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: (parsed) => {
+      if (parsed.params?.name === "semaphor_validate_data_app_contract") {
+        return {
+          isError: false,
+          structuredContent: {
+            ok: true,
+            kind: "data_app_contract_validation",
+            issues: [],
+          },
+          content: [],
+        };
+      }
+      return {
+        isError: false,
+        structuredContent: {
+          validation: { status: "ready" },
+          planArtifactId: "dap_plan_change_manifest_test",
+        },
+        content: [],
+      };
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: projectTokenForMcpUrl(server.url),
+  });
+  try {
+    const tools = await bridge.request({
+      jsonrpc: "2.0",
+      id: 61,
+      method: "tools/list",
+    });
+    const planChangeTool = tools.result.tools.find((tool) =>
+      tool.name === "semaphor_plan_data_app_change"
+    );
+    assert.equal(planChangeTool.inputSchema.properties.workspaceDir.type, "string");
+    assert.equal(planChangeTool.inputSchema.properties.outputDir.type, "string");
+
+    const response = await bridge.request({
+      jsonrpc: "2.0",
+      id: 62,
+      method: "tools/call",
+      params: {
+        name: "semaphor_plan_data_app_change",
+        arguments: {
+          workspaceDir: appDir,
+          outputDir: "src/semaphor/generated",
+          goal: "Remove revenue trend",
+          operationIntent: {
+            kind: "analytics_remove",
+            targetViewIds: ["revenue_trend"],
+          },
+          target: { kind: "data_app" },
+        },
+      },
+    });
+    assert.equal(response.result.structuredContent.planArtifactId, "dap_plan_change_manifest_test");
+    const toolCall = calls.find((call) =>
+      call.body?.method === "tools/call" &&
+      call.body?.params?.name === "semaphor_plan_data_app_change"
+    );
+    assert.ok(toolCall, "expected bridge to forward plan change call");
+    assert.equal(toolCall.body.params.arguments.workspaceDir, undefined);
+    assert.equal(toolCall.body.params.arguments.outputDir, undefined);
+    assert.equal(
+      toolCall.body.params.arguments.target.currentManifest.generatedContentHash,
+      "inspectable-test-hash",
+    );
+    assert.equal(
+      toolCall.body.params.arguments.target.currentManifest.codegenSummary.views[0].id,
+      "revenue_trend",
+    );
+    assert.equal(
+      toolCall.body.params.arguments.target.beforeCurrentAuthoringState
+        .inspection.status,
+      "inspected",
+    );
+    assert.equal(
+      toolCall.body.params.arguments.target.beforeCurrentAuthoringState
+        .inspection.generatedContract.digest,
+      "inspectable-test-hash",
+    );
+    assert.deepEqual(
+      toolCall.body.params.arguments.target.beforeCurrentAuthoringState.views
+        .map((view) => view.viewId),
+      ["revenue_trend"],
+    );
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertPlanChangeWithoutWorkspaceDirDoesNotInferPwdManifest() {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "semaphor-plan-change-no-pwd-"));
+  await writeInspectableGeneratedContractFixture(appDir);
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        validation: { status: "blocked" },
+        nextStep: "ask_user",
+      },
+      content: [],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: projectTokenForMcpUrl(server.url),
+    PWD: appDir,
+  });
+  try {
+    await bridge.request({
+      jsonrpc: "2.0",
+      id: 63,
+      method: "tools/call",
+      params: {
+        name: "semaphor_plan_data_app_change",
+        arguments: {
+          outputDir: "src/semaphor/generated/custom",
+          goal: "Remove revenue trend",
+          operationIntent: {
+            kind: "analytics_remove",
+            targetViewIds: ["revenue_trend"],
+          },
+          target: {
+            kind: "data_app",
+            beforeCurrentAuthoringState: {
+              inspection: { status: "inspected" },
+            },
+          },
+        },
+      },
+    });
+    const toolCall = calls.find((call) =>
+      call.body?.method === "tools/call" &&
+      call.body?.params?.name === "semaphor_plan_data_app_change"
+    );
+    assert.ok(toolCall, "expected bridge to forward plan change call");
+    assert.equal(
+      toolCall.body.params.arguments.outputDir,
+      undefined,
+      "bridge must strip outputDir before forwarding plan-change calls even when local context is not injected",
+    );
+    assert.equal(
+      toolCall.body.params.arguments.target.currentManifest,
+      undefined,
+      "bridge must not attach a generated manifest from PWD without explicit workspaceDir or a single client root",
+    );
+  } finally {
+    await bridge.stop();
+    await server.stop();
+    await rm(appDir, { recursive: true, force: true });
+  }
+}
+
+async function assertPlanChangeStripsOutputDirWithProvidedCurrentState() {
+  const calls = [];
+  const server = await startMockMcpServer(calls, {
+    callResult: {
+      isError: false,
+      structuredContent: {
+        validation: { status: "ready" },
+        planArtifactId: "dap_plan_change_provided_state",
+      },
+      content: [],
+    },
+  });
+  const bridge = startBridge({
+    SEMAPHOR_PROJECT_TOKEN: projectTokenForMcpUrl(server.url),
+  });
+  try {
+    await bridge.request({
+      jsonrpc: "2.0",
+      id: 64,
+      method: "tools/call",
+      params: {
+        name: "semaphor_plan_data_app_change",
+        arguments: {
+          outputDir: "src/semaphor/generated/custom",
+          goal: "Remove revenue trend",
+          operationIntent: {
+            kind: "analytics_remove",
+            targetViewIds: ["revenue_trend"],
+          },
+          target: {
+            kind: "data_app",
+            currentManifest: {
+              schemaVersion: "semaphor-data-app-generated-contract-manifest/v1",
+              generatedContentHash: "provided-manifest-hash",
+            },
+            beforeCurrentAuthoringState: {
+              inspection: { status: "inspected" },
+              views: [{ viewId: "revenue_trend" }],
+            },
+          },
+        },
+      },
+    });
+    const toolCall = calls.find((call) =>
+      call.body?.method === "tools/call" &&
+      call.body?.params?.name === "semaphor_plan_data_app_change"
+    );
+    assert.ok(toolCall, "expected bridge to forward plan change call");
+    assert.equal(toolCall.body.params.arguments.outputDir, undefined);
+    assert.equal(
+      toolCall.body.params.arguments.target.currentManifest.generatedContentHash,
+      "provided-manifest-hash",
+    );
+  } finally {
+    await bridge.stop();
+    await server.stop();
+  }
+}
+
 function generatedContractArtifactPayload(input) {
   const payload = {
     ok: true,
@@ -1832,6 +2108,9 @@ function minimalCodegenSummary() {
         },
       },
       fields: [fieldRef],
+      metricBindingKeys: [
+        "semantic:retail_ops:datasetId:orders:SUM:net_revenue",
+      ],
       computation: {
         kind: "server_query",
         queryKind: "metric",

@@ -196,13 +196,14 @@ disambiguator.
 Cards should show active subscribed filters without turning the dashboard into
 a debug panel. In generated starter/eval apps, use `SemaphorViewCard` or
 `SemaphorViewFilterBadge` when available because they provide the structured
-view-shell marker and filter affordance. In customer apps with existing card
-primitives, use `Badge`, muted inline text, `Tooltip`, or `Popover` for a
-compact "filtered by" affordance in the card header or footer, and preserve the
-structured marker when running Semaphor evals. Show only filters actually
-passed to that card's query. Prefer labels users recognize from the controls,
-such as `Date range`, `Facility`, `Material`, or `Market index`; avoid
-source/table names unless needed for disambiguation.
+view-shell marker and filter affordance when passed the generated `viewId`. In
+customer apps with existing card primitives, use `Badge`, muted inline text,
+`Tooltip`, or `Popover` for a compact "filtered by" affordance in the card
+header or footer, and preserve `data-semaphor-view-id` through
+`semaphorViewMarkerProps(viewId)` or equivalent generated marker props. Show
+only filters actually passed to that card's query. Prefer labels users
+recognize from the controls, such as `Date range`, `Facility`, `Material`, or
+`Market index`; avoid source/table names unless needed for disambiguation.
 
 Prefer the app's installed date-range picker, calendar, popover, or command
 combobox patterns for dashboard controls. In starter/eval workspaces, the

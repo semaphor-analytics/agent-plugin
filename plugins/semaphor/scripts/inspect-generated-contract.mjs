@@ -198,6 +198,7 @@ function authoringView(view, uiMapping) {
       ...(view.fields || []).map((field) => field.name),
       ...(view.computation?.fieldNames || []),
     ]),
+    ...metricBindingKeysForView(view),
     ...(view.validation?.status ? { validationStatus: view.validation.status } : {}),
     aliases: aliasesForRecord({
       id: view.id,
@@ -236,6 +237,13 @@ function authoringInput(input, uiMapping) {
 function sourceKeyFromSdkSpec(view) {
   const source = view.sdkSpec?.spec?.source;
   return typeof source?.sourceKey === "string" ? source.sourceKey : undefined;
+}
+
+function metricBindingKeysForView(view) {
+  const keys = uniqueStrings(
+    Array.isArray(view.metricBindingKeys) ? view.metricBindingKeys : [],
+  );
+  return keys.length > 0 ? { metricBindingKeys: keys } : {};
 }
 
 function scanUiMarkers(workspaceRoot, codegenSummary) {
@@ -358,7 +366,40 @@ function markerFound(text, markerName, id) {
     `${markerName}={\"${id}\"}`,
     `${markerName}={'${id}'}`,
   ];
+  if (markerName === "data-semaphor-view-id") {
+    candidates.push(
+      `semaphorViewMarkerProps(${JSON.stringify(id)})`,
+      `semaphorViewMarkerProps('${id}')`,
+    );
+    const semaphorViewCardMarker = semaphorViewCardMarkerFound(text, id);
+    if (semaphorViewCardMarker) {
+      return semaphorViewCardMarker;
+    }
+  }
+  if (markerName === "data-semaphor-input-id") {
+    candidates.push(
+      `semaphorInputMarkerProps(${JSON.stringify(id)})`,
+      `semaphorInputMarkerProps('${id}')`,
+    );
+  }
   return candidates.find((candidate) => text.includes(candidate));
+}
+
+function semaphorViewCardMarkerFound(text, id) {
+  const escapedId = escapeRegExp(id);
+  const patterns = [
+    new RegExp(`<SemaphorViewCard\\b[^>]*\\bviewId="${escapedId}"`, "u"),
+    new RegExp(`<SemaphorViewCard\\b[^>]*\\bviewId='${escapedId}'`, "u"),
+    new RegExp(`<SemaphorViewCard\\b[^>]*\\bviewId=\\{"${escapedId}"\\}`, "u"),
+    new RegExp(`<SemaphorViewCard\\b[^>]*\\bviewId=\\{['"]${escapedId}['"]\\}`, "u"),
+  ];
+  return patterns.some((pattern) => pattern.test(text))
+    ? `SemaphorViewCard:${id}`
+    : "";
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function unmappedWarnings(codegenSummary, uiMapping) {

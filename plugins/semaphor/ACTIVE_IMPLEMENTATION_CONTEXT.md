@@ -16,9 +16,8 @@ artifact workflow, not a different MCP behavior.
 The plugin bridge may still:
 
 - read a project token from process env, current working directory, configured
-  client roots, or a target app workspace only for `semaphor_get_access_context`
-  token discovery and bridge-local tools that still explicitly accept
-  `workspaceDir`;
+  client roots, or a target app workspace for installed-bridge calls that
+  explicitly accept `workspaceDir` as a bridge-local auth/context hint;
 - accept bridge-local `workspaceDir` on
   `semaphor_materialize_data_app_contract` calls so the installed plugin bridge
   can materialize server-returned generated contract artifacts under the target
@@ -33,6 +32,12 @@ The plugin bridge may still:
 - accept bridge-local `workspaceDir` on validation calls so the bridge can read
   the generated manifest plus generated TypeScript files and forward that
   payload to the server-owned validator;
+- advertise a minimal bootstrap Data App tool surface before project-token auth
+  when the target app token is discoverable only from `workspaceDir` on the
+  first tool call. These bootstrap schemas are dispatch/auth-context schemas
+  for server-owned tools; the bridge must still strip bridge-only arguments,
+  resolve auth, and proxy the call to Semaphor instead of implementing planning,
+  generation, update, or validation locally;
 - accept bridge-local `workspaceDir` on `semaphor_inspect_data_app_state` so
   the bridge can validate local generated files and return compact
   `currentAuthoringState` for iterative authoring. Hosted MCP may expose the
@@ -47,12 +52,14 @@ The plugin bridge may still:
   that prevents agents from hand-authoring or pasting large manifest payloads;
 - strip `workspaceDir` before forwarding tool arguments to Semaphor. It is a
   local bridge hint, not a server generator input;
-- expose only auth/access guidance before project-token auth is available;
+- expose only access/context plus Data App bootstrap dispatch tools before
+  project-token auth is available;
 - proxy live Semaphor MCP tools after auth.
 
 The plugin bridge and plugin package must not:
 
-- define plugin-local MCP schemas for Data App contract tools;
+- define plugin-local implementation schemas for Data App contract behavior
+  beyond the minimal bootstrap dispatch schemas described above;
 - ship local generated-contract generator or validator wrappers;
 - ask agents to use file paths, `planArtifactPath`, `codegenSummaryPath`, or
   inline codegen artifacts as generator inputs;
@@ -66,20 +73,14 @@ The plugin bridge and plugin package must not:
 
 Version constraint for reviewers:
 
-- Do not ask to re-advertise `workspaceDir` on
-  `semaphor_generate_data_app_contract`,
+- Do not ask to re-advertise `workspaceDir` on the authenticated live
+  server-owned schemas for `semaphor_generate_data_app_contract`,
   `semaphor_create_data_app_contract`, or
-  `semaphor_update_data_app_contract` for project-token auth discovery. For
-  this hard-migration version, project-token runs are expected to launch from
-  the target app root, use configured client roots, or export
-  `SEMAPHOR_PROJECT_TOKEN` / `VITE_SEMAPHOR_PROJECT_TOKEN` before calling
-  generate/create/update. `workspaceDir` is reserved for
-  `semaphor_get_access_context` token discovery,
-  `semaphor_materialize_data_app_contract` local writes, validation workspace
-  reads, and inspect-state. If non-app-cwd project-token auth becomes a
-  blocking workflow beyond access-context, the follow-up should be a separate
-  bridge-only auth hint, not overloading `workspaceDir` on generator/update
-  tools again.
+  `semaphor_update_data_app_contract`. Authenticated live schemas should remain
+  the server contract. The installed bridge may expose `workspaceDir` on the
+  unauthenticated bootstrap dispatch schemas for these tools only so the first
+  call can resolve the target app project token from `.env.local`; the bridge
+  must strip `workspaceDir` before forwarding to Semaphor.
 
 ## Review Guardrails
 
@@ -105,19 +106,21 @@ Raise findings for:
 - `semaphor_inspect_data_app_state` reporting `inspection.status="inspected"`
   without validating the local generated manifest plus generated TypeScript
   files through Semaphor;
-- docs, skills, or eval prompts telling agents to pass `workspaceDir` to
-  `semaphor_generate_data_app_contract`,
+- docs, skills, or eval prompts telling agents that `workspaceDir` is a
+  server-side input for `semaphor_generate_data_app_contract`,
   `semaphor_create_data_app_contract`, or
-  `semaphor_update_data_app_contract` instead of calling
-  `semaphor_materialize_data_app_contract` with `generatedContractArtifactId`
-  plus `generatedContractMaterializationToken` plus `workspaceDir`;
+  `semaphor_update_data_app_contract`, or telling agents to use those tools for
+  local file writes instead of calling `semaphor_materialize_data_app_contract`
+  with `generatedContractArtifactId` plus
+  `generatedContractMaterializationToken` plus `workspaceDir`;
 - docs, skills, or eval prompts describing `workspaceDir` as a server-side
   generator input instead of a bridge-local hint that is stripped before
   forwarding;
-- a bridge fallback that advertises rich planning, generation, update,
-  validation, semantic, runtime-token, materialization, or analytics tools
-  before auth. The only allowed fallback before project-token auth is
-  `semaphor_get_access_context` guidance.
+- a bridge fallback that advertises semantic modeling, runtime-token, general
+  analytics, or other non-Data-App bootstrap tools before auth. The allowed
+  pre-auth bootstrap surface is `semaphor_get_access_context` plus minimal Data
+  App workflow dispatch tools that need `workspaceDir` to resolve target-app
+  auth on the first call.
 
 Do not raise findings asking for legacy compatibility with the removed local
 generator/validator scripts. This feature is still under development and the

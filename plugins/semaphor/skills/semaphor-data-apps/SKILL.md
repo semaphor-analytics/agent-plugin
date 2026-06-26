@@ -57,8 +57,10 @@ public SDK builders/hooks, validate, then save or publish when requested.
    `generatedContractMaterializationToken`, not a project token. Require
    `materialization.status="written"` and `src/semaphor/generated` before UI edits. Do not pass inline `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
 7. Existing generated app: run `npm run data-app -- inspect-state --dir <app>`;
-   pass `currentAuthoringState` to change planning; then use
-   `npm run data-app -- update-contract --dir <app> --goal "<goal>" --operation-intent-file <file>`; do not replay `codegenSummary`, manifests, or file payloads.
+   pass the returned state as `target.beforeCurrentAuthoringState` to change planning. Analytical edits use
+   `analytics_*`/`input_*` intents and `update-contract`; layout/style/debug
+   intents do not call contract update/materialization. See
+   `references/planning-workflow.md`.
 8. Dependencies: ask before installing TanStack/chart libraries, copying
    starter source, or starter scaffolds. Starter/eval apps already include
    Semaphor components; existing apps use host UI first.
@@ -100,10 +102,10 @@ Classify the turn before editing:
 - `inspect_files`: inspect the React app without file edits.
 - `plan_app`: inspect data and propose a structured plan; no file edits.
 - `create_app`: add a Semaphor-backed app surface or route.
-- `add_view`, `modify_view`, `remove_view`: change analytical views.
-- `add_input`, `modify_input`, `remove_input`: change filters or controls.
-- `change_layout`, `change_style`: change UI without changing analytics meaning.
-- `fix_error`: fix runtime, typecheck, build, or data execution errors.
+- `add_view`, `modify_view`, `remove_view`: analytical view changes.
+- `add_input`, `modify_input`, `remove_input`: filter/control changes.
+- `change_layout`, `change_style`: UI-only changes.
+- `fix_error`: runtime/debug investigation before deciding the owner layer.
 - `save_draft`: save to Semaphor when lifecycle APIs are available.
 - `publish`: publish through Semaphor when lifecycle APIs are available.
 
@@ -129,7 +131,7 @@ constraints, responseDetail: "plan_summary" })`, present the visible plan
 summary and `planArtifactId`, and stop. Use `responseDetail: "full"` only for
 debugging planner internals. After approval, generate with `planArtifactId`;
 materialize with the installed bridge tool or `npm run data-app -- materialize-contract`, then verify
-`src/semaphor/generated` before UI edits. Hosted MCP payload-only output is expected; if local materialization still does not return `materialization.status="written"`, stop as materialization failure. Do not write files from tool output. For edits, run `npm run data-app -- inspect-state --dir <app>`, pass the returned `currentAuthoringState` to change planning, then use `npm run data-app -- update-contract --dir <app> --goal "<goal>" --operation-intent-file <file>` so the CLI reads the large manifest locally.
+`src/semaphor/generated` before UI edits. Hosted MCP payload-only output is expected; if local materialization still does not return `materialization.status="written"`, stop as materialization failure. Do not write files from tool output. For edits, follow `references/planning-workflow.md`.
 When present, use `localMaterialization.officialCommand` as the machine-readable
 command shape instead of parsing `nextAgentAction` prose.
 Build React from `src/semaphor/generated` plus returned visual specs and
@@ -152,23 +154,10 @@ For broad dashboard-style app creation, prefer `constraints.maxViews` around
 single-source default or invent planner format knobs such as
 `"compact_summary"` or legacy `"codegen_summary"`.
 
-The visible planning response must include:
-
-- the selected domain/source and any reasonable alternatives considered;
-- a visual inventory with counts by visual type before the detailed view list;
-- planned views with visual type, query kind, source fields, and whether each
-  view is server-backed, derived, presentation-only, unsupported, or SQL
-  fallback. Use clear visual labels such as KPI strip, KPI card, line chart,
-  bar chart, stacked bar chart, area chart, pie/donut chart,
-  text/commentary block, table, matrix, filter control, or detail panel so the
-  user knows what will appear before codegen;
-- planned filters and which views they affect;
-- table behavior and dependency recommendations, including whether a Semaphor
-  registry table or TanStack dependency would be useful;
-- files/components the agent expects to create or modify;
-- unsupported gaps and the semantic-model improvement needed;
-- a clear decision prompt: build, revise, choose another domain/source, inspect
-  more data, or cancel.
+The visible planning response must include selected domain/source, visual
+inventory, planned views, filter scope, table behavior/dependencies, expected
+files, unsupported gaps, and a clear decision prompt: build, revise, choose
+another domain/source, inspect more data, or cancel.
 
 When MCP tool discovery is needed, expose the specific Semaphor tools you need
 instead of inspecting plugin files or manually speaking MCP. The normal first
@@ -223,6 +212,11 @@ as a required dashboard quality checklist, not optional inspiration.
   database credentials.
 - Generated runtime analytics code must use public `react-semaphor/data-app-sdk`
   builders and `useSemaphorQuery`.
+- Data-bearing view and input shells must preserve generated authoring markers.
+  Prefer `semaphorViewMarkerProps(viewId)` and
+  `semaphorInputMarkerProps(inputId)` from `src/semaphor/generated`, or starter
+  components such as `SemaphorViewCard viewId={...}` and Semaphor filter
+  controls that emit `data-semaphor-view-id` / `data-semaphor-input-id`.
 - Generated runtime filter option loading must use `semaphor.inputOptions(...)`
   when choices come from Semaphor data. Do not use `semaphor.records(...)` to
   fetch broad lookup rows and derive dropdown/select options in React unless

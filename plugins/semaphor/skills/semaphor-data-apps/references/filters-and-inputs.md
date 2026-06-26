@@ -215,10 +215,11 @@ more subscribed filters are active:
 - omit the affordance when no subscribed filter is active, unless the app needs
   to show always-on default context such as "Latest 12 months".
 
-In starter/eval apps, prefer the starter-included `SemaphorViewCard` when the
-view should show applied-filter affordances. A host-owned card is valid when it
-shows only filters actually applied to the view query and, for evals, exposes
-the same structured view-shell marker:
+In starter/eval apps, prefer the starter-included `SemaphorViewCard` with its
+generated `viewId` when the view should show applied-filter affordances. A
+host-owned card is valid when it shows only filters actually applied to the
+view query and exposes the generated `data-semaphor-view-id` marker, preferably
+through `semaphorViewMarkerProps(viewId)` from `src/semaphor/generated`:
 
 ```tsx
 import {
@@ -351,6 +352,10 @@ const purchaseRows = useSemaphorQuery(purchaseQuery, {
 const salesRows = useSemaphorQuery(salesQuery, {
   inputs: [semaphor.bindInput(dateRangeHandle, { field: saleDate })],
 });
+
+<SemaphorViewCard viewId="revenue_trend" title="Revenue Trend" filters={filtersForRevenueTrend}>
+  ...
+</SemaphorViewCard>
 ```
 
 If the planner returns `input.bindings[]`, each binding is a server-side
