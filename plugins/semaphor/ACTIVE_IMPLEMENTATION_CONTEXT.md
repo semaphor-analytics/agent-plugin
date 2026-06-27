@@ -105,8 +105,8 @@ Raise findings for:
   `src/semaphor/generated` was not materialized by the installed plugin bridge;
 - docs, skills, or eval prompts treating `nextAgentAction` prose as the
   machine contract when `localMaterialization.officialCommand` is present;
-- docs, skills, or eval prompts saying the official
-  `npm run data-app -- materialize-contract` command requires a project token;
+- docs, skills, or eval prompts saying the official typed materialization
+  command requires a project token;
 - docs, skills, or eval prompts telling agents to paste
   `contract.manifest.json`, `codegenSummary`, or generated TypeScript contents
   into chat/tool calls for iterative updates instead of using the official

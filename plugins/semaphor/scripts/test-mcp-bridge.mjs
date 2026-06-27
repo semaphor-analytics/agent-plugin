@@ -179,8 +179,6 @@ async function assertDataAppCliMaterializeContractWritesCompactOutput() {
       [
         dataAppCliPath,
         "materialize-contract",
-        "--dir",
-        appDir,
         "--artifact-id",
         "dap_contract_cli_test",
         "--materialization-token",
@@ -872,6 +870,21 @@ async function assertMaterializeResponseFilesAreMaterializedLocally() {
     assert.equal(response.result.structuredContent.materialization.mode, "local_write");
     assert.equal(response.result.structuredContent.materialization.status, "written");
     assert.equal(response.result.structuredContent.materialization.fileCount, 2);
+    assert.ok(
+      response.result.content?.some((part) =>
+        typeof part?.text === "string" &&
+        part.text.includes("Materialization: local_write/written")
+      ),
+      "materialize response text should match local_write/written status",
+    );
+    assert.equal(
+      response.result.content?.some((part) =>
+        typeof part?.text === "string" &&
+        part.text.includes("payload_only/not_written")
+      ),
+      false,
+      "materialize response text must not preserve stale payload_only status",
+    );
     assert.equal(response.result.structuredContent.localMaterialization.required, false);
     assert.equal(response.result.structuredContent.localMaterialization.status, "written");
     assert.equal(
@@ -951,12 +964,8 @@ async function assertGeneratorResponseWithoutWorkspaceDirIsMarkedPayloadOnly() {
     assert.deepEqual(
       response.result.structuredContent.localMaterialization.officialCommand.args,
       [
-        "run",
-        "data-app",
-        "--",
+        "${semaphorPluginRoot}/scripts/semaphor-data-app.mjs",
         "materialize-contract",
-        "--dir",
-        "${workspaceDir}",
         "--artifact-id",
         "dap_contract_test",
         "--materialization-token",
@@ -964,6 +973,14 @@ async function assertGeneratorResponseWithoutWorkspaceDirIsMarkedPayloadOnly() {
         "--artifact-base-url",
         "https://semaphor.cloud",
       ],
+    );
+    assert.equal(
+      response.result.structuredContent.localMaterialization.officialCommand.command,
+      "node",
+    );
+    assert.equal(
+      response.result.structuredContent.localMaterialization.officialCommand.cwd,
+      "${workspaceDir}",
     );
     assertMessageIncludes(
       response.result.structuredContent.nextAgentAction,
@@ -1273,6 +1290,7 @@ async function assertValidatorWorkspaceDirReadsGeneratedFilesLocally() {
     schemaVersion: "semaphor-data-app-generated-contract-manifest/v1",
     generatedContentHash: "test-hash",
     generatedFilePaths: {
+      "USAGE.md": "src/semaphor/generated/USAGE.md",
       "index.ts": "src/semaphor/generated/index.ts",
       "metadata.ts": "src/semaphor/generated/metadata.ts",
       "future-contract.ts": "src/semaphor/generated/future-contract.ts",
@@ -1296,6 +1314,11 @@ async function assertValidatorWorkspaceDirReadsGeneratedFilesLocally() {
   await writeFile(
     path.join(generatedDir, "future-contract.ts"),
     "export const future = true;\n",
+    "utf8",
+  );
+  await writeFile(
+    path.join(generatedDir, "USAGE.md"),
+    "# Generated usage\n",
     "utf8",
   );
   await writeFile(
@@ -1336,6 +1359,7 @@ async function assertValidatorWorkspaceDirReadsGeneratedFilesLocally() {
     assert.equal(calls[0].body.method, "tools/call");
     assert.deepEqual(calls[0].body.params.arguments.manifest, manifest);
     assert.deepEqual(calls[0].body.params.arguments.generatedFiles, {
+      "USAGE.md": "# Generated usage\n",
       "future-contract.ts": "export const future = true;\n",
       "index.ts": "export const generated = true;\n",
       "metadata.ts": "export const metadata = {} as const;\n",

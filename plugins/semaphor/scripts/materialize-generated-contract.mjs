@@ -92,7 +92,7 @@ export function readGeneratedContractValidationPayload(workspaceDir, outputDir) 
 
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const generatedFiles = {};
-  const generatedFilePaths = generatedTypeScriptFilePathsFromManifest(manifest);
+  const generatedFilePaths = generatedFilePathsFromManifest(manifest);
   const generatedDirRelative = toAppRelativePath(workspaceRoot, generatedDir);
   for (const [fileName, relativePath] of Object.entries(generatedFilePaths)) {
     if (path.isAbsolute(relativePath)) {
@@ -269,7 +269,7 @@ function filesWithGeneratedFilePathManifest({ files, filePaths, manifest }) {
   if (!manifestRecord) {
     return files;
   }
-  manifestRecord.generatedFilePaths = generatedTypeScriptFilePathEntries(filePaths);
+  manifestRecord.generatedFilePaths = generatedFilePathEntries(filePaths);
   return {
     ...files,
     "contract.manifest.json": `${JSON.stringify(manifestRecord, null, 2)}\n`,
@@ -290,11 +290,13 @@ function parseManifestFile(content) {
   }
 }
 
-function generatedTypeScriptFilePathEntries(filePaths) {
+function generatedFilePathEntries(filePaths) {
   return Object.fromEntries(
     Object.entries(filePaths)
       .filter(([fileName, relativePath]) =>
-        fileName.endsWith(".ts") &&
+        typeof fileName === "string" &&
+        fileName.trim() &&
+        fileName !== "contract.manifest.json" &&
         typeof relativePath === "string" &&
         relativePath.trim() &&
         !path.isAbsolute(relativePath)
@@ -337,7 +339,7 @@ function sortKeysDeep(value) {
   return value;
 }
 
-function generatedTypeScriptFilePathsFromManifest(manifest) {
+function generatedFilePathsFromManifest(manifest) {
   const generatedFilePaths = manifest?.generatedFilePaths;
   if (
     !generatedFilePaths ||
@@ -350,8 +352,8 @@ function generatedTypeScriptFilePathsFromManifest(manifest) {
   }
   const entries = {};
   for (const [fileName, relativePath] of Object.entries(generatedFilePaths)) {
-    if (!fileName.endsWith(".ts")) {
-      continue;
+    if (typeof fileName !== "string" || !fileName.trim()) {
+      throw new Error("Generated contract manifest file names must be non-empty strings.");
     }
     if (typeof relativePath !== "string" || !relativePath.trim()) {
       throw new Error(
@@ -365,7 +367,7 @@ function generatedTypeScriptFilePathsFromManifest(manifest) {
   }
   if (Object.keys(entries).length === 0) {
     throw new Error(
-      "Generated contract manifest generatedFilePaths must include generated TypeScript files.",
+      "Generated contract manifest generatedFilePaths must include generated files.",
     );
   }
   return entries;

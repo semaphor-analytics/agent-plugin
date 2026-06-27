@@ -56,8 +56,8 @@ public SDK builders/hooks, validate, then save or publish when requested.
    `src/App.tsx`.
 6. Contract generation: after plan approval, call
    `semaphor_generate_data_app_contract(planArtifactId)`, then
-   materialize locally with the installed bridge materializer or
-   `npm run data-app -- materialize-contract`. Use
+   materialize locally with the installed bridge materializer or the typed
+   `localMaterialization.officialCommand`. Use
    `localMaterialization.officialCommand` when present; the official command
    uses `generatedContractArtifactBaseUrl` and the short-lived
    `generatedContractMaterializationToken`, not a project token. Require
@@ -136,15 +136,15 @@ For broad new Data App requests, call `semaphor_plan_data_app({ domainId, goal,
 constraints })`, present the default visible plan summary and `planArtifactId`, and stop. Use `responseDetail: "artifact_only"` only after a visible plan has
 already been reviewed, and use `responseDetail: "full"` only for debugging
 planner internals. After approval, generate with `planArtifactId`;
-materialize with the installed bridge tool or `npm run data-app -- materialize-contract`, then verify
+materialize with the installed bridge tool or the typed `localMaterialization.officialCommand`, then verify
 `src/semaphor/generated` before UI edits. Hosted MCP payload-only output is expected; if local materialization still does not return `materialization.status="written"`, stop as materialization failure. Do not write files from tool output. For edits, follow `references/planning-workflow.md`.
 When present, use `localMaterialization.officialCommand` as the machine-readable
 command shape instead of parsing `nextAgentAction` prose.
-Build React from `src/semaphor/generated` plus returned visual specs and
-unsupported gaps. Do not recreate generated sources, fields, inputs, input
-option queries, or filter bindings manually. Use `queries.someView()` with
-`queryOptionsForView.someView(inputHandles)`; for server tables, derive UI sort
-choices from generated `recordsSortOptionsForView`.
+Build React from `src/semaphor/generated` plus returned visual specs and gaps.
+Read generated `USAGE.md` first when present. Do not recreate generated sources,
+fields, inputs, option queries, or filter bindings manually. Use
+`queries.someView()` with `queryOptionsForView.someView(inputHandles)`; for
+server tables, derive UI sort choices from `recordsSortOptionsForView`.
 If contract generation or materialization fails twice, report a tooling failure instead of hand-writing generated files.
 Treat generated `contract.manifest.json` as the durable contract for changes.
 
@@ -211,8 +211,8 @@ as a required dashboard quality checklist, not optional inspiration.
   generating data-bearing code.
 - Treat host-exposed Semaphor MCP tools as the primary planning/generation
   interface. For local generated-contract writes, use the installed bridge
-  materializer tool when exposed, or the official
-  `npm run data-app -- materialize-contract` command. The generic `call:mcp`
+  materializer tool when exposed, or the official typed materialization
+  command. The generic `call:mcp`
   wrapper is diagnostic only. Never manually speak MCP protocol.
 - Do not invent dataset names, field names, joins, metrics, IDs, or raw
   database credentials.
@@ -272,9 +272,9 @@ as a required dashboard quality checklist, not optional inspiration.
   canonical docs, then bundled SDK fallback only when offline.
 - Do not use `ReturnType<typeof useSemaphorQuery>` for helper props. Use
   public SDK result types.
-- Use generated `rowValuesForView`/`columnKeysForView` for row access and
-  generated `metricValuesForView`/`metricMeasureKeysForView` for KPI and metric
-  value access. Never use labels, semantic names, or hand-typed `result.measures[...]` keys as result keys.
+- Use generated `rowValuesForView`/`columnKeysForView`, `kpiPropsForView`, and
+  `metricValuesForView`/`metricMeasureKeysForView`. Never use labels, semantic
+  names, or hand-typed `result.measures[...]` keys as result keys.
 - Prefer `semaphor_analyze` for governed semantic BI checks,
   `semaphor_matrix` for pivot/matrix checks, and
   `semaphor_query_sql_advanced` only for SQL-first or unsupported analysis.

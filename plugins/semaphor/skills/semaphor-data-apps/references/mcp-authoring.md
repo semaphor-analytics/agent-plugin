@@ -79,8 +79,8 @@ only exposes hosted OAuth materialization and returns
 `materialization.status="not_written"`, use the official local command instead:
 
 ```bash
-npm run data-app -- materialize-contract \
-  --dir /path/to/react-app \
+# from the target React app root
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs materialize-contract \
   --artifact-id <generatedContractArtifactId> \
   --materialization-token <generatedContractMaterializationToken> \
   --artifact-base-url <generatedContractArtifactBaseUrl>

@@ -396,6 +396,30 @@ upgrading `react-semaphor`.
 
 Owner layer: generated app provider wiring or package resolution.
 
+## KPI Value Is Missing Or Unexpected
+
+Symptom:
+
+```text
+A KPI renders "-", "0", or a stale value even though the query trace is green.
+```
+
+Check the sanitized DevTools result preview before adding component logs:
+
+```js
+const snapshot = window.__SEMAPHOR_DEVTOOLS__?.snapshot();
+snapshot?.getQuery("<query-id>")?.latestAttempt?.resultPreview;
+```
+
+For metric queries, the preview includes bounded rows for `primaryValue`,
+`value`, populated `measures`, `measureBindings`, `missingMeasures`, and
+comparison fields when present. If the preview shows a missing measure, fix the
+generated contract/runtime metric binding path rather than hand-mapping
+`result.measures` in React.
+
+Owner layer: generated contract helpers, Data App SDK metric accessors, or
+server metric response normalization.
+
 ## Browser Fetch Fails
 
 Symptom:

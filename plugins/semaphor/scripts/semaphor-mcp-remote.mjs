@@ -900,7 +900,7 @@ function materializeGeneratedContractResponse(message, normalized) {
       [
         `${message.params?.name} was called with workspaceDir, but Semaphor did not return a generated contract payload.`,
         "Local Data App builds require installed-bridge materialization before UI edits.",
-        "Do not reconstruct generated files from tool text; materialize the returned artifact through the installed bridge tool or npm run data-app -- materialize-contract.",
+        "Do not reconstruct generated files from tool text; materialize the returned artifact through the installed bridge tool or localMaterialization.officialCommand.",
       ].join(" "),
     );
   }
@@ -908,7 +908,7 @@ function materializeGeneratedContractResponse(message, normalized) {
     throw new Error(
       [
         `${message.params?.name} returned a generated contract payload without files/filePaths, so the installed bridge cannot materialize src/semaphor/generated.`,
-        "Do not reconstruct generated files from a large or truncated response; materialize the short-lived artifact through npm run data-app -- materialize-contract or report a materialization failure.",
+        "Do not reconstruct generated files from a large or truncated response; materialize the short-lived artifact through localMaterialization.officialCommand or report a materialization failure.",
       ].join(" "),
     );
   }
@@ -947,8 +947,29 @@ function materializeGeneratedContractResponse(message, normalized) {
     nextAgentAction:
       "Import from src/semaphor/generated, then run Semaphor validation, typecheck, build, and browser smoke checks.",
   };
+  normalized.result.content = localMaterializedContractContent({
+    payload,
+    writeSummary,
+  });
 
   return normalized;
+}
+
+function localMaterializedContractContent({ payload, writeSummary }) {
+  const outputDir = payload.outputDir || DEFAULT_GENERATED_CONTRACT_OUTPUT_DIR;
+  return [{
+    type: "text",
+    text: [
+      "Generated Semaphor Data App analytics contract materialized locally.",
+      `Output directory: ${outputDir}`,
+      `Files: ${writeSummary.filePaths.join(", ")}`,
+      `Executable views: ${payload.codegenSummary?.views?.length ?? "unknown"}`,
+      `Inputs: ${payload.codegenSummary?.inputs?.length ?? "unknown"}`,
+      `Content hash: ${payload.contentHash || "unknown"}`,
+      "Materialization: local_write/written",
+      "Next: import from src/semaphor/generated, then run Semaphor validation, typecheck, build, and browser smoke checks.",
+    ].join("\n"),
+  }];
 }
 
 function annotateGeneratedContractPayloadOnly(result, toolName) {
@@ -987,8 +1008,8 @@ function annotateGeneratedContractPayloadOnly(result, toolName) {
       }),
     nextAgentAction:
       retryToolName === "semaphor_materialize_data_app_contract"
-        ? "Materialize through the installed Semaphor Agent Plugin bridge with workspaceDir, or run npm run data-app -- materialize-contract --dir <react-app-root> --artifact-id <generatedContractArtifactId> --materialization-token <generatedContractMaterializationToken> --artifact-base-url <generatedContractArtifactBaseUrl>. Require materialization.status=\"written\" before UI edits; do not hand-write generated files."
-        : "Call semaphor_materialize_data_app_contract with generatedContractArtifactId, generatedContractMaterializationToken, and workspaceDir through the installed bridge, or run npm run data-app -- materialize-contract with the returned artifact id, materialization token, and artifact base URL. Require materialization.status=\"written\" before UI edits; do not hand-write generated files.",
+        ? "Materialize through the installed Semaphor Agent Plugin bridge with workspaceDir, or run the returned localMaterialization.officialCommand from the target React app root. Require materialization.status=\"written\" before UI edits; do not hand-write generated files."
+        : "Call semaphor_materialize_data_app_contract with generatedContractArtifactId, generatedContractMaterializationToken, and workspaceDir through the installed bridge, or run the returned localMaterialization.officialCommand from the target React app root. Require materialization.status=\"written\" before UI edits; do not hand-write generated files.",
   };
 }
 
@@ -1014,14 +1035,10 @@ function localMaterializationCommand(input) {
     required: Boolean(input.required),
     status: input.status,
     officialCommand: {
-      command: "npm",
+      command: "node",
       args: [
-        "run",
-        "data-app",
-        "--",
+        `${semaphorPluginRoot}/scripts/semaphor-data-app.mjs`,
         "materialize-contract",
-        "--dir",
-        workspaceDir,
         "--artifact-id",
         artifactId,
         "--materialization-token",
@@ -1029,15 +1046,13 @@ function localMaterializationCommand(input) {
         "--artifact-base-url",
         artifactBaseUrl,
       ],
-      cwd: semaphorPluginRoot,
-      packageScript: "data-app",
+      cwd: workspaceDir,
       subcommand: "materialize-contract",
       placeholders: {
         workspaceDir,
         semaphorPluginRoot,
       },
       argsByName: {
-        dir: workspaceDir,
         artifactId,
         materializationToken,
         artifactBaseUrl,

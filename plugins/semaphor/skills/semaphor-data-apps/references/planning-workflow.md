@@ -117,8 +117,9 @@ semaphor_plan_data_app()
 -> user/eval accepts the visible plan
 -> semaphor_generate_data_app_contract(planArtifactId)
 -> generator returns generatedContractArtifactId and generatedContractMaterializationToken
--> materialize locally with the installed bridge tool or npm run data-app -- materialize-contract
+-> materialize locally with the installed bridge tool or the typed localMaterialization.officialCommand
 -> local materializer writes files under src/semaphor/generated
+-> read src/semaphor/generated/USAGE.md when present
 -> build UI from src/semaphor/generated imports
 -> semaphor_validate_data_app_contract(workspaceDir)
 -> run local typecheck/build and browser smoke checks
@@ -135,8 +136,8 @@ If generation or materialization reports `materialization.status="not_written"`,
 use the official local command path from the installed plugin package:
 
 ```bash
-npm run data-app -- materialize-contract \
-  --dir /path/to/react-app \
+# from the target React app root
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs materialize-contract \
   --artifact-id <generatedContractArtifactId> \
   --materialization-token <generatedContractMaterializationToken> \
   --artifact-base-url <generatedContractArtifactBaseUrl>
@@ -182,7 +183,7 @@ inspect the current app state with:
 -> write only the small operationIntent JSON locally
 -> npm run data-app -- update-contract --dir /path/to/react-app --goal "<goal>" --operation-intent-file operation-intent.json
 -> server returns generatedContractArtifactId and generatedContractMaterializationToken
--> materialize locally with the installed bridge tool or npm run data-app -- materialize-contract
+-> materialize locally with the installed bridge tool or the typed localMaterialization.officialCommand
 -> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
 -> local materializer writes regenerated files under src/semaphor/generated
 -> returns migrationReport for review
