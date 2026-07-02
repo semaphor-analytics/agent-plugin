@@ -31,7 +31,7 @@ Expected agent behavior:
 - call `semaphor_plan_data_app` for broad builds, present the visible plan,
   and stop for approval before generating files or editing source,
 - for broad dashboard creation, request a balanced planner budget, normally
-  `constraints.maxViews: 15` and up to 20 for wide coverage; do not treat the
+  `constraints.maxViews: 12` and up to 20 for wide coverage; do not treat the
   8-view default as a cap or shrink the plan because the artifact is verbose.
   Do not use legacy planner format knobs such as `"codegen_summary"` or
   invented response formats such as `"compact_summary"`,
@@ -67,13 +67,13 @@ Expected agent behavior:
   `sources`, `inputs`, `views`, `sdkSpec`, unsupported gaps, and assumptions to
   explain the implementation instead of improvising query specs,
 - if a generated app is changed later, call
-  `npm run data-app -- inspect-state --dir <app>` first, pass the returned
-  state as `target.beforeCurrentAuthoringState` into
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir <app>`
+  first, pass the returned state as `target.beforeCurrentAuthoringState` into
   `semaphor_plan_data_app_change`, then run
-  `npm run data-app -- update-contract --dir <app> --goal "<goal>"
-  --operation-intent-file <file>` so the CLI reads the large generated manifest
-  locally; do not extract or replay `codegenSummary` or the generated manifest
-  as an agent-authored tool payload,
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs update-contract --dir <app> --goal "<goal>" --operation-intent-file <file>`
+  so the CLI reads the large generated manifest locally; do not extract or
+  replay `codegenSummary` or the generated manifest as an agent-authored tool
+  payload,
 - render generated KPI, trend, table, and filter views from the generated
   queries, input handles, and query option helpers plus `useSemaphorQuery`;
   reserve direct `semaphor.*` query/input builders for narrow manual SDK edits
@@ -283,7 +283,7 @@ For broad greenfield Data Apps, the normal codegen path is:
 
 1. Resolve project/domain.
 2. Call `semaphor_plan_data_app` with `domainId`, `goal`, and planner
-   `constraints` such as `maxViews: 15`.
+   `constraints` such as `maxViews: 12`.
 3. Present the visible plan, including view names, visual types, filters,
    file/component layout, SDK DevTools setup, and the returned `planArtifactId`.
    Stop for approval.
@@ -310,8 +310,9 @@ For broad greenfield Data Apps, the normal codegen path is:
 Do not hand-roll Semaphor source refs, fields, option queries, or filter
 bindings in `App.tsx` when the generated contract is available.
 The generated directory includes `contract.manifest.json`, but future analytics
-changes should start with `npm run data-app -- inspect-state --dir <app>` and
-use the returned state as `target.beforeCurrentAuthoringState`; the local
+changes should start with
+`node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir <app>`
+and use the returned state as `target.beforeCurrentAuthoringState`; the local
 `update-contract` command reads the large manifest internally when applying the
 approved change.
 If contract generation fails twice before files are written, stop and report a
@@ -407,13 +408,16 @@ Expected agent behavior:
 
 - validate local build,
 - verify runtime token/API assumptions,
-- use `npm run save:data-app` or `npm run publish:data-app` for Semaphor-hosted
-  lifecycle writes,
+- use
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs save-draft ...` or
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs publish ...` for
+  Semaphor-hosted lifecycle writes,
 - for save, collect a source snapshot and prepare a structured
   `data-app-source-revision/v1`,
-- for hosted publish, run `npm run prepare:publish` or rely on
-  `publish:data-app` to infer `runtime.entry` and `runtime.styles` from the
-  static build,
+- for hosted publish, run
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs prepare-publish ...`
+  or rely on the publish command to infer `runtime.entry` and `runtime.styles`
+  from the static build,
 - for publish, follow the Semaphor-hosted saved-draft-first lifecycle
   sequence,
 - do not require or invent a hidden query-spec sidecar file for publish.

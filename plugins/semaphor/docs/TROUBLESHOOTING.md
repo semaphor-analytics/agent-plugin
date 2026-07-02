@@ -243,7 +243,7 @@ module entry that mounts into `#root`.
 
 Fix:
 
-- run `npm run prepare:publish -- --dir /path/to/app`,
+- run `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs prepare-publish --dir /path/to/app`,
 - make sure the build writes static assets, usually `dist/index.html` and
   `dist/assets/index-<hash>.js`,
 - for server-rendered apps, add a static Data App entrypoint or pass

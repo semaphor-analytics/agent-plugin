@@ -3,10 +3,10 @@
 Use the plugin helper for Semaphor-hosted lifecycle writes:
 
 ```bash
-npm run load:data-app -- --data-app-id <data-app-id>
-npm run save:data-app -- --dir <app> --project-id <project-id> --title "<title>"
-npm run prepare:publish -- --dir <app>
-npm run publish:data-app -- --dir <app> --project-id <project-id> --title "<title>"
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs load --data-app-id <data-app-id>
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs save-draft --dir <app> --project-id <project-id> --title "<title>"
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs prepare-publish --dir <app>
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs publish --dir <app> --project-id <project-id> --title "<title>"
 ```
 
 Save/publish must go through Semaphor Data App lifecycle REST/command APIs. Do

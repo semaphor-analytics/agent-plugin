@@ -560,6 +560,9 @@ function scanDataAppContractGuidance() {
     "preferences, responseDetail",
     "access-context guidance only",
     "exposes only access-context guidance",
+    "generatedContractPayload returned by semaphor_generate_data_app_contract",
+    "full generatedContractPayload returned by semaphor_generate_data_app_contract",
+    "constraints.maxViews: 15",
   ];
   const textFiles = collectFiles(root).filter((filePath) =>
     /\.(md|txt|json)$/.test(filePath),
@@ -574,6 +577,16 @@ function scanDataAppContractGuidance() {
           `${relativePath}: Data App guidance must use generate -> materialize; remove legacy guidance (${phrase})`,
         );
       }
+    }
+    if (
+      /npm run data-app -- (inspect-state|update-contract|materialize-contract|publish|prepare-publish|save-draft)/.test(
+        text,
+      ) ||
+      /npm run (load:data-app|save:data-app|publish:data-app|prepare:publish)/.test(text)
+    ) {
+      issues.push(
+        `${relativePath}: Data App guidance must use the concrete node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs command or localMaterialization.officialCommand, not package-local npm run aliases`,
+      );
     }
   }
 }

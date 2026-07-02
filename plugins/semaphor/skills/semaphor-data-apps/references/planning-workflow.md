@@ -14,13 +14,14 @@ Use Semaphor planner tools as the source of truth for broad analytical work:
   the returned visible plan and retain the returned `planArtifactId`. Stop.
   Generate files only after the user accepts the visible plan.
 - Substantial existing-app analytical edit:
-  for generated apps, run `npm run data-app -- inspect-state --dir <app>` and
-  pass the returned state as `target.beforeCurrentAuthoringState` to
-  server-owned change planning.
-  Then use `npm run data-app -- update-contract --dir <app> --goal "<goal>"
-  --operation-intent-file <file>` so the local command reads the large
-  generated manifest from disk. Do not extract or replay `codegenSummary` or
-  the generated manifest as an agent-authored tool payload.
+  for generated apps, run
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir <app>`
+  and pass the returned state as `target.beforeCurrentAuthoringState` to
+  server-owned change planning. Then use
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs update-contract --dir <app> --goal "<goal>" --operation-intent-file <file>`
+  so the local command reads the large generated manifest from disk. Do not
+  extract or replay `codegenSummary` or the generated manifest as an
+  agent-authored tool payload.
 
 Do not replace planner output with an agent-invented plan. Present the returned
 plan or change plan, then wait for the user's decision before editing files.
@@ -177,11 +178,11 @@ For iterative analytics changes to a generated app, call:
 
 ```text
 inspect the current app state with:
-  npm run data-app -- inspect-state --dir /path/to/react-app
+  node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir /path/to/react-app
 -> semaphor_plan_data_app_change(target.beforeCurrentAuthoringState, goal, operationIntent)
 -> review the preserve-by-default change plan and target resolution
 -> write only the small operationIntent JSON locally
--> npm run data-app -- update-contract --dir /path/to/react-app --goal "<goal>" --operation-intent-file operation-intent.json
+-> node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs update-contract --dir /path/to/react-app --goal "<goal>" --operation-intent-file operation-intent.json
 -> server returns generatedContractArtifactId and generatedContractMaterializationToken
 -> materialize locally with the installed bridge tool or the typed localMaterialization.officialCommand
 -> rejects diagnostic warning fixes that add/remove views, inputs, or filter scopes
@@ -209,8 +210,8 @@ command path so the CLI reads `src/semaphor/generated/contract.manifest.json`
 from disk and sends it internally:
 
 ```bash
-npm run data-app -- inspect-state --dir /path/to/react-app
-npm run data-app -- update-contract --dir /path/to/react-app --goal "<goal>" --operation-intent-file operation-intent.json
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir /path/to/react-app
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs update-contract --dir /path/to/react-app --goal "<goal>" --operation-intent-file operation-intent.json
 ```
 
 Then materialize the returned generated-contract artifact through the same
@@ -532,12 +533,14 @@ scratch. Use it to build the shadcn/TanStack table component.
 ## Existing Apps
 
 If the user is working in an existing generated app, inspect the current state
-first with `npm run data-app -- inspect-state --dir <app>`. Preserve existing
-views unless the user asks to replace them. For substantial analytical edits,
-pass the returned state as `target.beforeCurrentAuthoringState` into
-`semaphor_plan_data_app_change`,
-then run `npm run data-app -- update-contract --dir <app> --goal "<goal>"
---operation-intent-file <file>`. Present the returned migration report,
+first with
+`node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir <app>`.
+Preserve existing views unless the user asks to replace them. For substantial
+analytical edits, pass the returned state as
+`target.beforeCurrentAuthoringState` into `semaphor_plan_data_app_change`, then
+run
+`node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs update-contract --dir <app> --goal "<goal>" --operation-intent-file <file>`.
+Present the returned migration report,
 `authoringDiff`, and change operations:
 
 - keep;

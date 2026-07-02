@@ -43,7 +43,7 @@ Do not hardcode it in source.
 Run:
 
 ```bash
-npm run prepare:publish -- --dir /path/to/customer-app
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs prepare-publish --dir /path/to/customer-app
 ```
 
 The helper:
@@ -58,13 +58,13 @@ The helper:
 Use `--check` to validate inference without writing the manifest:
 
 ```bash
-npm run prepare:publish -- --dir /path/to/customer-app --check
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs prepare-publish --dir /path/to/customer-app --check
 ```
 
 Use `--assets-dir` when the build output is not `dist`:
 
 ```bash
-npm run prepare:publish -- --dir /path/to/customer-app --assets-dir build
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs prepare-publish --dir /path/to/customer-app --assets-dir build
 ```
 
 ## Publish
@@ -72,7 +72,7 @@ npm run prepare:publish -- --dir /path/to/customer-app --assets-dir build
 Run:
 
 ```bash
-npm run publish:data-app -- \
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs publish \
   --dir /path/to/customer-app \
   --project-id <project-id> \
   --title "Operations App"

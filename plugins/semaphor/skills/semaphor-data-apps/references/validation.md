@@ -8,9 +8,10 @@ plugin-local source scanning as proof of analytics correctness.
 
 Before reporting completion, run the strongest available checks:
 
-- `semaphor_validate_data_app_contract` with the full
-  `generatedContractPayload` returned by `semaphor_generate_data_app_contract`
-  immediately after generation;
+- after generation, materialize the returned generated-contract artifact with
+  the installed bridge materializer or the typed
+  `localMaterialization.officialCommand`; require
+  `materialization.status="written"` before source edits;
 - for final validation after files are written, call
   `semaphor_validate_data_app_contract({ workspaceDir })`. In installed plugin
   runs, the bridge locates the generated `contract.manifest.json` under

@@ -51,13 +51,15 @@ The plugin bridge may still:
   `currentAuthoringState` for iterative authoring. Hosted MCP may expose the
   tool, but hosted responses are only a typed local handoff because hosted MCP
   cannot read the user's filesystem;
-- expose `npm run data-app -- inspect-state --dir <app>` as the official local
-  inspection path before iterative analytical edits;
-- allow `npm run data-app -- update-contract --goal "<goal>"
-  --operation-intent-file <file> --dir <app>` to read the large generated
-  manifest locally and send it internally to the server update tool. This is
-  not a compatibility shim; it is the first-class local authoring command path
-  that prevents agents from hand-authoring or pasting large manifest payloads;
+- expose the concrete plugin command
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir <app>`
+  as the official local inspection path before iterative analytical edits;
+- allow the concrete plugin command
+  `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs update-contract --goal "<goal>" --operation-intent-file <file> --dir <app>`
+  to read the large generated manifest locally and send it internally to the
+  server update tool. This is not a compatibility shim; it is the first-class
+  local authoring command path that prevents agents from hand-authoring or
+  pasting large manifest payloads;
 - strip `workspaceDir` before forwarding tool arguments to Semaphor. It is a
   local bridge hint, not a server generator input;
 - expose only access/context plus Data App authoring bootstrap dispatch tools

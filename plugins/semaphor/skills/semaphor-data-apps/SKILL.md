@@ -62,7 +62,8 @@ public SDK builders/hooks, validate, then save or publish when requested.
    uses `generatedContractArtifactBaseUrl` and the short-lived
    `generatedContractMaterializationToken`, not a project token. Require
    `materialization.status="written"` and `src/semaphor/generated` before UI edits. Do not pass inline `codegenSummary`, `codegenSummaryPath`, or `artifactDir`.
-7. Existing generated app: run `npm run data-app -- inspect-state --dir <app>`;
+7. Existing generated app: run
+   `node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs inspect-state --dir <app>`;
    pass the returned state as `target.beforeCurrentAuthoringState` to change planning. Analytical edits use
    `analytics_*`/`input_*` intents and `update-contract`; layout/style/debug
    intents do not call contract update/materialization. See
@@ -495,5 +496,4 @@ Production data-loading still uses `useSemaphorQuery` per [sdk-contract.md](refe
 
 ## Save, Publish, And Validation
 
-Read [publish-lifecycle.md](references/publish-lifecycle.md) before lifecycle
-writes, and [validation.md](references/validation.md) before final checks.
+Read [publish-lifecycle.md](references/publish-lifecycle.md) before lifecycle writes, and [validation.md](references/validation.md) before final checks.

@@ -338,13 +338,13 @@ files. They resolve the Semaphor app URL from the token's `apiServiceUrl`.
 Common commands:
 
 ```bash
-npm run prepare:publish -- --dir /path/to/customer-app
-npm run save:data-app -- --dir /path/to/customer-app --project-id <project-id> --title "Operations App"
-npm run publish:data-app -- --dir /path/to/customer-app --project-id <project-id> --data-app-id <data-app-id> --title "Operations App"
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs prepare-publish --dir /path/to/customer-app
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs save-draft --dir /path/to/customer-app --project-id <project-id> --title "Operations App"
+node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs publish --dir /path/to/customer-app --project-id <project-id> --data-app-id <data-app-id> --title "Operations App"
 ```
 
-`prepare:publish` runs the app build and prepares `semaphor.data-app.json` with
-the hosted runtime asset paths Semaphor needs. `publish:data-app` runs the same
+`prepare-publish` runs the app build and prepares `semaphor.data-app.json` with
+the hosted runtime asset paths Semaphor needs. `publish` runs the same
 preparation automatically before saving the draft and starting the Semaphor
 publish session.
 
