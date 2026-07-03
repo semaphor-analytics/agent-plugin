@@ -47,6 +47,18 @@ canonical continuation tool is missing, stop before source edits and report
 server/plugin MCP surface drift. Do not manually transcribe planner output into
 `src/semaphor/*` and do not invent semantic model patches.
 
+Some agent hosts expose both namespaces at once. Treat `semaphor` and
+`semaphor-project` as two auth transports for the same logical workflow, not as
+competing product paths. For each run, select the first namespace that
+successfully returns `semaphor_get_access_context` and exposes the complete
+canonical Data App authoring family, then use that namespace consistently for
+planning, generation, update, materialization, validation, inspection, and
+semantic repair. If `semaphor-project` returns a host-level cancellation such
+as "user cancelled MCP tool call" but `semaphor` succeeds, continue with
+`semaphor` and record the cancellation as host namespace friction. Do not stop
+as Data App surface drift merely because one alias failed while another
+canonical Semaphor namespace works.
+
 Do not confuse auth mode with local filesystem capability. The remote Semaphor
 MCP server does not write local files for OAuth or project-token calls. The
 installed bridge is the only local filesystem actor, and only for explicit

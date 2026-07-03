@@ -32,16 +32,12 @@ public SDK builders/hooks, validate, then save or publish when requested.
    project-token MCP must expose one logical Data App authoring surface. If
    planning is visible but any canonical continuation tool is missing, stop
    before source edits and classify server/plugin MCP surface drift. Canonical
-   tools are `semaphor_get_access_context`,
-   `semaphor_get_data_app_sdk_guidance`, `semaphor_plan_data_app`,
-   `semaphor_plan_data_app_change`, `semaphor_create_data_app_contract`,
-   `semaphor_generate_data_app_contract`,
-   `semaphor_update_data_app_contract`,
-   `semaphor_materialize_data_app_contract`,
-   `semaphor_validate_data_app_contract`,
-   `semaphor_inspect_data_app_state`,
-   `semaphor_propose_semantic_model_change`, and
-   `semaphor_apply_semantic_model_patch`.
+   tools are `semaphor_get_access_context`, SDK guidance, planning/change,
+   contract create/generate/update/materialize/validate,
+   `semaphor_inspect_data_app_state`, and semantic repair propose/apply tools.
+   When both namespaces are visible, use
+   the first complete namespace whose access context succeeds; if one alias is
+   host-cancelled but another succeeds, continue with the working namespace.
 1. Auth: call `semaphor_get_access_context` before local source inspection.
 2. Project: if OAuth exposes multiple projects and the user did not name one,
    ask the user to select the project before domain discovery or planning.

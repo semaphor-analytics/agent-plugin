@@ -18,6 +18,14 @@ planner/generator/materializer capability split by auth mode. Local file writes
 are an installed-bridge capability layered on top of the same generated-contract
 artifact workflow, not a different MCP behavior.
 
+When an agent host exposes both `semaphor` and `semaphor-project`, they are
+two first-class auth transports for the same logical Data App workflow. Agents
+should select one working namespace per run: the first namespace whose
+`semaphor_get_access_context` succeeds and whose canonical Data App family is
+complete. If one namespace returns a host-level cancellation while the other
+canonical namespace succeeds, guidance and evals should record namespace
+friction rather than classify the Data App surface as missing or broken.
+
 The plugin bridge may still:
 
 - read a project token from process env, current working directory, configured
