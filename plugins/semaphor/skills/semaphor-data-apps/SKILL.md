@@ -295,7 +295,6 @@ as a required dashboard quality checklist, not optional inspiration.
   deployment.
 - Save/publish goes through Semaphor Data App lifecycle REST/command APIs, not
   MCP lifecycle wrappers.
-- Do not use `allowEdit: false` as an auth or runtime boundary.
 
 ## Reference Routing
 

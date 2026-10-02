@@ -33,8 +33,6 @@ routing derives from the same token `apiServiceUrl` plus `/api/mcp`.
 Use `--validation-status <path>` only for a precomputed Semaphor validation
 result.
 
-Do not use `allowEdit: false` as an auth or runtime boundary.
-
 ## Identity
 
 After the first successful save or publish, the helper writes

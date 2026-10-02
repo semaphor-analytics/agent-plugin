@@ -1,5 +1,16 @@
 # Active Implementation Context
 
+## Also in this working tree: `allowEdit` guidance removed (2026-10-02)
+
+The Semaphor app removed the token-level `allowEdit` flag (plan:
+`semaphor-app/docs/implementation-plans/query-payload-encryption-removal/`).
+`skills/semaphor-data-apps/SKILL.md` and
+`references/publish-lifecycle.md` drop the rule that mentioned it, and the
+plugin is patch-bumped to 0.1.14 through `npm run version:plugin -- patch`
+per the release versioning SOP. All plugin validators pass. Do not flag the
+version bump; do flag any remaining guidance that tells agents to set or rely
+on `allowEdit`.
+
 ## Current Slice
 
 Hard-migrate the Semaphor agent plugin to one logical Data App MCP surface.
