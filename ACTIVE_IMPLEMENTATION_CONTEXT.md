@@ -45,15 +45,15 @@ scripts, publishing) is removed; the server no longer registers those tools.
 ### Key decisions (do not raise findings against these)
 
 - MIT license, copyright "Semaphor Analytics Corp.", 2026 (README Q4).
-- The save and publish CLI is deleted (P2-D2): the hosted Data App keeps
-  serving, and git history has the CLI.
+- The save and publish CLI is deleted (P2-D2). Plan 2 (2026-10-04) then
+  deleted hosting and the public Data App too.
 - One server in `.mcp.json`, `"type": "http"`, no `semaphor-project` bridge.
   Headless and embedded use is documented as a client header setup with an
   MCP project token read from the environment variable `SEMAPHOR_MCP_TOKEN`.
 - The skill tells agents the tool list depends on who is calling; it never
   promises a tool exists.
 - Examples use camelCase arguments (CONTRACTS section 12.1).
-- Data App server code stays in semaphor-app until Plan 2.
+- Data App server code: deleted by Plan 2 (branch `chore/data-app-removal`).
 
 ### Not in this phase
 
@@ -101,5 +101,5 @@ Phase 1.6b; uncommitted.
 - No commits; Rohit commits.
 - Never put tokens, local env files or run evidence in this repository.
 - Before marketplace-visible changes, follow
-  `semaphor-app/docs/system-architecture/data-apps/agent-plugin/RELEASE_VERSIONING.md`
+  `semaphor-app/docs/engineering/agent-plugin/RELEASE_VERSIONING.md`
   (Plan 2 Phase 2.3 moves it to `semaphor-app/docs/engineering/agent-plugin/`).

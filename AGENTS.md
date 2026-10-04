@@ -24,7 +24,7 @@ Codex and future coding-agent hosts. The installable package is
   environment variable `SEMAPHOR_MCP_TOKEN`.
 - Before publishing marketplace-visible plugin changes, follow the release
   versioning SOP in the Semaphor app internal docs:
-  `docs/system-architecture/data-apps/agent-plugin/RELEASE_VERSIONING.md`.
+  `docs/engineering/agent-plugin/RELEASE_VERSIONING.md`.
   Keep versioning details out of customer-facing README content.
 - Do not commit tokens, local env files, generated run artifacts,
   screenshots, private notes or release evidence.
