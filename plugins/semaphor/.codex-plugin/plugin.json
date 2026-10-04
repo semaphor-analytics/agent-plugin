@@ -1,16 +1,18 @@
 {
   "name": "semaphor",
-  "version": "0.1.14",
-  "description": "Build data apps and answer business questions, grounded in your data.",
+  "version": "0.3.0",
+  "description": "Answer business questions with governed analytics from your Semaphor projects.",
   "author": {
-    "name": "Semaphor"
+    "name": "Semaphor Analytics Corp.",
+    "url": "https://semaphor.cloud",
+    "email": "support@semaphor.cloud"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Semaphor",
-    "shortDescription": "Build data apps and answer business questions, grounded in your data.",
-    "longDescription": "Go from a business question to a working data app in one conversation. Semaphor explores your data, designs the right charts and KPIs, validates them against your governed context layer, and publishes the finished app for your team.",
-    "developerName": "Semaphor",
+    "shortDescription": "Answer business questions with governed analytics from your Semaphor projects.",
+    "longDescription": "Ask business questions in plain language and get answers grounded in your governed Semaphor data. The agent explores your semantic model, runs governed queries under your permissions, explains trends, drivers and period-over-period changes, audits dashboards, and falls back to SQL only when a question needs it.",
+    "developerName": "Semaphor Analytics Corp.",
     "category": "Productivity",
     "brandColor": "#2563EB",
     "composerIcon": "./assets/composer-icon.png",
@@ -25,10 +27,11 @@
       "MCP"
     ],
     "defaultPrompt": [
-      "Create a data app from my project.",
-      "Add a revenue chart with period-over-period change.",
-      "What's driving the trend in my top KPI?"
+      "What data can I analyze in my Semaphor project?",
+      "How did revenue change last quarter, and what drove it?",
+      "Check whether my sales dashboard's numbers are right."
     ]
   },
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.mcp.json",
+  "license": "MIT"
 }

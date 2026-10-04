@@ -2,11 +2,24 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "semaphor",
   "displayName": "Semaphor",
-  "description": "Build data apps and answer business questions, grounded in your data.",
-  "version": "0.1.14",
+  "description": "Answer business questions with governed analytics from your Semaphor projects.",
+  "version": "0.3.0",
   "author": {
-    "name": "Semaphor"
+    "name": "Semaphor Analytics Corp.",
+    "url": "https://semaphor.cloud",
+    "email": "support@semaphor.cloud"
   },
+  "homepage": "https://semaphor.cloud",
+  "repository": "https://github.com/semaphor-analytics/agent-plugin",
+  "license": "MIT",
+  "keywords": [
+    "analytics",
+    "business-intelligence",
+    "semantic-layer",
+    "dashboards",
+    "sql",
+    "mcp"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json"
 }

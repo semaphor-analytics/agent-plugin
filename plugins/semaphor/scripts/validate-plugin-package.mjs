@@ -1,27 +1,22 @@
 #!/usr/bin/env node
+// Validates the installable Semaphor plugin package. Run from plugins/semaphor
+// (npm run validate:plugin, or validate:codex-plugin from the repo root).
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import {
-  CANONICAL_DATA_APP_AUTHORING_TOOLS,
-} from "./data-app-authoring-surface.mjs";
 
 const root = process.cwd();
 const issues = [];
-const EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS = Object.freeze([
-  "semaphor_get_access_context",
-  "semaphor_get_data_app_sdk_guidance",
-  "semaphor_plan_data_app",
-  "semaphor_plan_data_app_change",
-  "semaphor_create_data_app_contract",
-  "semaphor_generate_data_app_contract",
-  "semaphor_update_data_app_contract",
-  "semaphor_materialize_data_app_contract",
-  "semaphor_validate_data_app_contract",
-  "semaphor_inspect_data_app_state",
-  "semaphor_propose_semantic_model_change",
-  "semaphor_apply_semantic_model_patch",
-]);
+const HOSTED_MCP_URL = "https://semaphor.cloud/api/mcp";
+const ANALYTICS_SKILL = "skills/semaphor-analytics";
+const ANALYTICS_SKILL_REFERENCES = [
+  "answering-questions.md",
+  "dashboard-audits.md",
+  "semantic-model.md",
+  "sql-escape-hatch.md",
+  "access-and-tools.md",
+  "golden-workflows.md",
+];
 
 function readJson(relativePath) {
   const fullPath = path.join(root, relativePath);
@@ -57,29 +52,12 @@ function validatePackageJson() {
   requireString(pkg, "name", "package.json");
   requireString(pkg, "version", "package.json");
   if (pkg?.engines?.node !== ">=18") {
-    issues.push(
-      "package.json: engines.node must be >=18 because plugin scripts use modern Node runtime APIs such as fetch",
-    );
+    issues.push("package.json: engines.node must be >=18");
   }
-  for (const forbiddenScript of [
-    "validate:data-app",
-    "test:generator",
-  ]) {
-    if (pkg?.scripts?.[forbiddenScript]) {
+  for (const scriptName of Object.keys(pkg?.scripts || {})) {
+    if (/data-app|publish|bridge|call:mcp|detect/.test(scriptName)) {
       issues.push(
-        `package.json: hard migration forbids ${forbiddenScript}; use server-owned MCP contract tools instead`,
-      );
-    }
-  }
-
-  const repoRootPackageJsonPath = path.resolve(root, "../..", "package.json");
-  if (fs.existsSync(repoRootPackageJsonPath)) {
-    const repoRootPackageJson = JSON.parse(
-      fs.readFileSync(repoRootPackageJsonPath, "utf8"),
-    );
-    if (repoRootPackageJson?.scripts?.["validate:data-app"]) {
-      issues.push(
-        "../../package.json: hard migration forbids validate:data-app root wrapper; use server-owned MCP contract validation tools instead",
+        `package.json: script "${scriptName}" belongs to the removed Data App workflow`,
       );
     }
   }
@@ -94,9 +72,7 @@ function validateCodexManifest() {
     issues.push(".codex-plugin/plugin.json: skills must point to ./skills/");
   }
   if (manifest?.mcpServers !== "./.mcp.json") {
-    issues.push(
-      ".codex-plugin/plugin.json: mcpServers must point to ./.mcp.json",
-    );
+    issues.push(".codex-plugin/plugin.json: mcpServers must point to ./.mcp.json");
   }
   if (!manifest?.interface?.displayName) {
     issues.push(".codex-plugin/plugin.json: missing interface.displayName");
@@ -107,32 +83,15 @@ function validateCodexManifest() {
     );
   }
   if (manifest?.interface?.logo !== "./assets/logo.png") {
-    issues.push(
-      ".codex-plugin/plugin.json: interface.logo must point to ./assets/logo.png",
-    );
+    issues.push(".codex-plugin/plugin.json: interface.logo must point to ./assets/logo.png");
   }
-  const forbiddenIconFields = [
-    "icon_small",
-    "icon_large",
-    "iconSmall",
-    "iconLarge",
-  ];
-  for (const fieldName of forbiddenIconFields) {
-    const value = manifest?.interface?.[fieldName];
-    if (value !== undefined) {
-      issues.push(
-        `.codex-plugin/plugin.json: interface.${fieldName} is not supported by this package; use interface.composerIcon and interface.logo under ./assets/ instead`,
-      );
-    }
+  if (!Array.isArray(manifest?.interface?.defaultPrompt) || manifest.interface.defaultPrompt.length === 0) {
+    issues.push(".codex-plugin/plugin.json: interface.defaultPrompt must list starter prompts");
   }
   for (const [fieldName, value] of Object.entries(manifest?.interface || {})) {
-    if (
-      typeof value === "string" &&
-      /icon|logo/i.test(fieldName) &&
-      value.includes("..")
-    ) {
+    if (typeof value === "string" && /icon|logo/i.test(fieldName) && value.includes("..")) {
       issues.push(
-        `.codex-plugin/plugin.json: interface.${fieldName} must not contain ".."; icon and logo assets must resolve under the plugin asset root`,
+        `.codex-plugin/plugin.json: interface.${fieldName} must not contain ".."; assets must resolve under the plugin root`,
       );
     }
   }
@@ -140,45 +99,46 @@ function validateCodexManifest() {
 
 function validateClaudeManifest() {
   const manifest = readJson(".claude-plugin/plugin.json");
-  requireString(manifest, "name", ".claude-plugin/plugin.json");
-  requireString(manifest, "version", ".claude-plugin/plugin.json");
-  requireString(manifest, "description", ".claude-plugin/plugin.json");
+  for (const field of ["name", "version", "description", "homepage", "repository", "license"]) {
+    requireString(manifest, field, ".claude-plugin/plugin.json");
+  }
   if (manifest?.skills !== "./skills/") {
     issues.push(".claude-plugin/plugin.json: skills must point to ./skills/");
   }
   if (manifest?.mcpServers !== "./.mcp.json") {
-    issues.push(
-      ".claude-plugin/plugin.json: mcpServers must point to ./.mcp.json",
-    );
+    issues.push(".claude-plugin/plugin.json: mcpServers must point to ./.mcp.json");
   }
   if (manifest?.displayName !== "Semaphor") {
     issues.push(".claude-plugin/plugin.json: displayName must be Semaphor");
+  }
+  if (manifest?.license !== "MIT") {
+    issues.push(".claude-plugin/plugin.json: license must be MIT");
+  }
+  if (!manifest?.author?.url || !manifest?.author?.email) {
+    issues.push(".claude-plugin/plugin.json: author needs url and email");
+  }
+  if (!Array.isArray(manifest?.keywords) || manifest.keywords.length === 0) {
+    issues.push(".claude-plugin/plugin.json: keywords must be a non-empty list");
   }
 }
 
 function validateVersionSync() {
   const pkg = readJson("package.json");
-  const codexManifest = readJson(".codex-plugin/plugin.json");
-  const claudeManifest = readJson(".claude-plugin/plugin.json");
   const expectedVersion = pkg?.version;
   if (!expectedVersion) return;
 
   for (const [label, actualVersion] of [
-    [".codex-plugin/plugin.json", codexManifest?.version],
-    [".claude-plugin/plugin.json", claudeManifest?.version],
+    [".codex-plugin/plugin.json", readJson(".codex-plugin/plugin.json")?.version],
+    [".claude-plugin/plugin.json", readJson(".claude-plugin/plugin.json")?.version],
   ]) {
     if (actualVersion && actualVersion !== expectedVersion) {
-      issues.push(
-        `${label}: version ${actualVersion} must match package.json version ${expectedVersion}`,
-      );
+      issues.push(`${label}: version ${actualVersion} must match package.json version ${expectedVersion}`);
     }
   }
 
   const repoRootPackageJsonPath = path.resolve(root, "../..", "package.json");
   if (fs.existsSync(repoRootPackageJsonPath)) {
-    const repoRootPackageJson = JSON.parse(
-      fs.readFileSync(repoRootPackageJsonPath, "utf8"),
-    );
+    const repoRootPackageJson = JSON.parse(fs.readFileSync(repoRootPackageJsonPath, "utf8"));
     if (repoRootPackageJson?.version !== expectedVersion) {
       issues.push(
         `../../package.json: version ${repoRootPackageJson?.version} must match package.json version ${expectedVersion}`,
@@ -186,15 +146,9 @@ function validateVersionSync() {
     }
   }
 
-  const repoRootPackageLockPath = path.resolve(
-    root,
-    "../..",
-    "package-lock.json",
-  );
+  const repoRootPackageLockPath = path.resolve(root, "../..", "package-lock.json");
   if (fs.existsSync(repoRootPackageLockPath)) {
-    const repoRootPackageLock = JSON.parse(
-      fs.readFileSync(repoRootPackageLockPath, "utf8"),
-    );
+    const repoRootPackageLock = JSON.parse(fs.readFileSync(repoRootPackageLockPath, "utf8"));
     if (repoRootPackageLock?.version !== expectedVersion) {
       issues.push(
         `../../package-lock.json: version ${repoRootPackageLock?.version} must match package.json version ${expectedVersion}`,
@@ -208,44 +162,10 @@ function validateVersionSync() {
     }
   }
 
-  for (const relativePath of [
-    "scripts/call-semaphor-tool.mjs",
-    "scripts/semaphor-mcp-remote.mjs",
-  ]) {
-    const fullPath = path.join(root, relativePath);
-    if (!fs.existsSync(fullPath)) continue;
-    const text = fs.readFileSync(fullPath, "utf8");
-    if (!/\breadPluginVersion\s*\(/.test(text)) {
-      issues.push(
-        `${relativePath}: MCP implementation version must be read from package.json with readPluginVersion()`,
-      );
-    }
-    if (/\bversion:\s*['"]\d+\.\d+\.\d+['"]/.test(text)) {
-      issues.push(
-        `${relativePath}: do not hardcode MCP implementation versions; read plugins/semaphor/package.json`,
-      );
-    }
-    if (/new URL\(import\.meta\.url\)\.pathname/.test(text)) {
-      issues.push(
-        `${relativePath}: use fileURLToPath(import.meta.url) instead of URL.pathname so packaged scripts resolve correctly on Windows`,
-      );
-    }
-  }
-
-  const claudeMarketplacePath = path.resolve(
-    root,
-    "..",
-    "..",
-    ".claude-plugin",
-    "marketplace.json",
-  );
+  const claudeMarketplacePath = path.resolve(root, "..", "..", ".claude-plugin", "marketplace.json");
   if (fs.existsSync(claudeMarketplacePath)) {
-    const marketplace = JSON.parse(
-      fs.readFileSync(claudeMarketplacePath, "utf8"),
-    );
-    const entry = marketplace?.plugins?.find(
-      (plugin) => plugin?.name === pkg.name,
-    );
+    const marketplace = JSON.parse(fs.readFileSync(claudeMarketplacePath, "utf8"));
+    const entry = marketplace?.plugins?.find((plugin) => plugin?.name === pkg.name);
     if (entry?.version && entry.version !== expectedVersion) {
       issues.push(
         `.claude-plugin/marketplace.json: semaphor version ${entry.version} must match package.json version ${expectedVersion}`,
@@ -254,264 +174,57 @@ function validateVersionSync() {
   }
 }
 
+/** Exactly one server: the hosted Semaphor MCP over HTTP. */
 function validateMcpConfig() {
   const config = readJson(".mcp.json");
-  const oauthServer = config?.mcpServers?.semaphor;
-  if (!oauthServer) {
-    issues.push(".mcp.json: missing mcpServers.semaphor hosted OAuth server");
-  } else if (oauthServer.url !== "https://semaphor.cloud/api/mcp") {
-    issues.push(
-      ".mcp.json: mcpServers.semaphor must point to hosted Semaphor OAuth MCP",
-    );
-  }
-
-  const server = config?.mcpServers?.["semaphor-project"];
-  if (!server) {
-    issues.push(
-      ".mcp.json: missing mcpServers.semaphor-project project-token bridge",
-    );
+  const servers = config?.mcpServers;
+  if (!servers || typeof servers !== "object") {
+    issues.push('.mcp.json: must keep the "mcpServers" wrapper');
     return;
   }
-  if (server.command !== "node") {
-    issues.push(
-      ".mcp.json: semaphor-project server must use the packaged MCP bridge",
-    );
+  const names = Object.keys(servers);
+  if (names.length !== 1 || names[0] !== "semaphor") {
+    issues.push(`.mcp.json: must declare exactly one server, "semaphor" (found: ${names.join(", ") || "none"})`);
   }
-  if (
-    !Array.isArray(server.args) ||
-    !server.args.includes("scripts/semaphor-mcp-remote.mjs")
-  ) {
-    issues.push(
-      ".mcp.json: semaphor-project server args must use scripts/semaphor-mcp-remote.mjs",
-    );
+  const server = servers.semaphor;
+  if (server?.type !== "http") {
+    issues.push('.mcp.json: mcpServers.semaphor.type must be "http"');
   }
-  if (server.env_vars !== undefined || server.env !== undefined) {
-    issues.push(
-      ".mcp.json: semaphor-project must not declare startup env requirements; the bridge starts unauthenticated and resolves target-app tokens from process env or workspaceDir .env files",
-    );
+  if (server?.url !== HOSTED_MCP_URL) {
+    issues.push(`.mcp.json: mcpServers.semaphor.url must be ${HOSTED_MCP_URL}`);
   }
-  if (JSON.stringify(server).includes("${SEMAPHOR_PROJECT_TOKEN}")) {
-    issues.push(
-      ".mcp.json: do not pass a literal SEMAPHOR_PROJECT_TOKEN placeholder; the launcher reads real env and target app env files",
-    );
-  }
-
-  const launcherPath = path.join(root, "scripts/semaphor-mcp-remote.mjs");
-  if (fs.existsSync(launcherPath)) {
-    const launcherText = fs.readFileSync(launcherPath, "utf8");
-    if (
-      /\bnpx\b/.test(launcherText) ||
-      /mcp-remote['"\s,]/.test(launcherText)
-    ) {
-      issues.push(
-        "scripts/semaphor-mcp-remote.mjs: launcher must be self-contained and must not shell out to npx mcp-remote",
-      );
-    }
-    if (
-      /readCachedWorkspaceDirectories|rememberBridgeWorkspaceDirectories|\.semaphor-agent-plugin|workspaces\.json/.test(
-        launcherText,
-      )
-    ) {
-      issues.push(
-        "scripts/semaphor-mcp-remote.mjs: do not cache or reuse workspace directories for token lookup; tokens must come from the current process env or explicit/current workspace only",
-      );
-    }
-    if (
-      /roots\/list/.test(launcherText) &&
-      !/directories\.length !== 1/.test(launcherText)
-    ) {
-      issues.push(
-        "scripts/semaphor-mcp-remote.mjs: client roots must be ignored unless exactly one root is reported; multi-root sessions must require explicit workspaceDir",
-      );
+  for (const localField of ["command", "args", "cwd", "env"]) {
+    if (server && localField in server) {
+      issues.push(`.mcp.json: mcpServers.semaphor must not set ${localField}; the plugin ships no local server`);
     }
   }
 }
 
-function validateSkillStructure() {
-  const skillPath = path.join(root, "skills/semaphor-data-apps/SKILL.md");
-  if (!fs.existsSync(skillPath)) {
-    issues.push("Missing required file: skills/semaphor-data-apps/SKILL.md");
-    return;
-  }
-
-  const skillText = fs.readFileSync(skillPath, "utf8");
-  const lineCount = skillText.split(/\r?\n/).length;
-  if (lineCount > 500) {
-    issues.push(
-      `skills/semaphor-data-apps/SKILL.md: ${lineCount} lines exceeds 500-line progressive disclosure limit`,
-    );
-  }
-  if (
-    !/Auth preflight is step zero/i.test(skillText) ||
-    !/semaphor_get_access_context/i.test(skillText) ||
-    !/before local repo inspection/i.test(skillText)
-  ) {
-    issues.push(
-      "skills/semaphor-data-apps/SKILL.md: must require Semaphor auth/project preflight with semaphor_get_access_context before local repo inspection",
-    );
-  }
-
-  const requiredReferences = [
-    "onboarding.md",
-    "mcp-authoring.md",
-    "sdk-contract.md",
-    "derived-fields.md",
-    "matrix.md",
-    "planning-workflow.md",
-    "sql.md",
-    "filters-and-inputs.md",
-    "tables.md",
-    "shadcn-dashboard.md",
-    "publish-lifecycle.md",
-    "validation.md",
-  ];
-
-  for (const fileName of requiredReferences) {
-    const relativePath = `skills/semaphor-data-apps/references/${fileName}`;
-    if (!fs.existsSync(path.join(root, relativePath))) {
-      issues.push(`Missing required Semaphor skill reference: ${relativePath}`);
+function validateAnalyticsSkill() {
+  const skillPath = `${ANALYTICS_SKILL}/SKILL.md`;
+  requireFile(skillPath);
+  const fullPath = path.join(root, skillPath);
+  if (fs.existsSync(fullPath)) {
+    const text = fs.readFileSync(fullPath, "utf8");
+    const frontmatter = text.match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? "";
+    if (!/^name:\s*semaphor-analytics\s*$/m.test(frontmatter)) {
+      issues.push(`${skillPath}: frontmatter must set name: semaphor-analytics`);
     }
-    if (!skillText.includes(`references/${fileName}`)) {
-      issues.push(
-        `skills/semaphor-data-apps/SKILL.md: missing link to references/${fileName}`,
-      );
+    if (!/^description:\s*\S/m.test(frontmatter)) {
+      issues.push(`${skillPath}: frontmatter must set a description`);
     }
   }
-}
-
-function validateDataAppInitializer() {
-  const initPath = path.join(root, "scripts/init-semaphor-data-app.mjs");
-  if (!fs.existsSync(initPath)) {
-    return;
+  for (const reference of ANALYTICS_SKILL_REFERENCES) {
+    requireFile(`${ANALYTICS_SKILL}/references/${reference}`);
   }
-  const initText = fs.readFileSync(initPath, "utf8");
-  if (!initText.includes("SemaphorDevtools")) {
-    issues.push(
-      "scripts/init-semaphor-data-app.mjs: starter provider must mount one root SemaphorDevtools for local authoring inspection",
-    );
-  }
-  if (!/exposeWindowBridge\s*:\s*true/.test(initText)) {
-    issues.push(
-      "scripts/init-semaphor-data-app.mjs: starter provider must enable exposeWindowBridge behind a local/dev debug gate",
-    );
-  }
-}
-
-function validateMcpBridge() {
-  const bridgePath = path.join(root, "scripts/semaphor-mcp-remote.mjs");
-  if (!fs.existsSync(bridgePath)) {
-    return;
-  }
-  const bridgeText = fs.readFileSync(bridgePath, "utf8");
-  for (const forbidden of [
-    "const LOCAL_TOOLS",
-    "createLocalDataAppContract",
-    "generateLocalDataAppContract",
-    "updateLocalDataAppContract",
-    "validateLocalDataAppContract",
-    "runDataAppContractGenerator",
-    "generate-data-app-contract.mjs",
-    "validate-semaphor-data-app.mjs",
-    "codegenSummaryPath",
-    "bridgeArtifactDirectories",
-  ]) {
-    if (bridgeText.includes(forbidden)) {
-      issues.push(
-        `scripts/semaphor-mcp-remote.mjs: hard migration forbids plugin-local Data App contract MCP handling (${forbidden}); proxy live Semaphor MCP tools instead`,
-      );
+  const skills = fs.existsSync(path.join(root, "skills"))
+    ? fs.readdirSync(path.join(root, "skills"), { withFileTypes: true }).filter((entry) => entry.isDirectory())
+    : [];
+  for (const entry of skills) {
+    if (entry.name !== "semaphor-analytics") {
+      issues.push(`skills/${entry.name}: the plugin ships only the semaphor-analytics skill`);
     }
   }
-  if (bridgeText.includes("fs.readdirSync(generatedDir)")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: generated contract manifest validation must not hash unrelated .ts files from the generated directory",
-    );
-  }
-  for (const forbidden of [
-    "SEMANTIC_RELATIONSHIP_SOURCE_SCHEMA",
-    "SEMANTIC_RELATIONSHIP_FIELD_SCHEMA",
-    "RELATIONSHIP_CANDIDATE_SCHEMA",
-    "SEMANTIC_REPAIR_DIAGNOSTIC_SCHEMA",
-    "SEMANTIC_REPAIR_PATCH_SCHEMA",
-  ]) {
-    if (bridgeText.includes(forbidden)) {
-      issues.push(
-        `scripts/semaphor-mcp-remote.mjs: must not duplicate server-owned MCP semantic schemas in plugin fallback (${forbidden})`,
-      );
-    }
-  }
-  const canonicalSurfacePath = path.join(root, "scripts/data-app-authoring-surface.mjs");
-  const canonicalSurfaceText = fs.existsSync(canonicalSurfacePath)
-    ? fs.readFileSync(canonicalSurfacePath, "utf8")
-    : "";
-  if (!bridgeText.includes("DATA_APP_AUTHORING_BOOTSTRAP_TOOL_DEFINITIONS")) {
-    issues.push(
-      "scripts/semaphor-mcp-remote.mjs: fallback tools must be built from scripts/data-app-authoring-surface.mjs",
-    );
-  }
-  if (
-    JSON.stringify(CANONICAL_DATA_APP_AUTHORING_TOOLS) !==
-    JSON.stringify(EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS)
-  ) {
-    issues.push(
-      `scripts/data-app-authoring-surface.mjs: canonical Data App authoring tools must exactly match ${EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS.join(", ")}`,
-    );
-  }
-  for (const requiredTool of EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS) {
-    const canonicalDefinitionPattern = new RegExp(
-      `["']${escapeRegExp(requiredTool)}["']`,
-    );
-    if (!canonicalDefinitionPattern.test(canonicalSurfaceText)) {
-      issues.push(
-        `scripts/data-app-authoring-surface.mjs: missing canonical Data App authoring tool ${requiredTool}`,
-      );
-    }
-  }
-  const forbiddenFallbackServerOwnedTools = [
-    "semaphor_get_analysis_context",
-    "semaphor_list_semantic_domains",
-    "semaphor_list_datasets",
-    "semaphor_get_dataset_schema",
-    "semaphor_get_domain_relationships",
-    "semaphor_get_data_app_runtime_token",
-  ];
-  for (const serverOwnedTool of forbiddenFallbackServerOwnedTools) {
-    const fallbackToolNamePattern = new RegExp(
-      `\\bname\\s*:\\s*["']${escapeRegExp(serverOwnedTool)}["']`,
-    );
-    if (fallbackToolNamePattern.test(canonicalSurfaceText)) {
-      issues.push(
-        `scripts/data-app-authoring-surface.mjs: bootstrap tools must not advertise server-owned MCP tool schema ${serverOwnedTool}; use live tools/list from semaphor-app`,
-      );
-    }
-  }
-  for (const forbiddenPath of [
-    "scripts/generate-data-app-contract.mjs",
-    "scripts/shared-codegen-loader.mjs",
-    "scripts/test-generate-data-app-contract.mjs",
-    "scripts/validate-semaphor-data-app.mjs",
-    "scripts/data-app-codegen-summary-validation.mjs",
-    "scripts/data-app-contract-update-policy.mjs",
-    "scripts/generated-contract-files.mjs",
-  ]) {
-    if (fs.existsSync(path.join(root, forbiddenPath))) {
-      issues.push(
-        `${forbiddenPath}: hard migration forbids plugin-local Data App contract generator/validator wrappers; use server-owned MCP contract tools instead`,
-      );
-    }
-  }
-}
-
-function textBetween(text, start, end) {
-  const startIndex = text.indexOf(start);
-  if (startIndex < 0) return "";
-  const contentStart = startIndex + start.length;
-  const endIndex = text.indexOf(end, contentStart);
-  if (endIndex < 0) return text.slice(contentStart);
-  return text.slice(contentStart, endIndex);
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function scanDistributionText() {
@@ -522,10 +235,12 @@ function scanDistributionText() {
     /support@sema4\.cloud/,
     /Semaphor LLC/,
     /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/,
+    // Removed with the Data App workflow (Analytics MCP focus, Phase 1.3b).
+    /semaphor-mcp-remote|semaphor-data-app\.mjs|VITE_SEMAPHOR_PROJECT_TOKEN|semaphor_get_data_app_runtime_token/,
+    // Argument names the server removed and now rejects (CONTRACTS section 12.1).
+    /\bresponse_format\b|\binclude_template\b|\binclude_query_inputs\b|\bmax_cards\b/,
   ];
-  const textFiles = collectFiles(root).filter((filePath) =>
-    /\.(json|md|mjs|txt|example)$/.test(filePath),
-  );
+  const textFiles = collectFiles(root).filter((filePath) => /\.(json|md|mjs|txt|example)$/.test(filePath));
   for (const filePath of textFiles) {
     const relativePath = path.relative(root, filePath);
     if (relativePath === "package-lock.json") continue;
@@ -533,83 +248,7 @@ function scanDistributionText() {
     const text = fs.readFileSync(filePath, "utf8");
     for (const pattern of forbidden) {
       if (pattern.test(text)) {
-        issues.push(
-          `${relativePath}: contains forbidden distribution text matching ${pattern}`,
-        );
-      }
-    }
-  }
-}
-
-function scanDataAppContractGuidance() {
-  const forbiddenPhrases = [
-    "write returned generated contract payload",
-    "write structuredContent.files exactly",
-    "write the returned src/semaphor/generated payload exactly",
-    "write the returned generated file payload",
-    "semaphor_generate_data_app_contract(planArtifactId, workspaceDir)",
-    "semaphor_generate_data_app_contract with workspaceDir",
-    "semaphor_create_data_app_contract with workspaceDir",
-    "semaphor_update_data_app_contract with workspaceDir",
-    "semaphor_materialize_data_app_contract(generatedContractArtifactId, workspaceDir)",
-    "generatedContractArtifactId plus workspaceDir",
-    "generatedContractArtifactId with workspaceDir",
-    "preferences.maxViews",
-    "planner `preferences`",
-    "or `preferences`",
-    "preferences, responseDetail",
-    "access-context guidance only",
-    "exposes only access-context guidance",
-    "generatedContractPayload returned by semaphor_generate_data_app_contract",
-    "full generatedContractPayload returned by semaphor_generate_data_app_contract",
-    "constraints.maxViews: 15",
-  ];
-  const textFiles = collectFiles(root).filter((filePath) =>
-    /\.(md|txt|json)$/.test(filePath),
-  );
-  for (const filePath of textFiles) {
-    const relativePath = path.relative(root, filePath);
-    if (relativePath === "package-lock.json") continue;
-    const text = fs.readFileSync(filePath, "utf8");
-    for (const phrase of forbiddenPhrases) {
-      if (text.includes(phrase)) {
-        issues.push(
-          `${relativePath}: Data App guidance must use generate -> materialize; remove legacy guidance (${phrase})`,
-        );
-      }
-    }
-    if (
-      /npm run data-app -- (inspect-state|update-contract|materialize-contract|publish|prepare-publish|save-draft)/.test(
-        text,
-      ) ||
-      /npm run (load:data-app|save:data-app|publish:data-app|prepare:publish)/.test(text)
-    ) {
-      issues.push(
-        `${relativePath}: Data App guidance must use the concrete node <semaphorPluginRoot>/scripts/semaphor-data-app.mjs command or localMaterialization.officialCommand, not package-local npm run aliases`,
-      );
-    }
-  }
-}
-
-function validateCanonicalDataAppAuthoringGuidance() {
-  const guidanceFiles = [
-    "skills/semaphor-data-apps/SKILL.md",
-    "skills/semaphor-data-apps/references/mcp-authoring.md",
-    "docs/INSTALLATION_AND_AUTH.md",
-    "docs/TROUBLESHOOTING.md",
-  ];
-  for (const relativePath of guidanceFiles) {
-    const absolutePath = path.join(root, relativePath);
-    if (!fs.existsSync(absolutePath)) {
-      issues.push(`${relativePath}: missing canonical Data App authoring guidance`);
-      continue;
-    }
-    const text = fs.readFileSync(absolutePath, "utf8");
-    for (const toolName of EXPECTED_CANONICAL_DATA_APP_AUTHORING_TOOLS) {
-      if (!text.includes(toolName)) {
-        issues.push(
-          `${relativePath}: canonical Data App authoring guidance must mention ${toolName}`,
-        );
+        issues.push(`${relativePath}: contains forbidden distribution text matching ${pattern}`);
       }
     }
   }
@@ -630,34 +269,24 @@ function collectFiles(current, files = []) {
 }
 
 requireFile("README.md");
-requireFile("AGENTS.md");
+requireFile("LICENSE");
 requireFile(".codex-plugin/plugin.json");
 requireFile(".claude-plugin/plugin.json");
 requireFile(".mcp.json");
 requireFile("assets/composer-icon.png");
 requireFile("assets/logo.png");
 requireFile("assets/logo-source.png");
-requireFile("scripts/call-semaphor-tool.mjs");
-requireFile("scripts/detect-react-app.mjs");
-requireFile("scripts/data-app-authoring-surface.mjs");
-requireFile("scripts/init-semaphor-data-app.mjs");
-requireFile("scripts/semaphor-data-app.mjs");
-requireFile("scripts/test-mcp-bridge.mjs");
+requireFile("docs/INSTALLATION_AND_AUTH.md");
+requireFile("docs/TROUBLESHOOTING.md");
 requireDirectory("skills");
-requireDirectory("scripts");
-requireDirectory("docs");
 
 validatePackageJson();
 validateCodexManifest();
 validateClaudeManifest();
 validateVersionSync();
 validateMcpConfig();
-validateSkillStructure();
-validateDataAppInitializer();
-validateMcpBridge();
+validateAnalyticsSkill();
 scanDistributionText();
-scanDataAppContractGuidance();
-validateCanonicalDataAppAuthoringGuidance();
 
 if (issues.length > 0) {
   console.error("Semaphor Agent Plugin package validation failed:");

@@ -1,23 +1,14 @@
 {
   "name": "semaphor",
-  "version": "0.1.14",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "detect": "node scripts/detect-react-app.mjs",
-    "call:mcp": "node scripts/call-semaphor-tool.mjs",
-    "init:data-app": "node scripts/init-semaphor-data-app.mjs",
-    "data-app": "node scripts/semaphor-data-app.mjs",
-    "load:data-app": "node scripts/semaphor-data-app.mjs load",
-    "save:data-app": "node scripts/semaphor-data-app.mjs save-draft",
-    "prepare:publish": "node scripts/semaphor-data-app.mjs prepare-publish",
-    "publish:data-app": "node scripts/semaphor-data-app.mjs publish",
-    "test:mcp-bridge": "node scripts/test-mcp-bridge.mjs",
-    "validate:plugin": "node scripts/validate-plugin-package.mjs && node scripts/test-mcp-bridge.mjs",
-    "validate:codex-plugin": "node scripts/validate-plugin-package.mjs --codex && node scripts/test-mcp-bridge.mjs",
-    "validate:claude-plugin": "claude plugin validate ."
+    "validate:plugin": "node scripts/validate-plugin-package.mjs",
+    "validate:codex-plugin": "node scripts/validate-plugin-package.mjs",
+    "validate:claude-plugin": "claude plugin validate --strict ."
   }
 }

@@ -1,58 +1,49 @@
 # Semaphor
 
-Build Semaphor-backed Vite React data apps from Codex or Claude Code.
+Answer business questions with governed analytics from your Semaphor
+projects, in Claude Code or Codex.
 
-This is the installable Semaphor plugin package. It provides shared skills,
-MCP configuration, and helper scripts for building, validating, saving, and
-publishing governed Semaphor Data Apps.
+This is the installable Semaphor plugin package. It provides:
 
-For installation instructions, see the marketplace README at the repository
-root:
+- the `semaphor` MCP server (`https://semaphor.cloud/api/mcp`): your semantic
+  model, governed queries, dashboards and a SQL escape hatch, all under your
+  Semaphor permissions;
+- the `semaphor-analytics` skill, which teaches the agent to ground answers in
+  the semantic model and explain them from governed results.
 
-```text
-https://github.com/semaphor-analytics/agent-plugin
-```
+For installation, see the marketplace README at the repository root:
+`https://github.com/semaphor-analytics/agent-plugin`.
 
-## Quick Start
+## Quick start
 
-1. Connect to Semaphor.
-
-   For the lowest-friction first run, log in with the hosted `semaphor` MCP
-   server when your agent host asks for auth.
-
-   For deterministic scoped development, add a Semaphor project token to your
-   React app's ignored local env file:
-
-   ```bash
-   VITE_SEMAPHOR_PROJECT_TOKEN="<project-token>"
-   ```
-
-   The plugin helper scripts also accept `SEMAPHOR_PROJECT_TOKEN` from shell
-   env or local env files.
-
-   Hosted Semaphor needs no extra server URL. Helper HTTP calls use the
-   `apiServiceUrl` encoded in the project token. MCP routing derives from the
-   same token `apiServiceUrl` plus `/api/mcp`.
-
-2. Open Codex or Claude Code in your React app repository. If you are starting
-   fresh, use `https://github.com/semaphor-analytics/semaphor-data-app-starter`.
-
-3. Ask:
+1. Install the plugin and log in (`/mcp` in Claude Code, or
+   `codex mcp login semaphor` in Codex).
+2. Ask:
 
    ```text
-   Inspect my Semaphor project and propose a data app plan.
+   What data can I analyze in Semaphor?
+   How did revenue change last quarter, and what drove it?
+   Check whether my sales dashboard's numbers are right.
    ```
 
-4. Review the proposed domain, views, filters, table/dependency choices, and
-   files to change. Then ask the agent to build, revise, validate, save, or
-   publish the app.
+## What this plugin connects to and sends
+
+- It runs no local code, hooks or package installs. Its only component
+  besides the skill is one remote MCP server, `https://semaphor.cloud/api/mcp`
+  (Streamable HTTP).
+- Your client logs in to Semaphor with OAuth. The login grants read access
+  (`mcp:read`); changes also need write access (`mcp:write`) and an author
+  role.
+- The agent sends the tool calls it makes (semantic queries, dashboard ids,
+  change proposals) to that server, which returns governed results from your
+  own Semaphor data under your permissions and security policies.
+- Nothing deletes, publishes, schedules or sends anything. Changes (creating
+  a dashboard, adding a relationship) start with a preview and apply only
+  through `semaphor_apply_change`.
 
 ## Documentation
 
-- [Installation and auth](docs/INSTALLATION_AND_AUTH.md)
-- [Golden workflows](docs/GOLDEN_WORKFLOWS.md)
-- [Canonical Data Apps SDK guide](https://docs.semaphor.cloud/docs/data-apps/agent-builder-guide)
-- [Bundled SDK fallback reference](docs/DATA_APP_SDK_REFERENCE.md)
-- [Bundled SDK fallback examples](docs/SDK_HOOK_EXAMPLES.md)
-- [Publishing to Semaphor](docs/PUBLISHING_TO_SEMAPHOR.md)
+- [Installation and auth](docs/INSTALLATION_AND_AUTH.md): OAuth, and MCP
+  project tokens for headless and embedded use
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [The analytics skill](skills/semaphor-analytics/SKILL.md)
