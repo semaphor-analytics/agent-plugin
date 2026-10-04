@@ -5,12 +5,12 @@
 The plan lives in the Semaphor app repository:
 
 - names and exact values:
-  `semaphor-app/docs/implementation-plans/analytics-mcp-focus/CONTRACTS.md`
+  `semaphor-app/docs/implementation-plans/analytics-mcp-and-sdk/CONTRACTS.md`
   (wins on any conflict);
 - tasks, "not in this phase" and "done when":
-  `semaphor-app/docs/implementation-plans/analytics-mcp-focus/PLAN-1-PHASES.md`,
+  `semaphor-app/docs/implementation-plans/analytics-mcp-and-sdk/PLAN-1-PHASES.md`,
   Phase 1.3b;
-- findings: `semaphor-app/docs/implementation-plans/analytics-mcp-focus/PLAN-1-REVIEW-LEDGER.md`.
+- findings: `semaphor-app/docs/implementation-plans/analytics-mcp-and-sdk/PLAN-1-REVIEW-LEDGER.md`.
 
 Rohit asked for all of Plan 1 in one pass (2026-10-04). The work is
 uncommitted on branch `fix/mcp-rework` in this repo and in semaphor-app; the
@@ -64,7 +64,7 @@ scripts, publishing) is removed; the server no longer registers those tools.
 
 ## Active boundary: Analytics MCP focus, Plan 1, Phase 1.6b (change pair references)
 
-**Plan:** `semaphor-app/docs/implementation-plans/analytics-mcp-focus/PLAN-1-PHASES.md`
+**Plan:** `semaphor-app/docs/implementation-plans/analytics-mcp-and-sdk/PLAN-1-PHASES.md`
 Phase 1.6b; uncommitted.
 
 **In scope:**
