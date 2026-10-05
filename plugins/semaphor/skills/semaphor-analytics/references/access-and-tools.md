@@ -31,6 +31,10 @@
 | `apply_outcome_unknown` | The first apply never recorded a result. Check whether the change landed (the error says how) before proposing again. |
 | `proposal_not_found` | The proposal expired (30 minutes) or belongs to someone else. Propose again. |
 | `change_not_allowed_for_credential` | Semantic model changes need an interactive login, not a token. |
+| `missing_relationship`, `ambiguous_relationship` | Choose connected data or an explicit relationship path; changing the wording of the question will not repair the model. |
+| `unsafe_join` | The requested join cannot safely aggregate the measure. Follow the returned grouping or separate-query guidance. |
+| `unsupported_capability` | This execution surface cannot run the required strategy. Change the query configuration. |
+| `execution_failed`, `timeout` | The query failed while running. Retry or narrow the request; preserve the code when reporting a recurring failure. |
 | `tool_timeout` | Narrow the request (fewer rows, a shorter window, fewer fields) and retry. |
 | `Project token is scoped to project "…"` | Token sessions can't switch projects. Use the token's project. |
 | `projectId is required` (with a project list) | Pick the project the user means and pass `projectId`. |
