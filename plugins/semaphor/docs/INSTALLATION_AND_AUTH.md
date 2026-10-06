@@ -89,7 +89,7 @@ Add a second server next to the plugin's OAuth server, at
 `https://semaphor.cloud/api/mcp` over Streamable HTTP, that sends the token
 as `Authorization: Bearer <token>`. Step-by-step setup for Claude Code, Codex,
 Cursor and other clients is in the Semaphor docs:
-https://docs.semaphor.cloud/docs/mcp/client-setup/programmatic#headless-and-embedded-clients
+https://docs.semaphor.cloud/docs/mcp/connect-with-token#point-a-client-at-the-token
 
 ## What each session can do
 
