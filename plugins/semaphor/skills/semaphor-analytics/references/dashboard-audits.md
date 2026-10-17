@@ -10,10 +10,18 @@ right, or why two numbers disagree.
    "This month"), authored measures, dimensions and date fields, source
    references, and bounded query inputs. Treat it as the primary grounding:
    don't rediscover the same dashboard through broad discovery.
-3. **Re-run a card's question governed.** Rebuild the card's question with
+3. **Run the card as it is.** `semaphor_analyze` with only
+   `fromCard: { "dashboardId": "...", "cardId": "..." }` returns the card's
+   own rows, with everything it runs on its dashboard (filters, drill steps,
+   default inputs and date range, parameters, comparisons).
+   `executionResult.constraints` names the filters and date windows it
+   applied and any it skipped. A Matrix card, a text card or a card in a
+   Document section returns `card_not_supported`.
+4. **Re-run the card's question governed.** Rebuild the question with
    `semaphor_analyze` (or `semaphor_matrix` for a Matrix card) using the
-   card's fields and filters, and compare values.
-4. **Explain any difference** by naming what differs: the time window, a
+   card's fields and filters, and compare its values with the card's own.
+   Compare the two results' `executionResult.constraints` first.
+5. **Explain any difference** by naming what differs: the time window, a
    filter, an aggregate, a join path, or a security policy that limits the
    viewer's rows.
 

@@ -36,7 +36,12 @@ write access and an author role or higher:
 Kinds:
 
 - **Add a relationship:** `target: { "kind": "semantic_model", "domainId": "…" }`
-  with one operation `{ "op": "add_relationship", "relationship": { "sourceDataset", "sourceFields", "targetDataset", "targetFields", "cardinality", "defaultJoinType" } }`.
+  with one operation `{ "op": "add_relationship", "relationship": { "from": { "dataset", "fields" }, "to": { "dataset", "fields" }, "cardinality", "defaultJoinType" } }`.
+  `from` is the many side; `to` is the side whose fields identify one row.
+  `cardinality` is `many_to_one` or `one_to_one`; `defaultJoinType` is
+  `LEFT` or `INNER`; both ends list the same number of fields. A warning
+  that the `to` fields don't identify one row doesn't block the change:
+  show it with the preview.
   Needs an interactive login: token sessions get
   `change_not_allowed_for_credential`.
 - **Create a dashboard:** `target: { "kind": "dashboard" }` with one
