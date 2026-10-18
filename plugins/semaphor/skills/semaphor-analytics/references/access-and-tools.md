@@ -18,7 +18,8 @@
 | Project listing | Yes | No (pinned) | No (pinned) |
 | Semantic discovery, `analyze`, `matrix`, dashboards | Yes | Yes | Yes, for their own data |
 | SQL and physical discovery | Author role or higher | Author role or higher, unless the token turns SQL off | Unless the token turns SQL off |
-| Change tools (`semaphor_propose_change`, `semaphor_apply_change`) | Author role or higher with write scope | Same, dashboards only | No |
+| `semaphor_propose_change` (saves nothing) | Author role or higher | Same, dashboards only | No |
+| `semaphor_apply_change` | Author role or higher with write scope | Same, dashboards only | No |
 
 ## Errors worth knowing
 
