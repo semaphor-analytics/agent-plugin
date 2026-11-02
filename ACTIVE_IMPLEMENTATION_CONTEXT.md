@@ -1,75 +1,67 @@
 # Active Implementation Context
 
-Active effort: **Plan B, agents state the same date windows as the editor** (relative-date-as-of). **Phase 5 of 5 in progress: agents are taught windows, then the plan closes.** Phases 1 to 4 closed and committed by Rohit (2026-10-28). Phase 5 stays uncommitted. Plan Revision 6 and spec Revision 5 approved by Rohit (2026-10-28).
+Active effort: **Semantic model editing through the MCP** (mcp-semantic-model-editing). semaphor-app, react-semaphor, semaphor-fumadocs and agent-plugin (Phase 5), on `feature/mcp-semantic-model-editing` cut from main in each, uncommitted. Commits and releases are Rohit's.
 
-The plan is `semaphor-app/docs/implementation-plans/relative-date-as-of/`, and the documents in it own the detail:
-- **`PLAN-B.md`**: scope, decisions (RB-D1 to RB-D16), invariants (RB-INV-1 to RB-INV-7) and the phase checklists, each with its review boundary and expected behavior changes.
-- **`SPEC-B.md`**: every type, signature, rule, refusal and reference example. "SPEC-B 3.2" means its section 3.2.
-- **`REVIEW-LEDGER-B.md`**: investigation (B-IN), design review (B-ED) and phase (B-Pn) findings, with evidence and recurring hotspots.
-- Plan A (`PLAN.md`, `SPEC.md`, closed) owns the window type itself; SPEC-B builds on it.
+The plan is `semaphor-app/docs/implementation-plans/mcp-semantic-model-editing/`:
+- **`PLAN.md`** (Revision 2, approved by Rohit 2026-11-01 as recommended): scope, decisions SE-D1 to SE-D12, invariants SE-INV-1 to SE-INV-8, resolved questions SE-Q1 to SE-Q4, and a checklist per phase, ticked as work lands.
+- **`REVIEW-LEDGER.md`**: findings with root cause, owning seam, fix and evidence (`P<phase>-<nn>`), and recurring hotspots.
 
-Read this file with `AGENTS.md` and `REVIEWER_GUIDANCE.md` before implementing or reviewing.
-
-This file is identical in `react-semaphor`, `semaphor-app`, `semaphor-report-scheduler`, `agent-plugin` and `semaphor-fumadocs`; edit every copy together. The scheduler, agent-plugin and fumadocs work on `main`, uncommitted.
-
-**Where the work is:**
-- **Branch:** `feature/relative-date-window` in both repos, continuing after Plan A (react-semaphor `595e2661`, semaphor-app `6c5d08de0`).
-- **Commits** are Rohit's. **Database:** no changes. **Release:** once, after Phase 5: semaphor-app, react-semaphor and the scheduler together (RB-D13).
-- **Builds** take a long time: build react-semaphor only when the app needs its new exports or a check can't be had otherwise. Record a skipped build and its reason in the ledger.
+Read this file with `AGENTS.md` and `REVIEWER_GUIDANCE.md` (semaphor-app's is shared by every repo) before implementing or reviewing. It is identical in semaphor-app, react-semaphor, semaphor-fumadocs and agent-plugin; edit every copy together. The usage-events effort's context is replaced here at Rohit's request; its plan stays where it is.
 
 ## Intent
 
-Today agents state dates in their own grammar (`{ unit, value, anchor?, completeness? }`, calendar and absolute windows), and about twenty files translate it into the editor's window type at the edges. The result is windows agents can't state ("Year to last completed month"), one request with two meanings, guessed completeness, several resolvers, hidden period-change fallbacks, and three validators. Plan B makes an agent's window the editor's window (`RelativeDateWindow`) or two absolute instants, read by one reader (`readAgentTimeWindow`), resolved by one resolver (`resolveAgentTimeWindow`), and reported from what ran by one builder (`reportTimeWindow`).
+An agent in Claude, ChatGPT or any MCP client can improve a semantic domain as it works: add and remove synonyms and example questions, set instructions, labels and descriptions, formats and direction, hide a field, add a calculation, change a definition, and turn a relationship off. Each change reads back in one line before it is saved (what, from → to, what stays), and nothing an author typed by hand is overwritten unseen. Today the MCP's only domain change is `relationship.add`.
 
-| Phase | Milestone |
-| --- | --- |
-| 1 (closed) | Retire the frozen Data App SDK: the rs SDK and its exports, the app route `POST /api/v1/data-app/execute`, the modules only it reaches (its records window path included), and its local eval. |
-| 2 (closed) | Agent queries hold one checked window and use the resolver and the report builder. Inputs still take today's grammar (an interim reader body). |
-| 3 (closed) | Period change on the same window; both fallbacks gone; every windowed request bounded to its window; empty results say why. |
-| 4 (closed) | Every window field takes the window form; readback reports stored windows; today's grammar deleted. |
-| **5 (now)** | Guidance, prompts, evals and docs teach the window form; the plan closes. |
+## Phases
 
-## Key decisions (approved; do not re-litigate)
+Current: Phase 4.
 
-- **RB-D9:** the Data App SDK is retired, not migrated. It is a false start (Rohit, 2026-10-23). It is deleted by import graph; anything dashboards, input options or the MCP reach stays.
-- **RB-D11:** hard break. Nobody uses the MCP in production; no aliases, translations or version pins for today's grammar.
-- **RB-D2:** the anchor is required. **RB-D5:** saved cards and defaults refuse rolling windows of a day or longer. **RB-D16:** saved minute and hour windows need a column with a time of day.
-- **RB-D1, RB-D3, RB-D4, RB-D6 to RB-D8, RB-D10, RB-D12 to RB-D15:** as PLAN-B states them, including: `semaphor_matrix` conditions unchanged (RB-D14); the interim body is scaffolding that ships in no release (RB-D12); reported dates are the window's own executed bounds, not an intersection with other filters (RB-D10).
+1. **One edit owner (app).** The workbench's shared pure edit helpers move from `src/components/domain/utils/` to `src/lib/semantic/template/`; a pure resolver `applyDomainChanges` builds the template, before and after values and the readback line per change.
+2. **Descriptive kinds (rs, app, fumadocs).** `domain.update`, `dataset.update`, `field.update`, `metric.update`: label, description, Context, format, unit, direction, display field, `hidden: true`.
+3. **Definitions (rs, app, fumadocs).** `calculation.add` (placement decides the home), expressions, default aggregate, granularity, primary date field, `relationship.update`.
+4. **The assistant's block (rs, app).** The Data model changes block shows the new kinds.
+5. **Customer guide (fumadocs).** One page with every operation; agent-plugin check.
 
-## Phase 5 review boundary
+## Decisions in force (approved by Rohit; do not reopen)
 
-- **Plan:** the Phase 5 checklist and the close-out. **Spec:** SPEC-B 5 "Files per phase", row 5; what agents read must match SPEC-B 2.1 (the window form), 2.4 and 3.2 (refusals and fixes), 2.5 and 3.9 (`resolvedTimeWindow`), 3.6 (read-only windows) and 3.7 (`noChanges`).
-- **Built:**
-  - agent-plugin `answering-questions.md`, app `SEMAPHOR_MCP_README.md`, and the plugin and agent evals teach the window form, how to read `resolvedTimeWindow`, `noChanges` and a read-only window; the evals gain "set the revenue dashboard to year to last completed month";
-  - the scheduler's insight agent states the window form (RB-D13) and reports `noChanges.message`, never "no change"; a coverage test shows an empty period change answers no slot;
-  - fumadocs: the retired Data App SDK section removed with its navigation; the MCP pages on the window form; `content/mcp-tools.json` regenerated; the filters page no longer says agents can't set Year to last completed month;
-  - close-out: the dashboard-runtime and mcp-and-sdk areas, their explainers and `verified` stamps; plan, spec and ledger headers `closed`.
-- **Unchanged:** runtime code in the app and react-semaphor (Phase 4, closed). Only the scheduler's prompt text and tests change code.
-- **Proof:** the evals in the window form; scheduler tests; the coverage test; the fumadocs build; `npm run docs:check` and `npm run docs:map`.
+- **SE-D1** No new MCP tools: the kinds join `semaphor_propose_change` (with `domainId`) and apply through `semaphor_apply_change`.
+- **SE-D2** noun.verb names, no `domain.` prefix on dataset, field or metric kinds.
+- **SE-D3** One Context shape on every kind: `instructions` replaced (null clears), `synonyms` and `examples` only `add` / `remove`.
+- **SE-D4** Pure edit helpers live in `src/lib/semantic/template/`; kind schemas live in react-semaphor beside `relationshipAddSchema`; writers in the app.
+- **SE-D5** Who: `isOrgAuthorOrHigher` and `authorizeDomainWrite`, by role (AJ-D15, AJ-D19). No credential rule.
+- **SE-D6** A domain proposal holds `relationship.add` only, or the new kinds only (including `calculation.add` and `relationship.update`). New kinds apply all or nothing, 1 to 20.
+- **SE-D7** One readback line per change; text shortened to 80 characters; lists show adds, removes and a kept count.
+- **SE-D8** Propose stores the value read for each replaced value; apply refuses the whole proposal as `proposal_stale` if any changed, naming each. List adds and removes apply to the lists as they are at apply. The write uses `saveDomainTemplate` with `expectedStored`.
+- **SE-D9** A change to an existing definition (formula, default aggregate, grain, primary date, a relationship's state or join): `risk: medium`, a "used by" line from the domain model. `calculation.add` and the Phase 2 kinds are `risk: low` (nothing reads a new calculation yet). Every domain proposal has `confirm: needed`.
+- **SE-D10** What stays in the workbench is listed in the propose tool's description; anything else is refused by the schema.
+- **SE-D11** Limits are the template's (`AI_CONTEXT_LIMITS`, `validateDomainTemplate`), at propose and apply.
+- **SE-D12** Customer docs ship with each kind (Phases 2, 3) and a guide (Phase 5).
+- **SE-D13** The propose definition's hard cap is 32,500 in `mcp-propose-change-schema.test.ts` (approved by Rohit 2026-11-01); the ratchet is the measured size.
 
-## Expected behavior changes in Phase 5 (not findings)
+## Invariants
 
-- None at run time. The scheduler's insight agent sends window-form windows (its old grammar is refused since Phase 4) and reports why a period change has no changes.
-- Customer docs drop the Data App SDK pages (RB-D9) and describe the window form.
+- **SE-INV-1** Workbench and MCP build the same template from the same edit (parity test per kind).
+- **SE-INV-2** No wholesale replacement of a synonym or example list.
+- **SE-INV-3** `name` never changes; refused with "Change the label instead."
+- **SE-INV-4** A replaced value changed after propose is never overwritten.
+- **SE-INV-5** Every write goes through `saveDomainTemplate` and validates as 2.1.
+- **SE-INV-6** Propose saves nothing; apply saves all or none.
+- **SE-INV-7** No query hot path change.
+- **SE-INV-8** User-facing refusals and readback lines never name the product.
 
-Any other behavior change is a finding.
+## Review boundary
 
-## Not findings for this effort
+semaphor-app, Phase 1: the moved helpers and their new home in `src/lib/semantic/template/`, the workbench and other importers, the resolver and its tests. semaphor-app, later phases: `src/lib/mcp/changes/`, `src/lib/mcp/change-proposal-store.ts`, `src/app/api/mcp/tools/change-tools.ts`, the compact schema read in `grounding-tools.ts`, the MCP parity and plugin eval cases, and their tests. react-semaphor: the domain kind schemas beside `relationshipAddSchema` in `src/shared/dashboard-authoring/changes/`, `buildProposeChangeInputSchema`, and the assistant's `assistant-model-change.tsx` (Phase 4). semaphor-fumadocs: `content/docs/mcp/` pages for these kinds and the guide. agent-plugin: `skills/semaphor-analytics/references/semantic-model.md` and `access-and-tools.md`.
 
-- **Decided design:** the window type, anchors, uses, refusals and the comparison rule (Plan A SPEC; SPEC-B 2 and 3). The decisions above.
-- **Later work:** the release (Rohit, RB-D13) and commits (Rohit).
-- **Renaming** the governed execution modules the Data App SDK leaves behind (`lib/data-apps/execution/**` that dashboards still use): its own plan.
-- **`mcp-tools.json`** not regenerated: Phase 5 and a release check.
-- **A deferred react-semaphor build** recorded in the ledger with its reason.
-- **Races no real caller produces** (`REVIEWER_GUIDANCE.md`).
+## Do not flag (reviewers and implementers)
 
-## Checks for Phase 5
-
-- **semaphor-report-scheduler:** the insight-runner's tests and typecheck.
-- **semaphor-app:** `npm run eval:analytics-plugin` live, once (read `scripts/analytics-plugin-eval/README.md` first), the eval harness tests, one `npm run briefing:replay:latest`, `npm run docs:check`, `npm run docs:map`.
-- **semaphor-fumadocs:** the build.
-- Customer docs: brand-neutral where they describe customer surfaces, generic BI examples (orders, customers, regions), capabilities first, second person.
-
-## Ledger
-
-The implementer records every finding in `REVIEW-LEDGER-B.md` under its phase: the finding, the root cause, the owning seam, the fix, the evidence and the status. Checklist items are ticked in PLAN-B.md in the same edit that records their evidence. A pattern seen in two or more findings goes in the recurring hotspots table with its strategic fix. Reviewers are read-only; the implementer records their findings.
+- A count of dashboards or cards in the "used by" line: decided out (SE-Q1).
+- Unhiding a field through the MCP: decided out (SE-Q2).
+- `relationship.add` not mixable with the new kinds in one proposal (SE-D6, SE-Q3).
+- Keys, unique keys, sources and SQL, adding or removing datasets, removing fields, fact filters, field moves, renames: out of scope (SE-D10).
+- No compatibility shims for earlier MCP shapes: nobody depends on the MCP yet; reshaping is allowed.
+- The workbench saving by whole-template replace: unchanged; only its helpers move.
+- No credential (OAuth versus token) check on domain kinds: decided by role (SE-D5).
+- A metric across datasets' formula, turning a relationship back on, RIGHT or FULL joins: stay on the domain page (ledger P3-04, P3-05).
+- `relationship.update` not setting `updatedAt`: it matches the workbench's own delete (P3-05).
+- `calculation.add` at `risk: low`: agreed (SE-D9); it still asks for a yes.

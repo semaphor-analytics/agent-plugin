@@ -23,37 +23,57 @@ aggregate.
 
 ## Changing
 
-Every change goes through two tools, which appear only for sessions with
-write access and an author role or higher:
+Every change goes through two tools. Semantic model changes need an
+organization user with the Author role or higher; end users never change a
+semantic model.
 
 1. `semaphor_propose_change` previews the change and saves nothing. It
-   returns a `proposalId`, a `preview` of exactly what will happen,
-   `validation` and `risk`.
-2. Show the preview to the user and get an explicit go-ahead.
-3. `semaphor_apply_change` with the `proposalId` applies exactly that
-   preview. Then re-run the question that needed the change.
+   returns a `proposalId`, one `summary` sentence per change, `risk` and
+   `confirm`.
+2. Show the sentences to the user and get an explicit go-ahead. Every
+   semantic model change asks for one.
+3. `semaphor_apply_change` with the `proposalId` saves it. Then re-run the
+   question that needed the change.
 
-Kinds:
+A semantic model change takes the `domainId` and a `changes` list. Read the
+current values with `semaphor_get_dataset_schema` first.
 
-- **Add a relationship:** `target: { "kind": "semantic_model", "domainId": "…" }`
-  with one operation `{ "op": "add_relationship", "relationship": { "from": { "dataset", "fields" }, "to": { "dataset", "fields" }, "cardinality", "defaultJoinType" } }`.
-  `from` is the many side; `to` is the side whose fields identify one row.
-  `cardinality` is `many_to_one` or `one_to_one`; `defaultJoinType` is
-  `LEFT` or `INNER`; both ends list the same number of fields. A warning
-  that the `to` fields don't identify one row doesn't block the change:
-  show it with the preview.
-  Needs an interactive login: token sessions get
-  `change_not_allowed_for_credential`.
-- **Create a dashboard:** `target: { "kind": "dashboard" }` with one
-  operation `{ "op": "create", "request": { "prompt": "…", "domainId": "…", "datasetNames": ["…"] } }`.
-  The preview lists the dashboard and its cards; apply creates that plan as
-  a private dashboard.
+- **Improve what agents read:** `domain.update`, `dataset.update`,
+  `field.update` (with `dataset` and `field`) and `metric.update` (with
+  `metric`, and its `dataset` unless it spans datasets) change `label`,
+  `description` and `context`. In `context`, `instructions` replaces the text
+  (`null` clears it); `synonyms` and `examples` (example questions) take
+  `{ "add": [...], "remove": [...] }`. Never resend a whole list: add or remove
+  only the items the user named, so names an author typed stay. A field's or
+  metric's `name` never changes; change its `label`.
+- **Settings:** on a fact (`field.update`), `format`, `unit` and
+  `comparisonPolarity`; on a metric (`metric.update`), `format` and
+  `comparisonPolarity`; on a dimension, `isDisplayField`; `hidden: true`
+  hides a field.
+- **Definitions** (each line says what reads it; `risk: medium`): `expression`
+  on a calculated field or a metric on one dataset, `defaultAggregate` on a
+  fact, `granularity` on a date dimension, `primaryDateField` on a dataset,
+  and `relationship.update` (by name or id: `isActive: false`,
+  `defaultJoinType` `LEFT` or `INNER`).
+- **New calculation:** `calculation.add` with `name`, `expression` and its
+  `dataset`, or `inputs` for a metric across datasets; the domain places it.
+- **Add a relationship:** `relationship.add` with
+  `from: { "dataset", "fields" }` (the many side), `to: { "dataset", "fields" }`
+  (the side whose fields identify one row), `cardinality` (`many_to_one` or
+  `one_to_one`) and `defaultJoinType` (`LEFT` or `INNER`). Up to five in one
+  proposal, which holds only relationships. A warning that the `to` fields
+  don't identify one row doesn't block it: show it with the preview.
+
+Keys, dataset sources and SQL, adding or removing datasets, unhiding a field,
+fact filters and composed dimensions stay on the domain page: say so.
 
 Proposals expire after 30 minutes. Retrying `semaphor_apply_change` with the
 same `proposalId` is safe: it returns the recorded result with
-`replayed: true` and never applies twice. On `proposal_stale` (the model
-changed after the preview), propose again. On `apply_outcome_unknown`, check
-whether the change landed, as the error describes, before proposing again.
+`replayed: true` and never applies twice. On `proposal_stale`, someone changed
+the domain after the preview; `changed` names each value and what it is now.
+Tell the user, read it again and propose again. On
+`apply_outcome_unknown`, check whether the change landed, as the error
+describes, before proposing again.
 
 Never apply a change the user didn't ask for, and never work around a missing
 relationship by forcing joins in SQL.

@@ -18,8 +18,8 @@
 | Project listing | Yes | No (pinned) | No (pinned) |
 | Semantic discovery, `analyze`, `matrix`, dashboards | Yes | Yes | Yes, for their own data |
 | SQL and physical discovery | Author role or higher | Author role or higher, unless the token turns SQL off | Unless the token turns SQL off |
-| `semaphor_propose_change` (saves nothing) | Author role or higher | Same, dashboards only | No |
-| `semaphor_apply_change` | Author role or higher with write scope | Same, dashboards only | No |
+| `semaphor_propose_change` (saves nothing) | Author role or higher | Same | No |
+| `semaphor_apply_change` | Author role or higher with write scope | Same | No |
 
 ## Errors worth knowing
 
@@ -27,11 +27,10 @@
 | --- | --- |
 | `capability_required` | The argument needs SQL access. Use the semantic form of the tool. |
 | `write_scope_required` | The session is read-only. Tell the user; they can reconnect requesting write access. |
-| `proposal_stale` | The target changed after the preview. Propose the change again. |
+| `proposal_stale` | The target changed after the preview (for a semantic model change, a value it replaces). Read it again and propose the change again. |
 | `apply_in_progress` | The first apply is still running. Retry the same call shortly. |
 | `apply_outcome_unknown` | The first apply never recorded a result. Check whether the change landed (the error says how) before proposing again. |
 | `proposal_not_found` | The proposal expired (30 minutes) or belongs to someone else. Propose again. |
-| `change_not_allowed_for_credential` | Semantic model changes need an interactive login, not a token. |
 | `missing_relationship`, `ambiguous_relationship` | Choose connected data or an explicit relationship path; changing the wording of the question will not repair the model. |
 | `unsafe_join` | The requested join cannot safely aggregate the measure. Follow the returned grouping or separate-query guidance. |
 | `unsupported_capability` | This execution surface cannot run the required strategy. Change the query configuration. |

@@ -101,7 +101,7 @@ What the agent sees depends on who is calling:
 | Semantic model, governed analytics, dashboards | Yes | Yes | Yes, for that user's data |
 | SQL and physical tables | Author role or higher | Author role or higher, unless the token turns SQL off | Unless the token turns SQL off |
 | Create dashboards | Author role or higher with write access | Same | No |
-| Change the semantic model | Author role or higher with write access | No | No |
+| Change the semantic model | Author role or higher with write access | Same | No |
 
 Every query runs under the caller's permissions and security policies.
 
