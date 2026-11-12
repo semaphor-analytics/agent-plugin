@@ -9,7 +9,7 @@
       "name": "semaphor",
       "displayName": "Semaphor",
       "description": "Answer business questions with governed analytics from your Semaphor projects.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "source": "./plugins/semaphor",
       "author": {
         "name": "Semaphor Analytics Corp.",

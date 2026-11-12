@@ -55,8 +55,12 @@ current values with `semaphor_get_dataset_schema` first.
   fact, `granularity` on a date dimension, `primaryDateField` on a dataset,
   and `relationship.update` (by name or id: `isActive: false`,
   `defaultJoinType` `LEFT` or `INNER`).
-- **New calculation:** `calculation.add` with `name`, `expression` and its
-  `dataset`, or `inputs` for a metric across datasets; the domain places it.
+- **New calculation in the domain:** `calculation.add` with `name`,
+  `expression` and its `dataset`, or `inputs` for a metric across datasets, in
+  a proposal with `domainId` and no `dashboardId`; the domain places it.
+  `calculation.update` changes its `label`, `description` or `expression`
+  (`dataset` and `name` name it). Removing one stays on the domain page.
+
 - **Add a relationship:** `relationship.add` with
   `from: { "dataset", "fields" }` (the many side), `to: { "dataset", "fields" }`
   (the side whose fields identify one row), `cardinality` (`many_to_one` or
@@ -77,3 +81,23 @@ describes, before proposing again.
 
 Never apply a change the user didn't ask for, and never work around a missing
 relationship by forcing joins in SQL.
+
+## A formula a card needs
+
+Use the domain's calculation when it has one: name it in the card's query.
+When the domain lacks it, add it to the dashboard, not the domain: in the
+dashboard proposal, `calculation.add` with `domainId`, `dataset` and the
+dataset's field names (`"expression": "duration_ms / 1000"`), then name it in
+the card's query like any field, in the same proposal. A dashboard field reads
+one dataset; a formula over several datasets or over a metric belongs in the
+domain. Add to the domain only when the user asks for it there, and never copy
+a domain formula into the dashboard.
+
+The outline's `calculatedFields` lists the dashboard's fields in the words
+`calculation.add` takes, with `usedBy`. `calculation.update` (by `name`)
+changes one and every card that uses it follows; `calculation.remove` is
+refused while a card or filter uses it. A card may show a dashboard field
+beside the fields it reads and sort by it; a date grouping or a condition on
+a dashboard measure, and a Matrix on one, stay in the editor. A change keeps a
+measure per row or over aggregates, as it was; for the other, add a new field.
+A number format goes on the card's `columns`, not on the calculation.
