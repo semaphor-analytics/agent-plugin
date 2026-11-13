@@ -34,9 +34,11 @@ Pass the agent-friendly fields:
 - `measures` is required. To count rows, use the `__count` measure.
 - Fields from related datasets use source-bearing refs (`datasetName`); the
   semantic model resolves the joins.
-- Comparisons: `"comparison": { "kind": "previous_period" }` or
-  `"previous_year"`; add `"driverMode": "all"` to see which dimension values
-  drove the change.
+- Comparisons: `"comparison": { "kind": "shift", "unit": "period" }` (the
+  period before) or `{ "kind": "shift", "unit": "year" }` (last year); other
+  units (`"day"`, `"week"`, `"month"`, `"quarter"`) and `"offset"` step further
+  back. Add `"driverMode": "all"` to see which dimension values drove the
+  change.
 - Spikes and declines over time: `"analysis": { "kind": "period_change" }`.
 - Share of total: `"includePopulation": true`.
 - `responseDetail: "compact"` trims large payloads.
